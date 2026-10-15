@@ -217,6 +217,16 @@ pub fn rerolls_left(used: u32) -> u32 {
     MAX_REROLLS.saturating_sub(used)
 }
 
+/// Peeks used after putting the current slip back, or `None` when it has to stay.
+/// Slips the app generated go back for free, so you can browse them without limit.
+pub fn put_back(used: u32, generated: bool) -> Option<u32> {
+    match (generated, used < MAX_REROLLS) {
+        (true, _) => Some(used),
+        (false, true) => Some(used + 1),
+        (false, false) => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -376,6 +386,15 @@ mod tests {
         assert_eq!(old, 3.0, "capped");
         c.last_skipped_at = Some(NOW - DAY);
         assert_eq!(weight(&c, NOW), 1.5);
+    }
+
+    #[test]
+    fn generated_slips_go_back_for_free() {
+        assert_eq!(put_back(0, false), Some(1));
+        assert_eq!(put_back(MAX_REROLLS - 1, false), Some(MAX_REROLLS));
+        assert_eq!(put_back(MAX_REROLLS, false), None);
+        assert_eq!(put_back(0, true), Some(0));
+        assert_eq!(put_back(MAX_REROLLS, true), Some(MAX_REROLLS), "free even when out of peeks");
     }
 
     #[test]

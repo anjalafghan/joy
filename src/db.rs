@@ -21,6 +21,8 @@ pub struct Activity {
     pub times_done: i64,
     pub last_done_at: Option<i64>,
     pub last_skipped_at: Option<i64>,
+    /// Suggested by the app rather than written by us ("generated for you").
+    pub generated: bool,
 }
 
 impl Activity {
@@ -73,6 +75,9 @@ pub struct ActivityInput {
     pub energy: String,
     #[serde(default)]
     pub added_by: String,
+    /// Ids of slips this one pairs well with.
+    #[serde(default)]
+    pub pairs: Vec<i64>,
 }
 
 /// An empty cost field means free, not a bad request.
@@ -86,7 +91,7 @@ fn blank_as_zero<'de, D: serde::Deserializer<'de>>(d: D) -> Result<i64, D::Error
 }
 
 const COLS: &str = "id, title, notes, est_cost, setting, area, venue, lat, lng, duration, tags, energy, \
-                    added_by, times_done, last_done_at, last_skipped_at";
+                    added_by, times_done, last_done_at, last_skipped_at, generated";
 
 pub async fn list(db: &SqlitePool, archived: bool) -> sqlx::Result<Vec<Activity>> {
     sqlx::query_as(&format!(
@@ -104,7 +109,8 @@ pub async fn get(db: &SqlitePool, id: i64) -> sqlx::Result<Option<Activity>> {
         .await
 }
 
-pub async fn save(db: &SqlitePool, id: Option<i64>, a: &ActivityInput, latlng: Option<(f64, f64)>) -> sqlx::Result<()> {
+/// Insert or update a slip and its pairs; returns its id.
+pub async fn save(db: &SqlitePool, id: Option<i64>, a: &ActivityInput, latlng: Option<(f64, f64)>) -> sqlx::Result<i64> {
     let tags = a
         .tags
         .split(',')
@@ -118,7 +124,7 @@ pub async fn save(db: &SqlitePool, id: Option<i64>, a: &ActivityInput, latlng: O
         Some(_) => "UPDATE activities SET title = ?, notes = ?, est_cost = ?, setting = ?, duration = ?, venue = ?, area = ?,
                     lat = ?, lng = ?, tags = ?, energy = ?, added_by = ? WHERE id = ?",
     };
-    sqlx::query(sql)
+    let done = sqlx::query(sql)
         .bind(a.title.split_whitespace().collect::<Vec<_>>().join(" "))
         .bind(a.notes.trim())
         .bind(a.est_cost.max(0))
@@ -134,7 +140,41 @@ pub async fn save(db: &SqlitePool, id: Option<i64>, a: &ActivityInput, latlng: O
         .bind(id)
         .execute(db)
         .await?;
-    Ok(())
+    // From this statement's own result: a separate query could run on another pool connection.
+    let id = id.unwrap_or(done.last_insert_rowid());
+    set_pairs(db, id, &a.pairs).await?;
+    Ok(id)
+}
+
+/// All pairs as (smaller id, larger id).
+pub async fn pairs(db: &SqlitePool) -> sqlx::Result<Vec<(i64, i64)>> {
+    sqlx::query_as("SELECT a_id, b_id FROM pairs").fetch_all(db).await
+}
+
+/// Slips still in the jar that pair with `id`.
+pub async fn partners(db: &SqlitePool, id: i64) -> sqlx::Result<Vec<Activity>> {
+    sqlx::query_as(&format!(
+        "SELECT {COLS} FROM activities WHERE archived = 0 AND id IN
+           (SELECT b_id FROM pairs WHERE a_id = ?1 UNION SELECT a_id FROM pairs WHERE b_id = ?1)
+         ORDER BY est_cost, title"
+    ))
+    .bind(id)
+    .fetch_all(db)
+    .await
+}
+
+/// Replace everything `id` pairs with.
+pub async fn set_pairs(db: &SqlitePool, id: i64, with: &[i64]) -> sqlx::Result<()> {
+    let mut tx = db.begin().await?;
+    sqlx::query("DELETE FROM pairs WHERE a_id = ?1 OR b_id = ?1").bind(id).execute(&mut *tx).await?;
+    for &other in with.iter().filter(|&&o| o != id) {
+        sqlx::query("INSERT OR IGNORE INTO pairs (a_id, b_id) VALUES (?, ?)")
+            .bind(id.min(other))
+            .bind(id.max(other))
+            .execute(&mut *tx)
+            .await?;
+    }
+    tx.commit().await
 }
 
 pub async fn set_archived(db: &SqlitePool, id: i64, archived: bool) -> sqlx::Result<()> {

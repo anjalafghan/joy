@@ -7,3 +7,6 @@
 
 # Design screenshots show real names; keep them local
 design/**/shots/
+
+# Demo videos show real names
+/demo

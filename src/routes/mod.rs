@@ -67,6 +67,10 @@ pub struct ActivityView {
     pub distances: Vec<String>,
     pub maps_url: Option<String>,
     pub times_done: i64,
+    /// Suggested by the app ("generated for you").
+    pub generated: bool,
+    /// Titles of slips this pairs with (filled in where shown).
+    pub pairs: Vec<String>,
 }
 
 impl ActivityView {
@@ -95,6 +99,8 @@ impl ActivityView {
             distances,
             maps_url: a.latlng().map(|(lat, lng)| format!("https://www.google.com/maps/search/?api=1&query={lat},{lng}")),
             times_done: a.times_done,
+            generated: a.generated,
+            pairs: vec![],
         }
     }
 }

@@ -437,3 +437,24 @@ fieldset { margin: 0; padding: 0; border: 0; min-width: 0; }
 .write-form [aria-invalid="true"]:not(.slip-input) { border-color: var(--stamp) !important; border-bottom-width: 2px !important; }
 .slip-input[aria-invalid="true"] { background-image: linear-gradient(transparent calc(1lh - 2px), var(--stamp) calc(1lh - 2px), var(--stamp) 1lh); }
 .chips-setting .chip input:checked + span .dot { background: var(--ink); box-shadow: 0 0 0 2px var(--tint), 0 0 0 3.5px var(--ink); }
+
+/* ── generated for you · pairs ───────────────────────────── */
+.slip-extra { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 6px 0 0; font-size: var(--step--1); position: relative; z-index: 1; }
+.gen-tag {
+  display: inline-flex; align-items: center; gap: 5px; padding: 1px 9px 1px 7px;
+  font-weight: 600; letter-spacing: .02em; color: var(--ink-soft);
+  background: var(--paper-2); border: 1px dashed var(--rule); border-radius: 999px;
+}
+.gen-tag svg { width: 11px; height: 11px; fill: var(--stamp); flex: none; }
+.slip-pairs { color: var(--ink-soft); font-style: italic; }
+.slip-pairs::before { content: "∞ "; font-style: normal; color: var(--stamp); }
+.pairs-box .pair-list {
+  display: grid; gap: 2px; max-height: 280px; overflow-y: auto; margin-top: 10px; padding: 4px;
+  border: 1px solid var(--rule); border-radius: 8px; background: var(--slip);
+  overscroll-behavior: contain;
+}
+.pair-opt { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 6px 10px; border-radius: 6px; cursor: pointer; }
+.pair-opt:hover { background: var(--paper-2); }
+.pair-opt input { width: 20px; height: 20px; flex: none; accent-color: var(--stamp); margin: 0; }
+.pair-opt input:focus-visible { outline: 2px solid var(--stamp); outline-offset: 2px; }
+.pair-opt span { line-height: 1.3; }

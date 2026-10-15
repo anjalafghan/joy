@@ -29,12 +29,23 @@ struct WishlistTpl {
 
 pub async fn page(State(s): State<AppState>) -> HtmlResult {
     let active = db::list(&s.db, false).await?;
+    let pairs = db::pairs(&s.db).await?;
+    let view = |a: &Activity| {
+        let mut v = ActivityView::new(&s.cfg, a);
+        v.pairs = pairs
+            .iter()
+            .filter_map(|&(x, y)| if x == a.id { Some(y) } else if y == a.id { Some(x) } else { None })
+            .filter_map(|other| active.iter().find(|o| o.id == other))
+            .map(|o| s.cfg.personalize(&o.title))
+            .collect();
+        v
+    };
     let groups = SETTINGS
         .iter()
         .map(|(key, label)| Group {
             key: (*key).into(),
             label: (*label).into(),
-            items: active.iter().filter(|a| a.setting == *key).map(|a| ActivityView::new(&s.cfg, a)).collect(),
+            items: active.iter().filter(|a| a.setting == *key).map(view).collect(),
         })
         .filter(|g| !g.items.is_empty())
         .collect();
@@ -61,9 +72,20 @@ struct FormTpl {
     durations: Vec<Opt>,
     energies: Vec<Opt>,
     people: Vec<Opt>,
+    /// Every other slip in the jar, ticked if it pairs with this one.
+    pair_opts: Vec<Opt>,
 }
 
-fn form(s: &AppState, id: Option<i64>, i: &ActivityInput, error: &str) -> HtmlResult {
+async fn form(s: &AppState, id: Option<i64>, i: &ActivityInput, error: &str) -> HtmlResult {
+    let pair_opts = db::list(&s.db, false)
+        .await?
+        .iter()
+        .filter(|o| Some(o.id) != id)
+        .map(|o| Opt { value: o.id.to_string(), label: s.cfg.personalize(&o.title), selected: i.pairs.contains(&o.id) })
+        .collect::<Vec<_>>();
+    let mut pair_opts = pair_opts;
+    // Current pairs first, so they're visible without scrolling.
+    pair_opts.sort_by_key(|o| !o.selected);
     let people = s.cfg.people.iter().map(|(n, _)| (n.as_str(), n.as_str()));
     render(FormTpl {
         id,
@@ -89,6 +111,7 @@ fn form(s: &AppState, id: Option<i64>, i: &ActivityInput, error: &str) -> HtmlRe
             }
             p
         },
+        pair_opts,
     })
 }
 
@@ -105,6 +128,7 @@ fn input_from(s: &AppState, a: &Activity) -> ActivityInput {
         tags: a.tags.replace(',', ", "),
         energy: a.energy.clone(),
         added_by: a.added_by.clone(),
+        pairs: vec![],
     }
 }
 
@@ -121,13 +145,18 @@ pub async fn new(State(s): State<AppState>) -> HtmlResult {
         tags: String::new(),
         energy: "med".into(),
         added_by: s.cfg.people[0].0.clone(),
+        pairs: vec![],
     };
-    form(&s, None, &blank, "")
+    form(&s, None, &blank, "").await
 }
 
 pub async fn edit(State(s): State<AppState>, Path(id): Path<i64>) -> Result<Response, AppError> {
     Ok(match db::get(&s.db, id).await? {
-        Some(a) => form(&s, Some(id), &input_from(&s, &a), "")?.into_response(),
+        Some(a) => {
+            let mut input = input_from(&s, &a);
+            input.pairs = db::partners(&s.db, id).await?.iter().map(|p| p.id).collect();
+            form(&s, Some(id), &input, "").await?.into_response()
+        }
         None => Redirect::to("/wishlist").into_response(),
     })
 }
@@ -144,7 +173,7 @@ async fn save(s: AppState, id: Option<i64>, i: ActivityInput) -> Result<Response
         ""
     };
     if !error.is_empty() {
-        return Ok(form(&s, id, &i, error)?.into_response());
+        return Ok(form(&s, id, &i, error).await?.into_response());
     }
     db::save(&s.db, id, &i, latlng).await?;
     Ok(Redirect::to("/wishlist").into_response())

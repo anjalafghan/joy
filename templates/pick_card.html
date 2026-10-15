@@ -3,6 +3,8 @@
   <span class="slip-crease" aria-hidden="true"></span>
   <p class="slip-meta"><span class="slip-setting">{{ a.setting }}</span><span aria-hidden="true"> · </span>{{ a.duration }}<span aria-hidden="true"> · </span><strong>{{ a.cost }}</strong></p>
   <h2 id="slip-title" class="slip-title" tabindex="-1">{{ a.title }}</h2>
+  {% if done %}{% if let Some(p) = paired %}<p class="paired-line"><span aria-hidden="true">+ </span><span class="visually-hidden">paired with </span>{{ p.title }}</p>{% endif %}{% endif %}
+  {% if a.generated %}<p class="gen-tag"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.2l1.5 4.3 4.3 1.5-4.3 1.5L8 12.8 6.5 8.5 2.2 7l4.3-1.5z"/></svg>generated for you</p>{% endif %}
   {% if a.times_done == 0 %}<p class="never" aria-label="Never done before">never done!</p>{% endif %}
 
   {% if !a.place.is_empty() || !a.distances.is_empty() %}
@@ -47,11 +49,24 @@
   </div>
   {% else %}
   {% if let Some(url) = a.maps_url %}<p class="slip-maps"><a href="{{ url }}" target="_blank" rel="noopener">Open in Maps<span class="visually-hidden"> (opens in a new tab)</span></a></p>{% endif %}
+  {% if !pairs.is_empty() %}
+  <section class="pairs" aria-labelledby="pairs-h">
+    <p class="pairs-h" id="pairs-h">pairs nicely with…</p>
+    {% for p in pairs %}
+    <form class="f-accept f-pair" hx-post="/accept/{{ a.id }}?with={{ p.id }}" hx-target="#pick" hx-swap="innerHTML" hx-sync="#pick:drop" hx-disabled-elt="find button">
+      <p class="pair-title"><span class="pair-plus" aria-hidden="true">+</span>{{ p.title }}</p>
+      <p class="pair-meta">{{ p.cost }} · {{ p.duration }}<span aria-hidden="true"> · </span><span class="pair-total">together {{ p.together }}</span></p>
+      {% if !p.over.is_empty() %}<p class="pair-over">{{ p.over }}</p>{% endif %}
+      <button class="btn btn-ink" type="submit">Make it a pair<span class="visually-hidden">: {{ a.title }} and {{ p.title }}</span></button>
+    </form>
+    {% endfor %}
+  </section>
+  {% endif %}
   <div class="slip-actions">
     <form class="f-accept" hx-post="/accept/{{ a.id }}" hx-target="#pick" hx-swap="innerHTML" hx-sync="#pick:drop" hx-disabled-elt="find button">
       <button class="btn btn-stamp" type="submit">It's a date</button>
     </form>
-    {% if rerolls_left > 0 %}
+    {% if rerolls_left > 0 || free_putback %}
     <form class="f-putback" hx-post="/pick" hx-target="#pick" hx-swap="innerHTML swap:420ms" hx-sync="#pick:drop" hx-disabled-elt="find button">
       {% for (k, v) in hidden %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
       <input type="hidden" name="reroll" value="1">
@@ -61,7 +76,9 @@
   </div>
   <div class="peeks" data-left="{{ rerolls_left }}">
     <span class="peek-dots" aria-hidden="true">{% for i in 0..max_rerolls %}<svg class="peek{% if i < rerolls_left %} is-full{% endif %}" viewBox="0 0 20 20"><path class="peek-ring" d="M10 2.6c4.3-.2 7.4 3.1 7.3 7.3-.1 4.2-3.3 7.4-7.5 7.4-4.1 0-7.2-3.3-7.1-7.5.1-4 3.2-7.1 7.3-7.2z"/><circle class="peek-fill" cx="10" cy="10" r="4.6"/></svg>{% endfor %}</span>
-    {% if rerolls_left > 0 %}
+    {% if free_putback %}
+    <span class="peek-label">This one goes back for free.</span>
+    {% else if rerolls_left > 0 %}
     <span class="peek-label">{{ rerolls_left }} {% if rerolls_left == 1 %}peek{% else %}peeks{% endif %} left</span>
     {% else %}
     <span class="peek-label">No more peeking. This one's yours.</span>

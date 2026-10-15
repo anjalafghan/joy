@@ -2,7 +2,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use askama::Template;
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     Json,
 };
 use axum_extra::extract::Form;
@@ -164,6 +164,18 @@ pub async fn matching(State(s): State<AppState>, Form(f): Form<PickForm>) -> Res
     Ok(Json(MatchCount { count: ids.len(), total: cands.len(), ids }))
 }
 
+/// A slip that pairs with the drawn one, offered as "make it a pair".
+pub struct PairOffer {
+    pub id: i64,
+    pub title: String,
+    pub cost: String,
+    pub duration: String,
+    /// Combined cost of both, e.g. "₹4,300".
+    pub together: String,
+    /// e.g. "₹2,300 over tonight's budget", or empty.
+    pub over: String,
+}
+
 #[derive(Template)]
 #[template(path = "pick_card.html")]
 struct CardTpl {
@@ -178,6 +190,11 @@ struct CardTpl {
     stamp_date: String,
     rerolls_left: u32,
     max_rerolls: u32,
+    /// The drawn slip was generated for us, so putting it back is free.
+    free_putback: bool,
+    pairs: Vec<PairOffer>,
+    /// On an accepted pair: the second slip.
+    paired: Option<ActivityView>,
     hidden: Vec<(String, String)>,
 }
 
@@ -192,6 +209,9 @@ impl CardTpl {
             stamp_date: String::new(),
             rerolls_left: 0,
             max_rerolls: MAX_REROLLS,
+            free_putback: false,
+            pairs: vec![],
+            paired: None,
             hidden: vec![],
         }
     }
@@ -203,15 +223,20 @@ pub async fn pick(State(s): State<AppState>, Form(f): Form<PickForm>) -> HtmlRes
 
     if f.reroll == "1" {
         if let Ok(cur) = f.current.parse::<i64>() {
-            if used >= MAX_REROLLS {
-                // Out of rerolls: the card already hides the button, so just show it again.
-                if let Some(a) = db::get(&s.db, cur).await? {
-                    return card(&s, &f, Some(&a), &excluded, used);
+            let current = db::get(&s.db, cur).await?;
+            match picker::put_back(used, current.as_ref().is_some_and(|a| a.generated)) {
+                Some(next) => {
+                    db::record(&s.db, cur, false).await?;
+                    excluded.push(cur);
+                    used = next;
+                }
+                // Out of peeks: the card already hides the button, so just show it again.
+                None => {
+                    if let Some(a) = current {
+                        return card(&s, &f, Some(&a), &excluded, used).await;
+                    }
                 }
             }
-            db::record(&s.db, cur, false).await?;
-            excluded.push(cur);
-            used += 1;
         }
     }
 
@@ -221,7 +246,7 @@ pub async fn pick(State(s): State<AppState>, Form(f): Form<PickForm>) -> HtmlRes
     let result = picker::pick(&cands, &filters, &excluded, now, &mut rand::thread_rng());
 
     match result {
-        PickResult::Pick(id) => card(&s, &f, acts.iter().find(|a| a.id == id), &excluded, used),
+        PickResult::Pick(id) => card(&s, &f, acts.iter().find(|a| a.id == id), &excluded, used).await,
         PickResult::NoMatch(h) => {
             let (relax_label, relax) = relax(&s, &f, &h);
             render(CardTpl {
@@ -234,13 +259,44 @@ pub async fn pick(State(s): State<AppState>, Form(f): Form<PickForm>) -> HtmlRes
     }
 }
 
-fn card(s: &AppState, f: &PickForm, a: Option<&db::Activity>, excluded: &[i64], used: u32) -> HtmlResult {
+async fn card(s: &AppState, f: &PickForm, a: Option<&db::Activity>, excluded: &[i64], used: u32) -> HtmlResult {
+    let pairs = match a {
+        Some(a) => pair_offers(s, f, a).await?,
+        None => vec![],
+    };
     render(CardTpl {
         hidden: f.hidden(excluded, used, a.map_or(0, |a| a.id)),
         activity: a.map(|a| ActivityView::new(&s.cfg, a)),
         rerolls_left: picker::rerolls_left(used),
+        free_putback: a.is_some_and(|a| a.generated),
+        pairs,
         ..CardTpl::blank()
     })
+}
+
+/// Up to two partners for the drawn slip, with the combined cost against tonight's budget.
+async fn pair_offers(s: &AppState, f: &PickForm, a: &db::Activity) -> Result<Vec<PairOffer>, AppError> {
+    let budget = f.filters().budget;
+    Ok(db::partners(&s.db, a.id)
+        .await?
+        .iter()
+        .take(2)
+        .map(|p| {
+            let together = a.est_cost + p.est_cost;
+            PairOffer {
+                id: p.id,
+                title: s.cfg.personalize(&p.title),
+                cost: s.cfg.money(p.est_cost),
+                duration: p.duration().label().into(),
+                together: s.cfg.money(together),
+                over: if budget != i64::MAX && together > budget {
+                    format!("{} over tonight's budget", s.cfg.money(together - budget))
+                } else {
+                    String::new()
+                },
+            }
+        })
+        .collect())
 }
 
 fn hint_text(s: &AppState, form: &PickForm, f: &Filters, h: Hint) -> String {
@@ -308,13 +364,28 @@ fn relax(s: &AppState, f: &PickForm, h: &Hint) -> (String, Option<PickForm>) {
     (label, Some(r))
 }
 
-pub async fn accept(State(s): State<AppState>, Path(id): Path<i64>) -> HtmlResult {
+#[derive(Deserialize)]
+pub struct AcceptQuery {
+    /// Accept this partner slip too, as one date.
+    with: Option<i64>,
+}
+
+pub async fn accept(State(s): State<AppState>, Path(id): Path<i64>, Query(q): Query<AcceptQuery>) -> HtmlResult {
     db::accept(&s.db, id).await?;
+    let mut paired = None;
+    if let Some(with) = q.with {
+        // Only a real partner of this slip can ride along.
+        if let Some(p) = db::partners(&s.db, id).await?.into_iter().find(|p| p.id == with) {
+            db::accept(&s.db, p.id).await?;
+            paired = Some(ActivityView::new(&s.cfg, &p));
+        }
+    }
     let a = db::get(&s.db, id).await?;
     render(CardTpl {
         activity: a.as_ref().map(|a| ActivityView::new(&s.cfg, a)),
         done: true,
         stamp_date: db::today(&s.db).await?,
+        paired,
         ..CardTpl::blank()
     })
 }

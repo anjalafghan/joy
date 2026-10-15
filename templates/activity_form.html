@@ -85,6 +85,18 @@
       <textarea id="f-notes" class="notes" name="notes" rows="3" placeholder="Go before 6, grab cutting chai on the way.">{{ notes }}</textarea>
     </div>
 
+    {% if !pair_opts.is_empty() %}
+    <fieldset class="group-box pairs-box">
+      <legend>Pairs well with <span class="opt">optional</span></legend>
+      <p class="hint" id="pairs-hint">Tick slips that make a good double plan with this one. When either is drawn, the jar offers the other.</p>
+      <div class="pair-list" role="group" aria-describedby="pairs-hint">
+        {% for o in pair_opts %}
+        <label class="pair-opt"><input type="checkbox" name="pairs" value="{{ o.value }}"{% if o.selected %} checked{% endif %}><span>{{ o.label }}</span></label>
+        {% endfor %}
+      </div>
+    </fieldset>
+    {% endif %}
+
     <fieldset class="chips">
       <legend>Written by</legend>
       <div class="chip-row">

@@ -17,6 +17,8 @@ The metaphor maps one-to-one onto what the app does. **Do not invent mechanics t
 | Accept (`POST /accept/{id}`) | The slip gets **stamped**: IT'S A DATE | "It's a date" |
 | History (`/history`) | **The keepsake box**: stamped slips you kept | "Kept" |
 | Archive | Taking a slip out of the jar | "Take out" |
+| Pairs | Two slips that make one bigger plan (dinner at Saltt + the long drive) | "pairs nicely with…", "Make it a pair" |
+| Generated slips | Ideas the app suggested, not ones we wrote | "generated for you"; putting one back is free and uses no peek |
 
 Name for the nav: **Jar · Slips · Kept**.
 
@@ -110,9 +112,9 @@ The templates are Askama (Jinja-like). Missing or renamed fields are compile err
   - Form field names: `budget`, `max_duration`, `settings` (multi), `tag`, `energy`, `max_km`, `from`.
   - `POST /match` with the same form body returns JSON `{count,total,ids}`, the slips that fit. Use it for the live counter and for dimming.
   - `POST /pick` returns the `pick_card.html` partial.
-- `pick_card.html` (`CardTpl`): `activity: Option<ActivityView>`, `message`, `relax_label`, `relax_hidden: Vec<(String,String)>`, `done: bool`, `stamp_date`, `rerolls_left`, `max_rerolls`, `hidden: Vec<(String,String)>`.
+- `pick_card.html` (`CardTpl`): `activity: Option<ActivityView>`, `message`, `relax_label`, `relax_hidden: Vec<(String,String)>`, `done: bool`, `stamp_date`, `rerolls_left`, `max_rerolls`, `free_putback`, `pairs: Vec<PairOffer{id,title,cost,duration,together,over}>`, `paired: Option<ActivityView>`, `hidden: Vec<(String,String)>`. Accepting a pair posts to `/accept/{id}?with={partner}`.
   - When `relax_label` is non-empty, render a form posting `relax_hidden` to `/pick`.
-  - `ActivityView` fields: `id, title, notes, place, cost, duration, setting, setting_key, tags: Vec<String>, distances: Vec<String>, maps_url: Option<String>, times_done`.
+  - `ActivityView` fields: `id, title, notes, place, cost, duration, setting, setting_key, tags, generated, pairs (titles, wishlist only): Vec<String>, distances: Vec<String>, maps_url: Option<String>, times_done`.
 - `wishlist.html` (`WishlistTpl`): `groups: Vec<Group{key,label,items: Vec<ActivityView>}>`, `archived: Vec<ActivityView>`, `total`. Actions: `POST /wishlist/{id}/archive`, `/restore`, `/delete`; edit is at `GET /wishlist/{id}`; new is at `GET /wishlist/new`.
 - `activity_form.html` (`FormTpl`): `id: Option<i64>`, `title, notes, est_cost, venue, area, location, tags, currency, error`, plus `settings, durations, energies, people: Vec<Opt>`. Posts to `/wishlist` or `/wishlist/{id}`, with fields `title, est_cost, duration, setting, energy, venue, area, location, tags, notes, added_by`.
 - `history.html` (`HistoryTpl`): `months: Vec<Month{label, items: Vec<HistoryRow>}>`, `kept`, `skipped: Vec<HistoryRow>`.
