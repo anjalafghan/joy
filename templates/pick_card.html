@@ -1,0 +1,84 @@
+{% if let Some(a) = activity %}
+<article class="slip grain{% if done %} is-done{% endif %}" data-kind="{% if done %}done{% else %}card{% endif %}" data-id="{{ a.id }}" data-setting="{{ a.setting_key }}" style="--tint: var(--tint-{{ a.setting_key }})" aria-labelledby="slip-title">
+  <span class="slip-crease" aria-hidden="true"></span>
+  <p class="slip-meta"><span class="slip-setting">{{ a.setting }}</span><span aria-hidden="true"> · </span>{{ a.duration }}<span aria-hidden="true"> · </span><strong>{{ a.cost }}</strong></p>
+  <h2 id="slip-title" class="slip-title" tabindex="-1">{{ a.title }}</h2>
+  {% if a.times_done == 0 %}<p class="never" aria-label="Never done before">never done!</p>{% endif %}
+
+  {% if !a.place.is_empty() || !a.distances.is_empty() %}
+  <div class="slip-where">
+    {% if !a.place.is_empty() %}<p><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21.2c-3.9-4.6-6.4-8.2-6.4-11.2a6.4 6.4 0 0 1 12.8-.2c.1 3.1-2.5 6.7-6.4 11.4z"/><circle cx="12" cy="9.8" r="2.3"/></svg><span>{{ a.place }}</span></p>{% endif %}
+    {% if !a.distances.is_empty() %}<p class="soft"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18.5c3.2-.4 4.4-2.6 5.6-5.4 1.3-3.1 3.2-6.2 7-6.9"/><path d="M15.4 3.9l2.4 2.3-2.2 2.5"/><circle cx="4.2" cy="18.6" r="1.4"/></svg><span>{{ a.distances|join(" · ") }}</span></p>{% endif %}
+  </div>
+  {% endif %}
+
+  {% if !a.notes.is_empty() %}<p class="slip-notes">{{ a.notes }}</p>{% endif %}
+  {% if !a.tags.is_empty() %}<p class="slip-tags">{% for t in a.tags %}<span>#{{ t }}</span>{% if !loop.last %} {% endif %}{% endfor %}</p>{% endif %}
+
+  {% if done %}
+  <div class="stamp" role="img" aria-label="Stamped: it's a date, {{ stamp_date }}">
+    <svg viewBox="0 0 240 120" aria-hidden="true" focusable="false">
+      <defs>
+        <filter id="stamp-rough" x="-5%" y="-5%" width="110%" height="110%">
+          <feTurbulence type="fractalNoise" baseFrequency=".045" numOctaves="2" seed="7" result="w"/>
+          <feDisplacementMap in="SourceGraphic" in2="w" scale="3.2" xChannelSelector="R" yChannelSelector="G"/>
+        </filter>
+        <filter id="stamp-wear-f" x="0" y="0" width="100%" height="100%">
+          <feTurbulence type="fractalNoise" baseFrequency=".7" numOctaves="2" seed="11"/>
+          <feColorMatrix type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 -3 2.05"/>
+        </filter>
+        <mask id="stamp-wear" maskUnits="userSpaceOnUse" x="0" y="0" width="240" height="120">
+          <rect width="240" height="120" fill="#fff" filter="url(#stamp-wear-f)"/>
+        </mask>
+      </defs>
+      <g class="stamp-ink" filter="url(#stamp-rough)" mask="url(#stamp-wear)">
+        <rect x="6" y="6" width="228" height="108" rx="14" fill="none" stroke-width="6"/>
+        <rect x="16" y="16" width="208" height="88" rx="8" fill="none" stroke-width="1.6"/>
+        <text class="stamp-big" x="120" y="66" text-anchor="middle">IT'S A DATE</text>
+        <text class="stamp-small" x="120" y="91" text-anchor="middle">{{ stamp_date }}</text>
+      </g>
+    </svg>
+  </div>
+  <p class="kept-line">In the keepsake box. Rate it after you go.</p>
+  <div class="slip-actions">
+    {% if let Some(url) = a.maps_url %}<a class="btn btn-ink" href="{{ url }}" target="_blank" rel="noopener">Open in Maps<span class="visually-hidden"> (opens in a new tab)</span></a>{% endif %}
+    <a class="btn btn-quiet" href="/history">See it in Kept</a>
+    <button class="btn btn-quiet" type="button" data-action="back">Back to the jar</button>
+  </div>
+  {% else %}
+  {% if let Some(url) = a.maps_url %}<p class="slip-maps"><a href="{{ url }}" target="_blank" rel="noopener">Open in Maps<span class="visually-hidden"> (opens in a new tab)</span></a></p>{% endif %}
+  <div class="slip-actions">
+    <form class="f-accept" hx-post="/accept/{{ a.id }}" hx-target="#pick" hx-swap="innerHTML" hx-sync="#pick:drop" hx-disabled-elt="find button">
+      <button class="btn btn-stamp" type="submit">It's a date</button>
+    </form>
+    {% if rerolls_left > 0 %}
+    <form class="f-putback" hx-post="/pick" hx-target="#pick" hx-swap="innerHTML swap:420ms" hx-sync="#pick:drop" hx-disabled-elt="find button">
+      {% for (k, v) in hidden %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+      <input type="hidden" name="reroll" value="1">
+      <button class="btn btn-ink" type="submit">Put it back</button>
+    </form>
+    {% endif %}
+  </div>
+  <div class="peeks" data-left="{{ rerolls_left }}">
+    <span class="peek-dots" aria-hidden="true">{% for i in 0..max_rerolls %}<svg class="peek{% if i < rerolls_left %} is-full{% endif %}" viewBox="0 0 20 20"><path class="peek-ring" d="M10 2.6c4.3-.2 7.4 3.1 7.3 7.3-.1 4.2-3.3 7.4-7.5 7.4-4.1 0-7.2-3.3-7.1-7.5.1-4 3.2-7.1 7.3-7.2z"/><circle class="peek-fill" cx="10" cy="10" r="4.6"/></svg>{% endfor %}</span>
+    {% if rerolls_left > 0 %}
+    <span class="peek-label">{{ rerolls_left }} {% if rerolls_left == 1 %}peek{% else %}peeks{% endif %} left</span>
+    {% else %}
+    <span class="peek-label">No more peeking. This one's yours.</span>
+    {% endif %}
+  </div>
+  {% endif %}
+</article>
+{% else %}
+<article class="note" data-kind="note">
+  <p class="note-text">{{ message }}</p>
+  {% if !relax_label.is_empty() %}
+  <form class="f-relax" hx-post="/pick" hx-target="#pick" hx-swap="innerHTML swap:260ms" hx-sync="#pick:drop" hx-disabled-elt="find button">
+    {% for (k, v) in relax_hidden %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+    <button class="btn btn-stamp" type="submit">{{ relax_label }}</button>
+  </form>
+  {% else %}
+  <a class="btn btn-stamp" href="/wishlist/new">Write a slip</a>
+  {% endif %}
+</article>
+{% endif %}

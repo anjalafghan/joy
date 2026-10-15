@@ -1,0 +1,180 @@
+/* joy — shared foundation: fonts, tokens, reset, nav, buttons.
+   Page-specific styles live in their own files. See DESIGN.md. */
+
+@font-face { font-family: "Fraunces"; src: url("/static/fonts/Fraunces-normal.woff2") format("woff2"); font-weight: 300 900; font-style: normal; font-display: swap; }
+@font-face { font-family: "Fraunces"; src: url("/static/fonts/Fraunces-italic.woff2") format("woff2"); font-weight: 300 900; font-style: italic; font-display: swap; }
+@font-face { font-family: "Instrument Sans"; src: url("/static/fonts/InstrumentSans-normal.woff2") format("woff2"); font-weight: 400 700; font-style: normal; font-display: swap; }
+@font-face { font-family: "Instrument Sans"; src: url("/static/fonts/InstrumentSans-italic.woff2") format("woff2"); font-weight: 400 700; font-style: italic; font-display: swap; }
+@font-face { font-family: "Caveat"; src: url("/static/fonts/Caveat-normal.woff2") format("woff2"); font-weight: 400 700; font-display: swap; }
+
+:root {
+  --paper: #f5eee3;
+  --paper-2: #ebe2d3;
+  --slip: #fffaf2;
+  --ink: #2b2433;
+  --ink-soft: #675d6e;
+  --rule: #ddd1c1;
+  --stamp: #b9301b;
+  --stamp-ink: #fffaf2;
+  --glow: rgba(255, 190, 110, 0);
+  --tint-home: #f3e2b3;
+  --tint-local: #f2cfc6;
+  --tint-day_trip: #d3e1c6;
+  --tint-travel: #cbdbea;
+  --shadow-slip: 0 1px 0 rgba(43, 36, 51, .06), 0 10px 24px -14px rgba(43, 36, 51, .35);
+
+  --font-display: "Fraunces", "Iowan Old Style", Georgia, serif;
+  --font-ui: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-hand: "Caveat", "Bradley Hand", cursive;
+
+  --step--1: .875rem;
+  --step-0: 1rem;
+  --step-1: 1.25rem;
+  --step-2: 1.6rem;
+  --step-3: 2.2rem;
+  --step-4: 3.2rem;
+  --step-5: 4.6rem;
+
+  --t-micro: 120ms;
+  --t-small: 220ms;
+  --t-medium: 420ms;
+  --t-hero: 1100ms;
+  --ease-out: cubic-bezier(.2, .8, .2, 1);
+  --ease-spring: cubic-bezier(.34, 1.56, .64, 1);
+  --ease-in-out: cubic-bezier(.65, 0, .35, 1);
+
+  --gutter: 16px;
+  --radius-slip: 3px;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #14121b;
+    --paper-2: #1d1a26;
+    --slip: #2a2533;
+    --ink: #f1e9df;
+    --ink-soft: #b3a8b8;
+    --rule: #383145;
+    --stamp: #ff7a63;
+    --stamp-ink: #1a0f0c;
+    --glow: rgba(255, 190, 110, .35);
+    --tint-home: #4a3f22;
+    --tint-local: #4d2f2b;
+    --tint-day_trip: #2f4030;
+    --tint-travel: #283a4d;
+    --shadow-slip: 0 1px 0 rgba(0, 0, 0, .3), 0 14px 30px -16px rgba(0, 0, 0, .8);
+    color-scheme: dark;
+  }
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background: var(--paper);
+  color: var(--ink);
+  font: 400 var(--step-0)/1.55 var(--font-ui);
+  font-feature-settings: "ss01";
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+main { max-width: 680px; margin: 0 auto; padding: 8px var(--gutter) 96px; }
+h1, h2, h3 {
+  font-family: var(--font-display);
+  font-variation-settings: "SOFT" 100, "WONK" 1, "opsz" 96;
+  font-weight: 560;
+  line-height: 1.08;
+  letter-spacing: -0.015em;
+  margin: 0;
+  text-wrap: balance;
+}
+p { text-wrap: pretty; }
+a { color: inherit; text-decoration-color: var(--stamp); text-underline-offset: 3px; }
+img, svg { display: block; max-width: 100%; }
+.hand { font-family: var(--font-hand); font-weight: 600; }
+.soft { color: var(--ink-soft); }
+.visually-hidden {
+  position: absolute !important; width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
+}
+
+:focus-visible { outline: 2px solid var(--stamp); outline-offset: 3px; border-radius: 4px; }
+
+/* ── nav: Jar · Slips · Kept ─────────────────────────────── */
+.top {
+  position: sticky; top: 0; z-index: 20;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  max-width: 680px; margin: 0 auto;
+  padding: max(10px, env(safe-area-inset-top)) var(--gutter) 10px;
+  background: color-mix(in srgb, var(--paper) 86%, transparent);
+  backdrop-filter: blur(12px) saturate(1.2);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
+}
+.wordmark {
+  font-family: var(--font-display);
+  font-variation-settings: "SOFT" 100, "WONK" 1, "opsz" 144;
+  font-weight: 700; font-style: italic;
+  font-size: 1.7rem; line-height: 1;
+  color: var(--stamp); text-decoration: none; letter-spacing: -0.03em;
+  min-height: 44px; display: inline-flex; align-items: center;
+}
+.top nav { display: flex; align-items: center; gap: 2px; }
+.top nav a, .top nav button {
+  position: relative;
+  min-height: 44px; min-width: 44px; padding: 0 10px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font: 600 var(--step--1)/1 var(--font-ui); letter-spacing: .02em;
+  color: var(--ink-soft); text-decoration: none;
+  background: none; border: 0; cursor: pointer;
+  transition: color var(--t-small) var(--ease-out);
+}
+.top nav a:hover, .top nav button:hover { color: var(--ink); }
+/* hand-drawn underline under the current page */
+.top nav a::after {
+  content: ""; position: absolute; left: 10px; right: 10px; bottom: 8px; height: 6px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 6' preserveAspectRatio='none'%3E%3Cpath d='M1 4.2C12 2.1 25 1.6 35 2.6s17 1.5 24-.4' fill='none' stroke='%23b9301b' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E") center/100% 100% no-repeat;
+  transform: scaleX(0); transform-origin: left;
+  transition: transform var(--t-medium) var(--ease-out);
+}
+body[data-page="jar"] .top nav a[data-nav="jar"],
+body[data-page="slips"] .top nav a[data-nav="slips"],
+body[data-page="kept"] .top nav a[data-nav="kept"] { color: var(--ink); }
+body[data-page="jar"] .top nav a[data-nav="jar"]::after,
+body[data-page="slips"] .top nav a[data-nav="slips"]::after,
+body[data-page="kept"] .top nav a[data-nav="kept"]::after { transform: scaleX(1); }
+.top nav form { display: contents; }
+
+/* ── buttons ─────────────────────────────────────────────── */
+.btn {
+  -webkit-appearance: none; appearance: none;
+  min-height: 48px; padding: 0 22px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  font: 600 var(--step-0)/1 var(--font-ui); letter-spacing: .01em;
+  color: var(--ink); background: transparent;
+  border: 1.5px solid var(--ink); border-radius: 999px;
+  text-decoration: none; cursor: pointer;
+  transition: transform var(--t-micro) var(--ease-out), background var(--t-small) var(--ease-out), color var(--t-small) var(--ease-out);
+  -webkit-tap-highlight-color: transparent;
+}
+.btn:active { transform: scale(.97); }
+.btn-stamp { background: var(--stamp); border-color: var(--stamp); color: var(--stamp-ink); }
+.btn-quiet { border-color: transparent; color: var(--ink-soft); text-decoration: underline; text-decoration-color: var(--rule); }
+.btn[disabled], .btn.htmx-request { opacity: .55; pointer-events: none; }
+
+/* ── form controls baseline ──────────────────────────────── */
+input, select, textarea { font: inherit; color: inherit; }
+
+/* ── paper grain (opt-in on slips via .grain) ────────────── */
+.grain { position: relative; isolation: isolate; }
+.grain::before {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; border-radius: inherit;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .3 0 0 0 0 .25 0 0 0 0 .2 0 0 0 .55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  opacity: .22; mix-blend-mode: multiply;
+}
+@media (prefers-color-scheme: dark) { .grain::before { mix-blend-mode: soft-light; opacity: .35; } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; scroll-behavior: auto !important; }
+}

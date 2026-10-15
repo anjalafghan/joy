@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% block title %}joy · the jar{% endblock %}
+{% block page %}jar{% endblock %}
+{% block head %}
+<link rel="preload" href="/static/fonts/Caveat-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/static/jar.css">
+<script src="/static/jar.js" defer></script>
+{% endblock %}
+{% block content %}
+<div class="jarpage" id="stage" data-currency="{{ currency }}" data-count="{{ count }}">
+
+  <form class="tonight" id="tonight" action="/pick" method="post"
+        hx-post="/pick" hx-target="#pick" hx-swap="innerHTML"
+        hx-disabled-elt="find .draw" hx-sync="#stage:drop" data-kind="draw">
+
+    <p class="kicker">{{ couple }}’s jar</p>
+
+    <fieldset class="sentence-set">
+      <legend class="visually-hidden">What tonight looks like</legend>
+      <div class="sentence" id="sentence">
+        Tonight we have
+        <label class="blank is-any" data-blank="budget">
+          <span class="visually-hidden">Budget for both of us</span>
+          <select name="budget" id="f-budget">
+            <option value="" selected>no budget in mind</option>
+            <option value="0">nothing to spend</option>
+            <option value="500">{{ currency }}500</option>
+            <option value="1000">{{ currency }}1,000</option>
+            <option value="2000">{{ currency }}2,000</option>
+            <option value="3000">{{ currency }}3,000</option>
+            <option value="5000">{{ currency }}5,000</option>
+            <option value="10000">{{ currency }}10,000</option>
+            <option value="25000">{{ currency }}25,000</option>
+            <option value="50000">{{ currency }}50,000</option>
+          </select>
+          <span class="word" aria-hidden="true">no budget in mind</span></label>
+        and
+        <label class="blank is-any" data-blank="time">
+          <span class="visually-hidden">Time we have</span>
+          <select name="max_duration">
+            <option value="" selected>any amount of time</option>
+            {% for d in durations %}<option value="{{ d.value }}">about {{ d.label|lower }}</option>{% endfor %}
+          </select>
+          <span class="word" aria-hidden="true">any amount of time</span></label>,
+        <span class="nb"><button type="button" class="blank blank-btn is-any" data-blank="where" id="where-toggle"
+                aria-expanded="false" aria-controls="where-sheet">
+          <span class="visually-hidden">Where: </span><span class="word">anywhere</span></button>,</span>
+        {% if !kms.is_empty() %}
+        <label class="blank is-any" data-blank="km">
+          <span class="visually-hidden">How far</span>
+          <select name="max_km">
+            <option value="" selected>however far</option>
+            {% for o in kms %}<option value="{{ o.value }}">within {{ o.label }}</option>{% endfor %}
+          </select>
+          <span class="word" aria-hidden="true">however far</span></label>{% if !froms.is_empty() %}<span class="from-clause" id="from-clause" hidden> of
+        <label class="blank" data-blank="from">
+          <span class="visually-hidden">Measured from</span>
+          <select name="from">
+            <option value="" selected>both our places</option>
+            {% for o in froms %}<option value="{{ o.value }}">{{ o.label }}</option>{% endfor %}
+          </select>
+          <span class="word" aria-hidden="true">both our places</span></label></span>{% endif %},
+        {% endif %}
+        in
+        <label class="blank is-any" data-blank="tag">
+          <span class="visually-hidden">Vibe</span>
+          <select name="tag">
+            <option value="" selected>any</option>
+            {% for o in tags %}<option value="{{ o.value }}">{{ o.label }}</option>{% endfor %}
+          </select>
+          <span class="word" aria-hidden="true">any</span></label>
+        mood with
+        <label class="blank is-any" data-blank="energy">
+          <span class="visually-hidden">Energy</span>
+          <select name="energy">
+            <option value="" selected>any</option>
+            {% for o in energies %}<option value="{{ o.value }}">{{ o.label|lower }}</option>{% endfor %}
+          </select>
+          <span class="word" aria-hidden="true">any</span></label>
+        energy.
+      </div>
+    </fieldset>
+
+    <fieldset class="where-sheet" id="where-sheet">
+      <legend>Where could it be? <span class="soft">Pick any. None means anywhere.</span></legend>
+      <div class="where-opts">
+        {% for o in settings %}
+        <label class="where-opt where-{{ o.value }}">
+          <input type="checkbox" name="settings" value="{{ o.value }}" data-label="{{ o.label }}">
+          <span class="where-dot" aria-hidden="true"></span>
+          <span>{{ o.label }}</span></label>
+        {% endfor %}
+      </div>
+      <button type="button" class="btn sheet-done" id="where-done">Done</button>
+    </fieldset>
+
+    <div class="shelf">
+      <div class="margin">
+        <p class="tally" id="tally" role="status">
+          {% if count == 0 %}
+          <span class="tally-hand">empty, for now</span>
+          {% else %}
+          <span class="tally-hand" aria-hidden="true"><span class="tally-n" id="tally-n">{{ count }}</span> <span id="tally-words">could happen</span></span>
+          <span class="tally-ui" aria-hidden="true">out of the <span id="tally-total">{{ count }}</span> slip{% if count != 1 %}s{% endif %} in the jar</span>
+          <span class="visually-hidden" id="tally-sr">{{ count }} of {{ count }} slips could happen tonight.</span>
+          {% endif %}
+        </p>
+        {% if count == 0 %}
+        <a class="btn btn-stamp draw-empty" href="/wishlist/new">Write the first slip</a>
+        {% else %}
+        <button type="submit" class="btn btn-stamp draw" id="draw" data-kind="draw">
+          Draw a slip
+        </button>
+        {% endif %}
+      </div>
+
+      <div class="jar-wrap" aria-hidden="true">
+        <svg class="jar" id="jar" viewBox="0 0 160 210" focusable="false">
+          <defs>
+            <clipPath id="jar-inside">
+              <path d="M47 46c-20 5-25 17-25 34v88c0 14 6 30 22 30h72c16 0 22-16 22-30V80c0-17-5-29-25-34z"/>
+            </clipPath>
+            <radialGradient id="jar-lantern" cx="50%" cy="68%" r="60%">
+              <stop offset="0" class="lantern-0"/>
+              <stop offset="1" class="lantern-1"/>
+            </radialGradient>
+          </defs>
+          <g class="jar-body-g">
+            <path class="jar-glass" d="M45 42c-22 6-28 19-28 38v89c0 17 8 34 27 34h72c19 0 27-17 27-34V80c0-19-6-32-28-38z"/>
+            <rect class="jar-lantern" x="20" y="44" width="120" height="156" clip-path="url(#jar-inside)" fill="url(#jar-lantern)"/>
+            <g id="jar-slips" clip-path="url(#jar-inside)"></g>
+            <g class="fireflies" clip-path="url(#jar-inside)">
+              <circle cx="52" cy="96" r="1.6"/><circle cx="104" cy="82" r="1.3"/><circle cx="80" cy="118" r="1.8"/>
+              <circle cx="118" cy="128" r="1.2"/><circle cx="44" cy="140" r="1.4"/><circle cx="96" cy="104" r="1.1"/>
+            </g>
+            <path class="jar-outline" d="M45 42c-22 6-28 19-28 38v89c0 17 8 34 27 34h72c19 0 27-17 27-34V80c0-19-6-32-28-38"/>
+            <path class="jar-shine" d="M30 92c-1 22-1 48 1 70"/>
+            <path class="jar-shine jar-shine-2" d="M31 172c0 6 2 10 4 13"/>
+          </g>
+          <g class="jar-lid-g">
+            <rect class="jar-neck" x="43" y="30" width="74" height="13" rx="3"/>
+            <rect class="jar-lid" x="38" y="8" width="84" height="24" rx="5"/>
+            <path class="jar-ridges" d="M50 13v14M60 13v14M70 13v14M80 13v14M90 13v14M100 13v14M110 13v14"/>
+          </g>
+          <g class="jar-tag">
+            <path class="jar-string" d="M117 38c8 2 13 6 16 13"/>
+            <g transform="rotate(14 136 64)">
+              <path class="jar-tagpaper" d="M126 52h22a2 2 0 0 1 2 2v20a2 2 0 0 1-2 2h-22l-6-12z"/>
+              <circle class="jar-taghole" cx="127" cy="64" r="1.8"/>
+              <path class="jar-tagmark" d="M139 69.5c-3.2-2.3-4.8-4-4.6-5.8.1-1.3 1.1-2.1 2.2-2.1.9 0 1.8.5 2.4 1.4.6-.9 1.5-1.4 2.4-1.4 1.1 0 2.1.8 2.2 2.1.2 1.8-1.4 3.5-4.6 5.8z"/>
+            </g>
+          </g>
+        </svg>
+      </div>
+    </div>
+  </form>
+
+  <script type="application/json" id="slips">{{ slips_json|safe }}</script>
+
+  <div id="pick" class="pick" aria-live="polite"></div>
+</div>
+{% endblock %}

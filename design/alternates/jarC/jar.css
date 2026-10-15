@@ -1,0 +1,432 @@
+/* joy — the Jar, take C: looking down into the jar's mouth.
+   Slips that fit float on top; slips that don't sink deeper.
+   A drawn slip rises toward you and unfolds along its creases. */
+
+body[data-page="jar"] main { padding-bottom: 72px; }
+
+/* ── the sentence ────────────────────────────────────────── */
+.tonight { margin: 4px 0 0; }
+.sentence {
+  margin: 0;
+  font-family: var(--font-display);
+  font-variation-settings: "SOFT" 100, "WONK" 0, "opsz" 36;
+  font-size: 1.42rem;
+  line-height: 1.95;
+  color: var(--ink-soft);
+  letter-spacing: -0.005em;
+  text-wrap: pretty;
+}
+.sentence .lead { color: var(--ink); font-weight: 600; font-variation-settings: "SOFT" 100, "WONK" 1, "opsz" 72; }
+.sentence .w { white-space: nowrap; }
+.sentence { transition: opacity var(--t-medium) var(--ease-out); }
+.sentence.held .blank::before, .sentence.held .blank::after { opacity: 0; }
+
+.blank { position: relative; display: inline-block; white-space: nowrap; }
+.blank::before { /* hand-drawn underline */
+  content: ""; position: absolute; left: 0; right: 2px; bottom: 5px; height: 5px; pointer-events: none;
+  background: var(--ink-soft); opacity: .55;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 5' preserveAspectRatio='none'%3E%3Cpath d='M1 3.2c6-1.6 11-.4 19-1s12-.9 19-.2' fill='none' stroke='%23000' stroke-width='1.6' stroke-linecap='round' stroke-dasharray='3 3.5'/%3E%3C/svg%3E") 0 0 / 40px 5px repeat-x;
+          mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 5' preserveAspectRatio='none'%3E%3Cpath d='M1 3.2c6-1.6 11-.4 19-1s12-.9 19-.2' fill='none' stroke='%23000' stroke-width='1.6' stroke-linecap='round' stroke-dasharray='3 3.5'/%3E%3C/svg%3E") 0 0 / 40px 5px repeat-x;
+  transition: opacity var(--t-small) var(--ease-out), background-color var(--t-small) var(--ease-out);
+}
+.blank.set::before {
+  background: var(--ink); opacity: .9;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 5' preserveAspectRatio='none'%3E%3Cpath d='M1 3.2c6-1.6 11-.4 19-1s12-.9 19-.2' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E");
+          mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 5' preserveAspectRatio='none'%3E%3Cpath d='M1 3.2c6-1.6 11-.4 19-1s12-.9 19-.2' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+.blank:has(select)::after { /* little ink caret */
+  content: ""; position: absolute; right: 1px; top: 50%; width: 11px; height: 8px; margin-top: -3px; pointer-events: none;
+  background: var(--ink-soft);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 11 8'%3E%3Cpath d='M1.2 1.6c1.6 1.5 2.9 3 4.4 4.9 1.4-1.8 2.7-3.4 4.3-5' fill='none' stroke='%23000' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+          mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 11 8'%3E%3Cpath d='M1.2 1.6c1.6 1.5 2.9 3 4.4 4.9 1.4-1.8 2.7-3.4 4.3-5' fill='none' stroke='%23000' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.blank select, .blank input {
+  -webkit-appearance: none; appearance: none;
+  font: inherit; font-style: italic; font-weight: 520;
+  font-variation-settings: "SOFT" 100, "WONK" 1, "opsz" 36;
+  color: var(--ink);
+  background: transparent; border: 0; border-radius: 4px;
+  height: 44px; padding: 0 16px 0 1px; margin: 0;
+  vertical-align: baseline;
+  cursor: pointer;
+  max-width: calc(100vw - 2 * var(--gutter) - 8px);
+  text-overflow: ellipsis;
+}
+.blank select option { font-style: normal; font-family: var(--font-ui); font-size: 1rem; color: var(--ink); background: var(--slip); }
+.blank input { padding-right: 2px; cursor: text; width: 7.4ch; }
+.blank input::placeholder { color: var(--ink); opacity: 1; }
+.blank input::-webkit-outer-spin-button, .blank input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.blank input { -moz-appearance: textfield; }
+.money .cur { color: var(--ink); font-style: italic; font-weight: 520; }
+
+/* settings: circle the words that fit tonight */
+.places { display: inline; }
+.places .comma { margin-left: -.1em; }
+.places .or { white-space: nowrap; }
+.place-word { position: relative; display: inline-block; white-space: nowrap; cursor: pointer; margin: 0 -.1em; }
+.place-word input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; width: 100%; height: 100%; }
+.place-word span {
+  position: relative; display: inline-block; padding: 0 .2em; line-height: 44px; min-height: 44px;
+  color: var(--ink-soft); font-style: italic;
+  transition: color var(--t-small) var(--ease-out);
+}
+.place-word span::after { /* the pen circle */
+  content: ""; position: absolute; inset: 4px -3px 2px -4px; pointer-events: none;
+  background: var(--ink);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 40' preserveAspectRatio='none'%3E%3Cpath d='M55 4.5C30 2.6 6.5 7.8 4 19.5c-2.4 11.5 22 17.6 48 16.4 25-1.1 45-7 44.2-17.4C95.4 8.6 73 3.2 47 4.1 40 4.4 33 5.6 27 7.6' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+          mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 40' preserveAspectRatio='none'%3E%3Cpath d='M55 4.5C30 2.6 6.5 7.8 4 19.5c-2.4 11.5 22 17.6 48 16.4 25-1.1 45-7 44.2-17.4C95.4 8.6 73 3.2 47 4.1 40 4.4 33 5.6 27 7.6' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+  clip-path: inset(0 100% 0 0);
+  transition: clip-path var(--t-medium) var(--ease-out);
+}
+.place-word input:checked + span { color: var(--ink); }
+.place-word input:checked + span::after { clip-path: inset(0 0 0 0); }
+.place-word input:focus-visible + span { outline: 2px solid var(--stamp); outline-offset: 0; border-radius: 6px; }
+.blank select:focus-visible, .blank input:focus-visible { outline: 2px solid var(--stamp); outline-offset: 2px; }
+.places .anywhere { display: none; }
+.from-clause[hidden] { display: none; }
+
+/* ── stage: the jar, seen from above ─────────────────────── */
+.stage {
+  --jar: min(86vw, 340px);
+  position: relative;
+  margin: 10px calc(-1 * var(--gutter)) 0;
+  padding: 0 var(--gutter);
+  overflow-x: clip;
+}
+.jar {
+  position: relative;
+  width: var(--jar); aspect-ratio: 1;
+  margin: 0 calc(-.06 * var(--jar)) 0 auto;
+  transition: filter var(--t-medium) var(--ease-out), opacity var(--t-medium) var(--ease-out), transform var(--t-medium) var(--ease-out);
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+}
+.jar-shadow {
+  position: absolute; inset: 6% -2% -6% 8%; border-radius: 50%;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--ink) 16%, transparent), transparent);
+  filter: blur(6px);
+}
+.jar-mouth {
+  position: absolute; inset: 0; border-radius: 50%;
+  touch-action: pan-y; cursor: grab;
+  -webkit-tap-highlight-color: transparent;
+}
+.jar-inside {
+  position: absolute; inset: 4.5%; border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 52%, color-mix(in srgb, var(--paper-2) 78%, var(--ink) 22%) 0 30%, color-mix(in srgb, var(--paper-2) 92%, var(--ink) 8%) 62%, var(--paper-2) 100%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 10%, transparent), inset 0 10px 30px -10px color-mix(in srgb, var(--ink) 25%, transparent);
+}
+.jar-glass { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.jar-glass .lip { fill: none; stroke: var(--slip); stroke-opacity: .55; stroke-width: 9; }
+.jar-glass .lip-in { fill: none; stroke: var(--ink); stroke-opacity: .18; stroke-width: .9; }
+.jar-glass circle.lip { filter: drop-shadow(0 0 .6px color-mix(in srgb, var(--ink) 45%, transparent)); }
+.jar-glass .shine { fill: none; stroke: #fff; stroke-opacity: .85; stroke-width: 2.6; stroke-linecap: round; }
+.jar-glass .shine-2 { stroke-opacity: .45; stroke-width: 1.6; }
+
+/* the heap */
+.heap {
+  position: absolute; inset: 8%; border-radius: 50%;
+  container-type: size;
+  --w: 15cqw;
+}
+.hs {
+  position: absolute; left: var(--x); top: var(--y);
+  width: var(--w); height: calc(var(--w) * .42);
+  background: var(--slip);
+  border-radius: 1.5px;
+  box-shadow: 0 .5px 0 color-mix(in srgb, var(--ink) 18%, transparent), 0 2px 5px -2px color-mix(in srgb, var(--ink) 45%, transparent);
+  transform: translate(calc(-50% + var(--ox, 0px) + var(--px, 0px)), calc(-50% + var(--oy, 0px) + var(--py, 0px))) rotate(var(--r)) scale(var(--sc, 1));
+  transition: transform var(--t-medium) var(--ease-spring), opacity var(--t-medium) var(--ease-out);
+  z-index: 2;
+}
+.hs::before { /* the folded edge, tinted by setting */
+  content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 12%;
+  background: var(--tint-local); border-radius: 1.5px 0 0 1.5px;
+  box-shadow: 1px 0 0 color-mix(in srgb, var(--ink) 12%, transparent);
+}
+.hs::after { /* handwriting showing through */
+  content: ""; position: absolute; left: 30%; right: 26%; top: 46%; height: 1.4px; border-radius: 2px;
+  background: var(--ink); opacity: .22;
+}
+.hs.s-home::before { background: var(--tint-home); }
+.hs.s-day_trip::before { background: var(--tint-day_trip); }
+.hs.s-travel::before { background: var(--tint-travel); }
+.hs.out {
+  --ox: calc(var(--w) * var(--kx)); --oy: calc(var(--w) * var(--ky)); --sc: .8;
+  opacity: .34; z-index: 1;
+  transition: transform var(--t-medium) var(--ease-out), opacity var(--t-medium) var(--ease-out);
+}
+.hs.gone { opacity: 0; transition: none; }
+.hs.home-again { animation: home-again 520ms var(--ease-spring); }
+@keyframes home-again { from { scale: 1.5; } 60% { scale: .92; } to { scale: 1; } }
+
+/* draw: the jar gets a little shake, slips stir */
+.jar.stir .heap { animation: stir 380ms var(--ease-in-out) infinite; }
+.jar.stir .jar-mouth { animation: jiggle 380ms var(--ease-in-out) infinite; }
+@keyframes stir { 0%, 100% { rotate: 0deg; } 30% { rotate: -9deg; } 70% { rotate: 6deg; } }
+@keyframes jiggle { 0%, 100% { translate: 0 0; } 25% { translate: -4px 1px; } 50% { translate: 3px -2px; } 75% { translate: -2px 2px; } }
+.jar.plop .jar-mouth { animation: plop 300ms var(--ease-out); }
+@keyframes plop { 40% { scale: .985; } }
+/* reaching in */
+.jar.rummage .heap { animation: rummage 1.4s var(--ease-in-out) infinite alternate; }
+@keyframes rummage { from { rotate: -3deg; } to { rotate: 4deg; } }
+.jar.rummage .jar-mouth { cursor: grabbing; }
+
+/* night: the jar is a lantern */
+.fireflies { display: none; }
+@media (prefers-color-scheme: dark) {
+  .jar-shadow { background: radial-gradient(closest-side, rgba(0, 0, 0, .55), transparent); }
+  .jar-mouth { box-shadow: 0 0 70px 6px var(--glow); }
+  .jar-inside {
+    background: radial-gradient(circle at 50% 52%, rgba(255, 190, 110, .2) 0 22%, color-mix(in srgb, var(--paper-2) 80%, rgba(255, 190, 110, .4)) 55%, var(--paper-2) 100%);
+    box-shadow: inset 0 0 0 1px rgba(255, 210, 160, .12), inset 0 0 40px rgba(255, 190, 110, .14);
+  }
+  .jar-glass .lip { stroke: #ffd9a8; stroke-opacity: .07; }
+  .jar-glass .lip-in { stroke: #ffd9a8; stroke-opacity: .28; }
+  .jar-glass .shine { stroke: #ffe2bd; stroke-opacity: .55; }
+  .jar-glass .shine-2 { stroke-opacity: .3; }
+  .hs { background: color-mix(in srgb, var(--slip) 78%, var(--glow)); box-shadow: 0 0 0 .5px rgba(255, 220, 180, .14), 0 3px 6px -2px rgba(0, 0, 0, .7); }
+  .hs::after { background: #f1e9df; opacity: .28; }
+  .hs.out { opacity: .26; }
+  .fireflies { display: block; position: absolute; inset: 14%; pointer-events: none; z-index: 3; }
+  .fireflies i {
+    position: absolute; width: 4px; height: 4px; border-radius: 50%;
+    background: #ffd9a0; box-shadow: 0 0 6px 2px rgba(255, 190, 110, .55);
+    opacity: 0; animation: firefly 7s var(--ease-in-out) infinite;
+  }
+  .fireflies i:nth-child(1) { left: 22%; top: 30%; animation-delay: -1s; }
+  .fireflies i:nth-child(2) { left: 64%; top: 22%; animation-delay: -3.2s; animation-duration: 8.5s; }
+  .fireflies i:nth-child(3) { left: 48%; top: 58%; animation-delay: -5s; }
+  .fireflies i:nth-child(4) { left: 78%; top: 62%; animation-delay: -2s; animation-duration: 9s; }
+  .fireflies i:nth-child(5) { left: 30%; top: 74%; animation-delay: -6.4s; animation-duration: 7.6s; }
+  .fireflies i:nth-child(6) { left: 56%; top: 40%; animation-delay: -4.1s; animation-duration: 10s; }
+  .fireflies i:nth-child(7) { left: 12%; top: 52%; animation-delay: -.4s; animation-duration: 8s; }
+  @keyframes firefly {
+    0%, 100% { opacity: 0; translate: 0 0; }
+    20% { opacity: .9; }
+    50% { opacity: .35; translate: 9px -12px; }
+    75% { opacity: .85; translate: -6px -4px; }
+  }
+}
+html.hidden-tab .fireflies i, html.hidden-tab .heap { animation-play-state: paused !important; }
+
+/* when a slip is out of the jar it's close to your eyes: the jar goes soft */
+.stage.has-card .jar { filter: blur(2.5px) saturate(.9); opacity: .62; }
+.stage.has-card .jar-mouth { cursor: default; }
+.stage.has-card .fireflies { opacity: .5; }
+
+/* ── draw row ────────────────────────────────────────────── */
+.draw-row {
+  position: relative;
+  display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 4px 12px;
+  margin-top: calc(-.12 * var(--jar));
+}
+.counter {
+  grid-column: 1 / -1; margin: 0; max-width: 15ch;
+  font-size: var(--step-0); line-height: 1.3; color: var(--ink-soft);
+}
+.counter b {
+  display: block;
+  font-family: var(--font-display); font-weight: 600; font-size: var(--step-4); line-height: .9;
+  font-variation-settings: "SOFT" 100, "WONK" 1, "opsz" 144;
+  color: var(--ink); font-variant-numeric: tabular-nums; letter-spacing: -0.03em;
+  margin-bottom: 4px;
+  transition: opacity var(--t-small) var(--ease-out), translate var(--t-small) var(--ease-out);
+}
+.counter.tick b { opacity: .2; translate: 0 4px; transition: none; }
+.counter.none b { color: var(--ink-soft); }
+.draw { min-height: 56px; padding: 0 30px; font-size: var(--step-1); margin-top: 14px; }
+.reach {
+  margin: 0 0 6px; align-self: center; justify-self: start;
+  font-size: 1.45rem; line-height: 1; color: var(--ink-soft); rotate: -6deg;
+  display: flex; align-items: center; gap: 4px;
+}
+.reach::after { /* arrow up at the jar */
+  content: ""; width: 26px; height: 30px; background: var(--ink-soft);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 30'%3E%3Cpath d='M3 27c8-1 15-7 17-21M14.5 9.5 20 4l3.5 6.6' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+          mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 30'%3E%3Cpath d='M3 27c8-1 15-7 17-21M14.5 9.5 20 4l3.5 6.6' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.draw-row .draw { grid-column: 1; grid-row: 2; justify-self: start; }
+.draw-row .reach { grid-column: 2; grid-row: 2; }
+.stage.card-pick .draw-row { display: none; }
+.stage.has-card .draw-row { margin-top: 22px; }
+.stage.has-card .draw-row .reach { display: none; }
+
+.empty-jar { margin-top: calc(-.1 * var(--jar)); position: relative; }
+.empty-title {
+  margin: 0 0 14px; font-family: var(--font-display); font-size: var(--step-3); line-height: 1.05;
+  font-variation-settings: "SOFT" 100, "WONK" 1, "opsz" 96; font-weight: 560; color: var(--ink);
+}
+
+/* ── the drawn slip ──────────────────────────────────────── */
+.pick { position: relative; z-index: 4; }
+.stage.has-card .pick { margin-top: calc(-.8 * var(--jar)); }
+.pick:empty { display: none; }
+
+.slip-card {
+  position: relative; rotate: -1deg;
+  filter: drop-shadow(0 1px 0 color-mix(in srgb, var(--ink) 8%, transparent)) drop-shadow(0 18px 22px color-mix(in srgb, var(--ink) 22%, transparent));
+}
+@media (prefers-color-scheme: dark) {
+  .slip-card { filter: drop-shadow(0 0 1px rgba(255, 220, 180, .14)) drop-shadow(0 20px 26px rgba(0, 0, 0, .7)); }
+}
+.paper {
+  position: relative;
+  background: var(--slip);
+  border-radius: var(--radius-slip);
+  padding: 20px 22px 26px 26px;
+  overflow: hidden;
+  /* deckled bottom edge */
+  -webkit-mask: linear-gradient(#000 0 0) top / 100% calc(100% - 6px) no-repeat,
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 6' preserveAspectRatio='none'%3E%3Cpath d='M0%200H120V3.4L116.3%203.5L111.0%204.9L104.4%204.0L97.7%203.2L92.3%205.0L85.5%202.5L80.4%202.8L75.1%204.3L69.5%202.5L62.9%204.9L56.9%204.2L52.3%202.8L46.0%204.8L39.6%205.2L35.3%202.5L31.2%203.1L25.8%202.9L19.7%204.8L12.9%203.5L9.2%202.7L4.3%202.5L0%203.4Z'/%3E%3C/svg%3E") bottom / 120px 6px repeat-x;
+          mask: linear-gradient(#000 0 0) top / 100% calc(100% - 6px) no-repeat,
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 6' preserveAspectRatio='none'%3E%3Cpath d='M0%200H120V3.4L116.3%203.5L111.0%204.9L104.4%204.0L97.7%203.2L92.3%205.0L85.5%202.5L80.4%202.8L75.1%204.3L69.5%202.5L62.9%204.9L56.9%204.2L52.3%202.8L46.0%204.8L39.6%205.2L35.3%202.5L31.2%203.1L25.8%202.9L19.7%204.8L12.9%203.5L9.2%202.7L4.3%202.5L0%203.4Z'/%3E%3C/svg%3E") bottom / 120px 6px repeat-x;
+}
+.paper::after { /* the folded edge, tinted by where it happens */
+  content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 6px;
+  background: var(--tint-local);
+}
+.set-home .paper::after { background: var(--tint-home); }
+.set-day_trip .paper::after { background: var(--tint-day_trip); }
+.set-travel .paper::after { background: var(--tint-travel); }
+
+/* creases: it was folded in thirds, and it remembers */
+.crease { position: absolute; left: 0; right: 0; height: 2px; pointer-events: none; z-index: 1; }
+.crease.c1 { top: 33.33%; }
+.crease.c2 { top: 66.66%; }
+.crease { background: linear-gradient(to bottom, color-mix(in srgb, var(--ink) 7%, transparent), rgba(255, 255, 255, .45)); }
+@media (prefers-color-scheme: dark) { .crease { background: linear-gradient(to bottom, rgba(0, 0, 0, .35), rgba(255, 230, 200, .06)); } }
+
+.slip-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; min-height: 26px; }
+.setting-tab {
+  display: inline-block; padding: 4px 9px 3px;
+  font: 600 .75rem/1.2 var(--font-ui); letter-spacing: .09em; text-transform: uppercase;
+  color: var(--ink); background: var(--tint-local); border-radius: 2px; rotate: -1.5deg;
+}
+.set-home .setting-tab { background: var(--tint-home); }
+.set-day_trip .setting-tab { background: var(--tint-day_trip); }
+.set-travel .setting-tab { background: var(--tint-travel); }
+.first { font-size: 1.35rem; line-height: 1; color: var(--ink-soft); rotate: 3deg; margin: -2px -4px 0 0; white-space: nowrap; }
+
+.slip-title {
+  margin: 14px 0 8px;
+  font-size: clamp(1.85rem, 8.4vw, 2.6rem); font-weight: 600; line-height: 1.02;
+  font-variation-settings: "SOFT" 100, "WONK" 1, "opsz" 120;
+  letter-spacing: -0.022em; overflow-wrap: break-word;
+}
+.slip-title:focus { outline: none; }
+.slip-title:focus-visible { outline: 2px solid var(--stamp); outline-offset: 4px; }
+.slip-meta { margin: 0 0 12px; color: var(--ink-soft); font-size: var(--step-0); }
+.slip-meta b { color: var(--ink); font-weight: 600; }
+.slip-line { display: flex; align-items: flex-start; gap: 8px; margin: 0 0 6px; font-size: var(--step--1); line-height: 1.45; }
+.slip-line.soft { color: var(--ink-soft); }
+.ink-ico { flex: none; width: 19px; height: 19px; margin-top: 1px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.ink-ico.sm { width: 16px; height: 16px; display: inline-block; margin: 0 0 0 4px; vertical-align: -2px; }
+.slip-notes {
+  margin: 14px 0 10px; font-family: var(--font-display); font-style: italic; font-size: 1.08rem; line-height: 1.45;
+  font-variation-settings: "SOFT" 50, "opsz" 14; color: var(--ink);
+}
+.slip-tags { margin: 0 0 4px; color: var(--ink-soft); font-size: var(--step--1); }
+.maps {
+  display: inline-flex; align-items: center; min-height: 44px; font-weight: 600; font-size: var(--step--1);
+  text-decoration: underline; text-decoration-color: var(--stamp); text-decoration-thickness: 1.5px;
+}
+
+.slip-actions {
+  display: grid; grid-template-columns: auto 1fr; gap: 12px 12px; align-items: center;
+  margin-top: 16px; padding-top: 16px;
+  border-top: 1px dashed var(--rule);
+}
+.slip-actions .accept { grid-column: 1 / -1; min-height: 56px; font-size: var(--step-1); }
+.putback { margin: 0; }
+.putback-btn { min-height: 48px; }
+.peeks { display: flex; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; }
+.peeks-label { font-size: 1.4rem; line-height: 1; color: var(--ink-soft); }
+.slip-actions > .peeks:first-child, .slip-actions > .accept + .peeks { grid-column: 1 / -1; justify-content: center; }
+.tokens { display: inline-flex; gap: 3px; }
+.token { width: 22px; height: 22px; }
+.token .ring { fill: none; stroke: var(--ink-soft); stroke-width: 1.5; }
+.token .dot { fill: var(--ink); transform-origin: 10px 10px; transform: scale(0); transition: transform var(--t-medium) var(--ease-spring); }
+.token.full .dot { transform: scale(1); }
+.token.just-used .dot { animation: drain 520ms var(--ease-in-out) both; }
+@keyframes drain { from { transform: scale(1); } 40% { transform: scale(1.15); } to { transform: scale(0); } }
+
+/* ── IT'S A DATE ─────────────────────────────────────────── */
+.is-done .first { visibility: hidden; }
+.stamp {
+  position: relative; z-index: 3;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 11px 16px 8px;
+  color: var(--stamp);
+  border: 3.5px solid var(--stamp); border-radius: 7px;
+  rotate: -8deg;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='120'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.55' numOctaves='3' seed='7'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 -3.4 0 0 0 2.75'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23f)'/%3E%3C/svg%3E") 0 0 / 220px 120px;
+          mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='120'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.55' numOctaves='3' seed='7'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 -3.4 0 0 0 2.75'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23f)'/%3E%3C/svg%3E") 0 0 / 220px 120px;
+  mix-blend-mode: multiply;
+}
+.stamp::before { content: ""; position: absolute; inset: 3px; border: 1.5px solid var(--stamp); border-radius: 4px; }
+.stamp-big {
+  font: 800 1.95rem/1 var(--font-ui); letter-spacing: .06em; text-transform: uppercase; white-space: nowrap;
+}
+.stamp-date { margin-top: 6px; font: 700 .95rem/1 var(--font-ui); letter-spacing: .16em; font-variant-numeric: tabular-nums; }
+.stamp-zone {
+  display: flex; justify-content: center; align-items: center;
+  margin: 18px 0 0; padding: 26px 0 18px; border-top: 1px dashed var(--rule);
+}
+@media (prefers-color-scheme: dark) { .stamp { mix-blend-mode: normal; } }
+.kept-line { text-align: center; margin: 0; font-family: var(--font-display); font-style: italic; color: var(--ink-soft); font-variation-settings: "opsz" 14; }
+.is-done .slip-actions { grid-template-columns: 1fr; }
+.ink-heart { position: absolute; z-index: 5; width: 20px; height: 20px; pointer-events: none; fill: var(--stamp); stroke: var(--stamp); stroke-width: 1; opacity: 0; }
+
+/* ── nothing fits: a handwritten note ────────────────────── */
+.note {
+  position: relative; rotate: 1.2deg;
+  background: var(--slip); border-radius: var(--radius-slip);
+  padding: 18px 22px 22px; margin: 0 4px;
+  box-shadow: var(--shadow-slip);
+}
+.note-hm { margin: 0 0 4px; font-size: 1.6rem; line-height: 1; color: var(--ink-soft); rotate: -2deg; }
+.note-text {
+  margin: 0 0 16px; font-family: var(--font-display); font-style: italic; font-size: 1.2rem; line-height: 1.4;
+  font-variation-settings: "SOFT" 50, "opsz" 24; color: var(--ink);
+}
+.note-text:focus { outline: none; }
+.note .relax { margin: 0; }
+.note .btn { min-height: 52px; }
+
+.jar-error { margin: 12px 0 0; color: var(--ink-soft); font-style: italic; font-family: var(--font-display); }
+
+/* ── the fold assembly (built by jar.js for the draw / put back) ── */
+.fold { position: absolute; z-index: 30; pointer-events: none; rotate: -1deg; transform-origin: 50% 50%; }
+.fold .fp { position: absolute; left: 0; width: 100%; }
+.fold .face { position: absolute; inset: 0; overflow: hidden; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.fold .face > .paper { position: absolute; left: 0; margin: 0; }
+.fold .hinge { transform-style: preserve-3d; }
+.fold .back { transform: rotateX(180deg); background: var(--slip); border-radius: 2px; }
+.fold .back::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 7%; background: var(--tint-local); }
+.fold .to {
+  position: absolute; left: 0; right: 0; top: 50%; translate: 0 -50%; text-align: center;
+  font-size: clamp(1.6rem, 8vw, 2.2rem); line-height: 1; color: var(--ink); rotate: -3deg;
+}
+.fold.set-home .back::before { background: var(--tint-home); }
+.fold.set-day_trip .back::before { background: var(--tint-day_trip); }
+.fold.set-travel .back::before { background: var(--tint-travel); }
+.fold .shade { position: absolute; inset: 0; background: var(--ink); opacity: 0; pointer-events: none; }
+@media (prefers-color-scheme: dark) { .fold .shade { background: #000; } }
+.sheen {
+  position: absolute; inset: -20% -10%; pointer-events: none; opacity: 0;
+  background: linear-gradient(100deg, transparent 35%, rgba(255, 244, 225, .7) 50%, transparent 65%);
+  mix-blend-mode: soft-light;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jar.stir .heap, .jar.stir .jar-mouth, .jar.rummage .heap, .jar.plop .jar-mouth { animation: none; }
+  .fireflies i { animation: none; opacity: .6; }
+  .hs { transition: opacity 150ms linear; }
+}
+
+@media (min-width: 720px) {
+  .sentence { font-size: 1.7rem; }
+  .pick { max-width: 540px; margin-left: auto; margin-right: auto; }
+  .stage { --jar: 400px; }
+}

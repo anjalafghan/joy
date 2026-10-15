@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% block title %}The jar · joy{% endblock %}
+{% block page %}jar{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="/static/jar.css">
+<script src="/static/jar.js" defer></script>
+{% endblock %}
+{% block content %}
+<div class="jar-page{% if count == 0 %} is-empty{% endif %}">
+
+<section class="stage" aria-labelledby="jar-h">
+  <h1 id="jar-h" class="visually-hidden">{{ couple }}: the date jar</h1>
+
+  <div class="jar" id="jar" data-total="{{ count }}" aria-hidden="true">
+    <svg class="jar-back" viewBox="0 0 240 300" focusable="false">
+      <defs>
+        <radialGradient id="lantern" cx="50%" cy="56%" r="50%">
+          <stop offset="0" class="glow-stop"/>
+          <stop offset="1" class="glow-stop glow-stop--out"/>
+        </radialGradient>
+      </defs>
+      <ellipse class="shelf-shadow" cx="122" cy="291" rx="104" ry="7"/>
+      <g class="lantern"><ellipse cx="120" cy="196" rx="118" ry="104" fill="url(#lantern)"/></g>
+      <path class="glass-fill" d="M72 56v14c0 10-8 14-22 18-20 6-28 16-28 34v140c0 18 10 28 28 28h140c18 0 28-10 28-28V122c0-18-8-28-28-34-14-4-22-8-22-18V56z"/>
+      <path class="glass-back-rim" d="M28 276q92 9 184 0"/>
+    </svg>
+
+    <canvas class="jar-slips"></canvas>
+
+    <svg class="jar-front" viewBox="0 0 240 300" focusable="false">
+      <defs>
+        <clipPath id="inside"><path d="M76 60v10c0 12-10 17-25 21-18 5-25 14-25 31v140c0 15 8 24 24 24h140c16 0 24-9 24-24V122c0-17-7-26-25-31-15-4-25-9-25-21V60z"/></clipPath>
+        <filter id="ff-blur" x="-2" y="-2" width="5" height="5"><feGaussianBlur stdDeviation="1.6"/></filter>
+      </defs>
+      <g class="fireflies" clip-path="url(#inside)">
+        <circle cx="70" cy="200" r="2.2" style="--d:5.2s;--o:-.4s"/>
+        <circle cx="150" cy="160" r="1.8" style="--d:6.4s;--o:-2.1s"/>
+        <circle cx="112" cy="232" r="2" style="--d:4.6s;--o:-3.3s"/>
+        <circle cx="186" cy="214" r="1.6" style="--d:7.1s;--o:-1.2s"/>
+        <circle cx="96" cy="140" r="1.5" style="--d:5.8s;--o:-4.4s"/>
+        <circle cx="168" cy="250" r="1.9" style="--d:6.8s;--o:-.9s"/>
+      </g>
+      <!-- the thick glass base -->
+      <path class="glass-base" d="M24 268c2 12 11 20 26 20h140c15 0 24-8 26-20q-96 12-192 0z"/>
+      <path class="glass-floor" d="M26 274q94 10 188 0"/>
+      <!-- outline -->
+      <path class="glass-edge" d="M72 56v14c0 10-8 14-22 18-20 6-28 16-28 34v140c0 18 10 28 28 28h140c18 0 28-10 28-28V122c0-18-8-28-28-34-14-4-22-8-22-18V56"/>
+      <!-- highlights -->
+      <path class="hl hl-1" d="M33 132c-1 40-1 86 1 122"/>
+      <path class="hl hl-2" d="M42 148v34"/>
+      <path class="hl hl-3" d="M58 96c-12 4-19 10-22 20"/>
+      <path class="hl hl-4" d="M209 140c1 30 1 70-1 104"/>
+      <!-- rim of the mouth -->
+      <rect class="rim" x="66" y="52" width="108" height="9" rx="4"/>
+      <!-- lid -->
+      <g class="lid">
+        <rect class="lid-body" x="62" y="28" width="116" height="26" rx="6"/>
+        <path class="lid-ridges" d="M74 33v17M84 33v17M94 33v17M104 33v17M114 33v17M124 33v17M134 33v17M144 33v17M154 33v17M164 33v17"/>
+        <path class="lid-shine" d="M68 32.5h104"/>
+      </g>
+      <!-- masking-tape label -->
+      <g class="label" transform="rotate(-4 120 128)">
+        <path class="tape" d="M64 116l3 3-2 3 2 3-2 3 2 3-3 3h112l-2-3 3-3-3-3 3-3-3-3 2-3z"/>
+        <text class="label-text" x="120" y="132" text-anchor="middle">{{ couple }}</text>
+      </g>
+    </svg>
+  </div>
+
+  <svg class="twine" viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true" focusable="false"><path d="M2 2C26 30 62 42 99 38"/></svg>
+  <p class="tag" id="tag" role="status" aria-live="polite">
+    <span class="tag-n" id="tag-n">{{ count }}</span>
+    <span class="tag-unit" id="tag-unit">{% if count == 1 %}slip{% else %}slips{% endif %}</span>
+    <span class="tag-text" id="tag-text">{% if count == 0 %}in the jar so far{% else %}could happen tonight{% endif %}</span>
+  </p>
+</section>
+
+{% if count == 0 %}
+<div class="empty-note grain">
+  <p class="empty-hand">The jar is empty.</p>
+  <p>Every date starts as a slip of paper. Write the first one and it goes straight in.</p>
+  <a class="btn btn-stamp" href="/wishlist/new">Write the first slip</a>
+</div>
+<div id="pick" aria-live="polite"></div>
+{% else %}
+
+<div id="pick" aria-live="polite"></div>
+
+<form id="tonight" class="tonight" hx-post="/pick" hx-target="#pick" hx-swap="innerHTML swap:260ms" hx-sync="#pick:drop" hx-disabled-elt="find #draw">
+  <p class="sentence">
+    <span class="lead">Tonight we have</span>
+    <label class="blank blank-money">
+      <span class="visually-hidden">Budget for both of us, in {{ currency }} (leave empty for any)</span>
+      <span class="cur" aria-hidden="true">{{ currency }}</span><input type="number" name="budget" inputmode="numeric" min="0" step="any" placeholder="any amount" autocomplete="off">
+    </label>
+    and
+    <label class="blank">
+      <span class="visually-hidden">Time we have</span>
+      <select name="max_duration">
+        <option value="">all the time in the world</option>
+        {% for d in durations %}<option value="{{ d.value }}">up to {{ d.label|lower }}</option>{% endfor %}
+      </select>
+    </label>,
+    <span class="where" role="group" aria-labelledby="where-l">
+      <span id="where-l" class="where-l">anywhere:</span>
+      {% for o in settings %}<label class="chip" style="--tint: var(--tint-{{ o.value }})"><input type="checkbox" name="settings" value="{{ o.value }}"><span>{% if o.value == "day_trip" %}a day trip{% else if o.value == "travel" %}travelling{% else %}{{ o.label|lower }}{% endif %}</span></label>{% if !loop.last %} {% endif %}{% endfor %}</span>,
+    <label class="blank">
+      <span class="visually-hidden">How far we'll go</span>
+      <select name="max_km">
+        <option value="">as far as it takes</option>
+        {% for o in kms %}<option value="{{ o.value }}">within {{ o.label }}</option>{% endfor %}
+      </select>
+    </label><span class="from-clause"> of
+    <label class="blank">
+      <span class="visually-hidden">Measured from</span>
+      <select name="from">
+        <option value="">both our places</option>
+        {% for o in froms %}<option value="{{ o.value }}">{{ o.label }}</option>{% endfor %}
+      </select>
+    </label></span>,
+    feeling
+    <label class="blank">
+      <span class="visually-hidden">Vibe</span>
+      <select name="tag">
+        <option value="">anything</option>
+        {% for o in tags %}<option value="{{ o.value }}">{{ o.label }}</option>{% endfor %}
+      </select>
+    </label>
+    with
+    <label class="blank">
+      <span class="visually-hidden">Energy</span>
+      <select name="energy">
+        <option value="">any</option>
+        {% for o in energies %}<option value="{{ o.value }}">{{ o.label|lower }}</option>{% endfor %}
+      </select>
+    </label>
+    energy.
+  </p>
+
+  <div class="draw-row">
+    <button id="draw" class="btn btn-stamp btn-draw" type="submit">Draw a slip</button>
+    <button id="shake" class="shake-opt" type="button" hidden aria-pressed="false">or shake your phone</button>
+  </div>
+</form>
+{% endif %}
+
+<script type="application/json" id="slips">{{ slips_json|safe }}</script>
+</div>
+{% endblock %}

@@ -1,0 +1,439 @@
+/* joy — Slips (/wishlist) and Write a slip (/wishlist/new, /wishlist/{id}).
+   Uses tokens from tokens.css only. Tints mark a slip's folded corner and small marks,
+   never sit behind --ink-soft text (contrast), and --stamp text never sits on --paper-2. */
+
+.tint-home     { --tint: var(--tint-home); }
+.tint-local    { --tint: var(--tint-local); }
+.tint-day_trip { --tint: var(--tint-day_trip); }
+.tint-travel   { --tint: var(--tint-travel); }
+
+.nowrap { white-space: nowrap; }
+.hand-note {
+  font-family: var(--font-hand); font-weight: 600; font-size: 1.45rem; line-height: 1;
+  color: var(--ink-soft);
+}
+.ink-ico { fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.slips-page svg, .write-page svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ── page head ───────────────────────────────────────────── */
+.slips-head {
+  display: flex; align-items: flex-end; justify-content: space-between; gap: 12px;
+  margin: 18px 0 18px;
+}
+.slips-title { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; min-width: 0; }
+.slips-title h1 { font-size: var(--step-4); }
+.slips-count { margin: 0; transform: rotate(-4deg) translateY(-4px); }
+.write-btn { flex: none; padding: 0 18px 0 16px; }
+.write-btn .ink-ico { margin-top: -2px; }
+
+/* ── jump index ──────────────────────────────────────────── */
+.group-index ul {
+  list-style: none; margin: 0; padding: 0;
+  display: flex; flex-wrap: wrap; gap: 8px;
+}
+.group-index a {
+  min-height: 44px; padding: 0 14px 0 12px;
+  display: inline-flex; align-items: center; gap: 8px;
+  font: 600 var(--step--1)/1 var(--font-ui); color: var(--ink); text-decoration: none;
+  background: var(--slip); border: 1px solid var(--rule); border-radius: 999px;
+  transition: border-color var(--t-small) var(--ease-out), transform var(--t-micro) var(--ease-out);
+}
+@media (hover: hover) { .group-index a:hover { border-color: var(--ink-soft); } }
+.group-index a:active { transform: scale(.97); }
+.group-index .n { font-weight: 500; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.dot {
+  width: 12px; height: 12px; flex: none; border-radius: 50% 45% 55% 50%;
+  background: var(--tint); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 22%, transparent);
+}
+.slips-hint { font-size: var(--step--1); margin: 14px 0 8px; max-width: 46ch; }
+
+/* ── groups ──────────────────────────────────────────────── */
+.group { margin-top: 30px; scroll-margin-top: calc(76px + env(safe-area-inset-top)); }
+.group-h {
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  font-size: var(--step-2); margin: 0 0 14px;
+}
+.group-label {
+  position: relative; z-index: 0;
+}
+/* a tinted highlighter swipe under the group name (ink text sits on it, ≥ 4.5:1) */
+.group-label::after {
+  content: ""; position: absolute; z-index: -1; left: -4px; right: -6px; bottom: .02em; height: .42em;
+  background: var(--tint); border-radius: 3px 8px 4px 9px; transform: rotate(-1deg);
+}
+.group-n { font: 500 var(--step--1)/1 var(--font-ui); color: var(--ink-soft); letter-spacing: .01em; }
+
+/* ── the slip ────────────────────────────────────────────── */
+.stack { list-style: none; margin: 0; padding: 0; }
+.slip {
+  --r: -.5deg; --x: 0px;
+  position: relative;
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; column-gap: 6px;
+  padding: 12px 6px 12px 16px;
+  background: var(--slip); color: var(--ink);
+  border-radius: 2px 3px 2px 4px;
+  box-shadow: var(--shadow-slip);
+  transform: translateX(var(--x)) rotate(var(--r));
+  transition: transform var(--t-small) var(--ease-out), box-shadow var(--t-small) var(--ease-out);
+}
+.slip + .slip { margin-top: -4px; }
+.slip:hover, .slip:focus-within { z-index: 3; }
+.slip:nth-child(4n+2) { --r: .35deg; --x: 2px; }
+.slip:nth-child(4n+3) { --r: -.15deg; --x: -1px; }
+.slip:nth-child(4n)   { --r: .6deg;  --x: 1px; }
+@media (hover: hover) { .slip:hover { transform: translateX(var(--x)) rotate(0deg) translateY(-2px); z-index: 2; } }
+.slip:focus-within { z-index: 3; }
+.slip:active { transform: translateX(var(--x)) rotate(0deg) scale(.995); }
+@media (prefers-color-scheme: dark) {
+  /* the slips catch a little warm light */
+  .slip, .paper-slip { box-shadow: var(--shadow-slip), inset 0 1px 0 rgba(255, 214, 170, .07); }
+}
+
+/* the folded corner: page colour where the corner was, the tint on the flap */
+.fold {
+  position: absolute; top: 0; right: 0; width: 24px; height: 24px; z-index: 1; pointer-events: none;
+  background: linear-gradient(225deg, var(--paper) 50%, var(--tint) 50%);
+  border-bottom-left-radius: 3px;
+  filter: drop-shadow(-1px 1px 1px color-mix(in srgb, var(--ink) 18%, transparent));
+}
+
+.slip-link {
+  grid-column: 1 / -1; grid-row: 1;
+  color: inherit; text-decoration: none; padding-right: 22px;
+  border-radius: 2px;
+}
+.slip-link::after { content: ""; position: absolute; inset: 0; z-index: 1; border-radius: inherit; }
+.slip-link:focus-visible { outline: none; }
+.slip:has(.slip-link:focus-visible) { outline: 2px solid var(--stamp); outline-offset: 3px; }
+.slip-title {
+  display: block;
+  font-family: var(--font-display);
+  font-variation-settings: "SOFT" 100, "WONK" 0, "opsz" 28;
+  font-weight: 520; font-size: 1.16rem; line-height: 1.22; letter-spacing: -.005em;
+  overflow-wrap: anywhere; text-wrap: pretty;
+}
+.slip-meta, .slip-far {
+  grid-column: 1; margin: 0;
+  font-size: var(--step--1); line-height: 1.4; color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+.slip-meta { margin-top: 6px; color: var(--ink); }
+.slip-meta .sep { color: var(--ink-soft); }
+.slip-far { display: flex; align-items: center; gap: 5px; margin-top: 2px; }
+.slip-far svg { flex: none; }
+.done { display: inline-flex; align-items: center; gap: 4px; margin-left: 10px; color: var(--ink-soft); white-space: nowrap; }
+.done svg { fill: var(--stamp); stroke: var(--stamp); stroke-width: 1.2; }
+
+.takeout { grid-column: 2; grid-row: 2 / span 2; position: relative; z-index: 2; margin: 0 0 -4px; }
+.takeout-btn {
+  -webkit-appearance: none; appearance: none;
+  min-height: 44px; min-width: 44px; padding: 0 10px;
+  font: 500 .8125rem/1 var(--font-ui); letter-spacing: .01em;
+  color: var(--ink-soft); background: none; border: 0; border-radius: 999px; cursor: pointer;
+  text-decoration: underline; text-decoration-color: var(--rule); text-underline-offset: 4px; text-decoration-thickness: 1.5px;
+  transition: color var(--t-small) var(--ease-out), background var(--t-small) var(--ease-out);
+}
+@media (hover: hover) { .takeout-btn:hover { color: var(--ink); text-decoration-color: var(--ink-soft); background: var(--paper); } }
+
+/* settling in: a loose stack landing on the table */
+@keyframes slip-settle {
+  from { opacity: 0; transform: translate(var(--x), -10px) rotate(calc(var(--r) + 1.6deg)); }
+  to   { opacity: 1; transform: translateX(var(--x)) rotate(var(--r)); }
+}
+.slip { animation: slip-settle var(--t-medium) var(--ease-spring) backwards; animation-delay: calc(min(var(--i), 10) * 32ms + 60ms); }
+.no-settle .slip { animation: none; }
+/* taken out: the slip lifts off the table */
+.slip.leaving {
+  animation: none; pointer-events: none;
+  transition: transform var(--t-small) var(--ease-in-out), opacity var(--t-small) var(--ease-out);
+  transform: translate(calc(var(--x) + 16px), -14px) rotate(3deg); opacity: 0;
+}
+
+/* wider: a compact two-column slip grid, no overlap */
+@media (min-width: 600px) {
+  .stack { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; align-items: stretch; }
+  .slip + .slip { margin-top: 0; }
+  .slip { align-content: start; grid-template-rows: auto 1fr auto; }
+  .slip-meta { align-self: end; }
+  .slips-title h1 { font-size: var(--step-5); }
+}
+
+/* ── empty jar ───────────────────────────────────────────── */
+.empty-jar { text-align: center; padding: 18px 8px 32px; }
+.empty-jar-art { width: 190px; height: auto; margin: 6px auto 18px; overflow: visible; }
+.empty-jar-art path { fill: none; stroke: var(--ink); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.empty-jar-art .lid { fill: var(--stamp); stroke: var(--ink); }
+.empty-jar-art .glass { fill: var(--slip); }
+.empty-jar-art .shine { stroke: var(--rule); stroke-width: 3; }
+.empty-jar-art .floor { stroke: var(--rule); }
+.empty-jar-art .lone-slip { fill: var(--tint-local); stroke-width: 1.6; opacity: .0; }
+@media (prefers-color-scheme: dark) {
+  .empty-jar-art { filter: drop-shadow(0 0 28px var(--glow)); }
+  .empty-jar-art .glass { fill: color-mix(in srgb, var(--slip) 70%, transparent); }
+}
+.empty-jar h2 { font-size: var(--step-3); }
+.empty-jar p { margin: 10px auto 22px; max-width: 30ch; }
+
+/* ── the drawer (taken-out slips) ────────────────────────── */
+.drawer {
+  margin-top: 44px; background: var(--paper-2); border-radius: 6px;
+  border: 1px solid var(--rule);
+}
+.drawer > summary {
+  list-style: none; cursor: pointer;
+  min-height: 56px; padding: 0 16px;
+  display: flex; align-items: center; gap: 10px;
+  font: 600 var(--step-0)/1.2 var(--font-ui); color: var(--ink);
+  border-radius: 6px;
+}
+.drawer > summary::-webkit-details-marker { display: none; }
+.drawer-n { font-weight: 500; font-size: var(--step--1); color: var(--ink-soft); }
+.drawer .chev { margin-left: auto; transition: transform var(--t-small) var(--ease-out); color: var(--ink-soft); }
+.drawer[open] .chev { transform: rotate(180deg); }
+.drawer-ico { color: var(--ink-soft); }
+.drawer-note { margin: 0 16px 10px; font-size: var(--step--1); }
+.drawer-list { list-style: none; margin: 0; padding: 0 10px 12px; display: grid; gap: 8px; }
+.drawer-slip {
+  position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px;
+  padding: 8px 8px 8px 16px; background: var(--slip); border-radius: 2px 3px 2px 4px;
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--ink) 8%, transparent);
+}
+.drawer-tab { position: absolute; left: 0; top: 8px; bottom: 8px; width: 4px; border-radius: 0 3px 3px 0; background: var(--tint); }
+.drawer-title {
+  flex: 1 1 14ch; min-width: 0;
+  font-family: var(--font-display); font-variation-settings: "SOFT" 100, "opsz" 24; font-size: 1.02rem; line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.drawer-actions { display: flex; align-items: center; gap: 4px; margin-left: auto; flex-wrap: wrap; justify-content: flex-end; }
+.drawer-actions form { margin: 0; }
+.btn-small { min-height: 44px; padding: 0 16px; font-size: var(--step--1); border-width: 1.5px; }
+.del { position: relative; }
+.del-sum {
+  list-style: none; cursor: pointer;
+  min-height: 44px; padding: 0 12px; display: inline-flex; align-items: center;
+  font: 500 var(--step--1)/1 var(--font-ui); color: var(--ink-soft); border-radius: 999px;
+  text-decoration: underline; text-decoration-color: var(--rule); text-underline-offset: 4px;
+}
+.del-sum::-webkit-details-marker { display: none; }
+.del[open] .del-sum { color: var(--ink); }
+.del-form { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 4px 0 2px; }
+.del-form span { font-size: var(--step--1); color: var(--ink); }
+.del-yes {
+  -webkit-appearance: none; appearance: none; cursor: pointer;
+  min-height: 44px; padding: 0 16px; border-radius: 999px;
+  font: 600 var(--step--1)/1 var(--font-ui);
+  background: var(--stamp); color: var(--stamp-ink); border: 0;
+}
+/* open: "Gone for good? [Delete forever]  Keep it" replaces the row's actions */
+.del[open] { display: flex; flex-direction: row-reverse; align-items: center; flex-wrap: wrap-reverse; justify-content: flex-start; gap: 4px; }
+.del-sum .when-open, .del[open] .del-sum .when-closed { display: none; }
+.del[open] .del-sum .when-open { display: inline; }
+.drawer-slip:has(.del[open]) .restore { display: none; }
+
+/* ── toast (Take out → Undo) ─────────────────────────────── */
+.toast-region { position: fixed; left: 0; right: 0; bottom: max(16px, env(safe-area-inset-bottom)); z-index: 40; display: flex; justify-content: center; pointer-events: none; padding: 0 var(--gutter); }
+.toast {
+  pointer-events: auto;
+  display: flex; align-items: center; gap: 6px; max-width: 100%;
+  padding: 4px 4px 4px 16px; border-radius: 999px;
+  background: var(--ink); color: var(--paper);
+  font: 500 var(--step--1)/1.3 var(--font-ui);
+  box-shadow: 0 12px 30px -12px rgba(0, 0, 0, .5);
+  animation: toast-in var(--t-small) var(--ease-out) both;
+}
+.toast-msg { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.toast button {
+  -webkit-appearance: none; appearance: none; flex: none; cursor: pointer;
+  min-height: 44px; padding: 0 16px; border-radius: 999px; border: 0;
+  font: 700 var(--step--1)/1 var(--font-ui); color: var(--paper); background: transparent;
+  text-decoration: underline; text-underline-offset: 3px;
+}
+.toast button:focus-visible { outline-color: var(--paper); outline-offset: -4px; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(10px); } }
+
+/* floating "Write a slip" once the header button scrolls away (JS adds it; mobile) */
+.fab {
+  position: fixed; right: var(--gutter); bottom: max(18px, env(safe-area-inset-bottom)); z-index: 30;
+  box-shadow: 0 10px 24px -10px color-mix(in srgb, var(--stamp) 70%, black);
+  transform: translateY(140%); opacity: 0;
+  transition: transform var(--t-medium) var(--ease-out), opacity var(--t-small) var(--ease-out);
+}
+.fab.show { transform: none; opacity: 1; }
+.has-toast .fab { transform: translateY(140%); opacity: 0; }
+@media (min-width: 700px) { .fab { display: none; } }
+
+/* ═════════════════════ Write a slip ═════════════════════ */
+.write-page { padding-top: 6px; }
+.back {
+  min-height: 44px; display: inline-flex; align-items: center; gap: 4px; margin-left: -6px; padding-right: 8px;
+  font: 600 var(--step--1)/1 var(--font-ui); color: var(--ink-soft); text-decoration: none;
+}
+.back:hover { color: var(--ink); }
+.write-h { font-size: var(--step-3); margin: 4px 0 18px; }
+
+.kind-error {
+  display: flex; gap: 10px; align-items: flex-start;
+  margin: 0 0 18px; padding: 12px 14px;
+  background: var(--slip); border-left: 3px solid var(--stamp); border-radius: 2px 4px 4px 2px;
+  box-shadow: var(--shadow-slip);
+}
+.kind-error svg { color: var(--stamp); flex: none; margin-top: 2px; }
+.kind-error p { margin: 0; }
+
+.write-form { display: grid; gap: 22px; }
+
+/* the slip itself: the title is written straight onto it */
+.paper-slip {
+  position: relative; margin: 0 4px 6px;
+  padding: 18px 20px 12px;
+  background: var(--slip); border-radius: 2px 3px 2px 4px;
+  box-shadow: var(--shadow-slip);
+  transform: rotate(-.7deg);
+  /* a faintly deckled bottom edge */
+  -webkit-mask: radial-gradient(circle at 50% 100%, transparent 1.6px, #000 2px) 0 100% / 7px 4px repeat-x, linear-gradient(#000, #000) 0 0 / 100% calc(100% - 3px) no-repeat;
+          mask: radial-gradient(circle at 50% 100%, transparent 1.6px, #000 2px) 0 100% / 7px 4px repeat-x, linear-gradient(#000, #000) 0 0 / 100% calc(100% - 3px) no-repeat;
+}
+.paper-slip .fold { width: 38px; height: 38px; transition: background var(--t-medium) var(--ease-out); }
+/* the tint also runs as a thin margin rule down the left, like a notebook */
+.paper-slip::after {
+  content: ""; position: absolute; left: 10px; top: 14px; bottom: 14px; width: 3px; border-radius: 2px;
+  background: var(--tint); transition: background var(--t-medium) var(--ease-out);
+}
+.slip-label {
+  display: block; margin: 0 40px 4px 0;
+  font: 600 .78rem/1.2 var(--font-ui); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-soft);
+}
+.slip-input {
+  display: block; width: 100%; min-height: calc(2lh + 4px); resize: none; overflow: hidden;
+  field-sizing: content;
+  padding: 0; margin: 0; border: 0; border-radius: 2px; background: transparent;
+  font-family: var(--font-display);
+  font-variation-settings: "SOFT" 100, "WONK" 1, "opsz" 72;
+  font-weight: 520; font-size: clamp(1.75rem, 7.2vw, 2.35rem); line-height: 1.22; letter-spacing: -.015em;
+  color: var(--ink);
+  /* ruled writing lines */
+  background-image: linear-gradient(transparent calc(1lh - 1.5px), var(--rule) calc(1lh - 1.5px), var(--rule) 1lh);
+  background-size: 100% 1lh; background-attachment: local;
+}
+.slip-input::placeholder { color: var(--ink-soft); opacity: 1; font-style: italic; }
+.slip-input:focus-visible { outline-offset: 3px; }
+.slip-sign { margin: 8px 0 0; text-align: right; transform: rotate(-2deg); }
+
+/* fold-and-drop on save */
+@keyframes slip-fold-drop {
+  0%   { transform: rotate(-.7deg); opacity: 1; }
+  38%  { transform: perspective(700px) rotateX(58deg) scaleY(.82) rotate(-1deg); opacity: 1; }
+  100% { transform: perspective(700px) translateY(110px) rotateX(78deg) scale(.42) rotate(-8deg); opacity: 0; }
+}
+.paper-slip.folding { transform-origin: 50% 100%; animation: slip-fold-drop 380ms var(--ease-in-out) forwards; }
+.ghost-slip {
+  position: fixed; z-index: 50; pointer-events: none;
+  padding: 10px 14px; max-width: min(320px, calc(100vw - 32px));
+  background: var(--slip); color: var(--ink); box-shadow: var(--shadow-slip); border-radius: 2px 3px 2px 4px;
+  font-family: var(--font-display); font-variation-settings: "SOFT" 100, "opsz" 28; font-size: 1.1rem; line-height: 1.2;
+  border-top: 4px solid var(--tint);
+  transform-origin: 50% 100%;
+  animation: slip-fold-drop 380ms var(--ease-in-out) forwards;
+}
+.write-form.sending .field, .write-form.sending fieldset { opacity: .55; transition: opacity var(--t-small) var(--ease-out); }
+
+/* fields */
+.field { display: grid; gap: 6px; align-content: start; min-width: 0; }
+.field > label, .chips legend, .group-box > legend {
+  font: 600 var(--step--1)/1.3 var(--font-ui); color: var(--ink); letter-spacing: .01em;
+}
+.opt { font-weight: 500; color: var(--ink-soft); margin-left: 4px; }
+.hint { margin: 0; font-size: var(--step--1); line-height: 1.45; color: var(--ink-soft); }
+.write-form input:not([type="radio"]), .write-form select, .notes {
+  -webkit-appearance: none; appearance: none;
+  width: 100%; min-height: 48px; padding: 10px 12px;
+  background: var(--slip); color: var(--ink);
+  border: 1px solid var(--rule); border-bottom: 1.5px solid var(--ink-soft); border-radius: 4px 4px 2px 2px;
+  font: 400 var(--step-0)/1.4 var(--font-ui);
+  transition: border-color var(--t-small) var(--ease-out);
+}
+.write-form input:not([type="radio"]):hover, .write-form select:hover, .notes:hover { border-bottom-color: var(--ink); }
+.write-form input:not([type="radio"]):focus-visible, .write-form select:focus-visible, .notes:focus-visible {
+  border-color: var(--stamp); outline-offset: 2px;
+}
+.write-form input::placeholder, .notes::placeholder { color: var(--ink-soft); opacity: 1; }
+.notes {
+  min-height: 96px; resize: vertical; field-sizing: content;
+  font: italic 400 1.06rem/1.5 var(--font-display); font-variation-settings: "SOFT" 100, "opsz" 14;
+}
+.money { position: relative; }
+.money-sign {
+  position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+  font: 500 var(--step-0)/1 var(--font-ui); color: var(--ink-soft); pointer-events: none;
+}
+.money input { padding-left: 30px !important; font-variant-numeric: tabular-nums; }
+.money input::-webkit-inner-spin-button, .money input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.money input { -moz-appearance: textfield; }
+.select { position: relative; }
+.select::after {
+  content: ""; position: absolute; right: 14px; top: 50%; width: 8px; height: 8px; margin-top: -6px; pointer-events: none;
+  border-right: 1.8px solid var(--ink-soft); border-bottom: 1.8px solid var(--ink-soft); transform: rotate(45deg);
+}
+.select select { padding-right: 36px; cursor: pointer; }
+
+.pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px 14px; align-items: start; }
+
+/* radio chips: real radios, drawn as little paper tabs */
+fieldset { margin: 0; padding: 0; border: 0; min-width: 0; }
+.chips legend { padding: 0; margin-bottom: 8px; }
+.chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { position: relative; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.chip input { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; pointer-events: none; }
+.chip span {
+  min-height: 44px; padding: 0 16px;
+  display: inline-flex; align-items: center; gap: 8px;
+  font: 600 var(--step--1)/1 var(--font-ui); color: var(--ink);
+  background: var(--slip); border: 1.5px solid var(--rule); border-radius: 999px;
+  transition: background var(--t-small) var(--ease-out), border-color var(--t-small) var(--ease-out), color var(--t-small) var(--ease-out), transform var(--t-micro) var(--ease-out);
+}
+@media (hover: hover) { .chip:hover span { border-color: var(--ink-soft); } }
+.chip:active span { transform: scale(.97); }
+.chip input:checked + span { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.chips-setting .chip input:checked + span { background: var(--tint); color: var(--ink); border-color: var(--ink); }
+.chip input:focus-visible + span { outline: 2px solid var(--stamp); outline-offset: 3px; }
+.chip .dot { width: 11px; height: 11px; font-style: normal; }
+
+.group-box {
+  display: grid; gap: 16px;
+  padding: 14px 14px 16px; border: 1px dashed var(--rule); border-radius: 6px;
+}
+.group-box > legend { padding: 0 6px; margin-left: -6px; }
+
+.write-actions {
+  position: sticky; bottom: 0; z-index: 5;
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin: 4px calc(-1 * var(--gutter)) 0; padding: 12px var(--gutter) max(12px, env(safe-area-inset-bottom));
+  background: var(--paper);
+  border-top: 1px solid var(--rule);
+}
+.write-actions .btn-stamp { flex: 1 1 auto; max-width: 340px; }
+.write-takeout {
+  margin-top: 28px; padding-top: 18px; border-top: 1px dashed var(--rule);
+  display: flex; align-items: center; gap: 4px 10px; flex-wrap: wrap;
+}
+.write-takeout p { margin: 0; font-size: var(--step--1); }
+.write-takeout .takeout-btn { margin-left: -10px; font-size: var(--step--1); }
+
+@media (min-width: 700px) {
+  .write-h { font-size: var(--step-4); }
+  .paper-slip { padding: 24px 28px 16px; }
+  .slip-input { min-height: calc(1lh + 4px); }
+}
+
+/* ── reduced motion: nothing flies, nothing settles ──────── */
+@media (prefers-reduced-motion: reduce) {
+  .slip, .paper-slip.folding, .ghost-slip, .toast { animation: none !important; }
+  .slip.leaving { transform: translateX(var(--x)) rotate(var(--r)); }
+  .fab { transition: opacity 120ms linear; transform: none; }
+  .has-toast .fab { transform: none; }
+}
+/* while folding, the button stays solid (no see-through content behind the bar) */
+.write-form.sending #save-btn { opacity: 1; }
+.write-form [aria-invalid="true"]:not(.slip-input) { border-color: var(--stamp) !important; border-bottom-width: 2px !important; }
+.slip-input[aria-invalid="true"] { background-image: linear-gradient(transparent calc(1lh - 2px), var(--stamp) calc(1lh - 2px), var(--stamp) 1lh); }
+.chips-setting .chip input:checked + span .dot { background: var(--ink); box-shadow: 0 0 0 2px var(--tint), 0 0 0 3.5px var(--ink); }

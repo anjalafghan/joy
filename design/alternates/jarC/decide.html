@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}The jar · joy{% endblock %}
+{% block page %}jar{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="/static/jar.css">
+<script src="/static/jar.js" defer></script>
+{% endblock %}
+{% block content %}
+<h1 class="visually-hidden">Draw a date from the jar</h1>
+
+<form id="tonight" class="tonight" hx-post="/pick" hx-target="#pick" hx-swap="innerHTML" hx-disabled-elt="#draw" hx-sync="this:drop" autocomplete="off">
+  <p class="sentence">
+    <span class="lead">Tonight we have</span>
+    <span class="blank money">
+      <label for="f-budget" class="visually-hidden">Budget for both of us, in {{ currency }}</label>
+      <span class="cur" aria-hidden="true">{{ currency }}</span><input id="f-budget" type="number" name="budget" inputmode="numeric" min="0" step="any" placeholder="any amount" size="7">
+    </span>
+    <span class="w">and</span>
+    <span class="blank">
+      <label for="f-time" class="visually-hidden">Time we have</label>
+      <select id="f-time" name="max_duration">
+        <option value="">all the time in the world</option>
+        {% for d in durations %}<option value="{{ d.value }}">{{ d.label|lower }}</option>{% endfor %}
+      </select>
+    </span><span class="w">,</span>
+    <span class="w">up for</span>
+    <span class="places" role="group" aria-labelledby="places-label">
+      <span id="places-label" class="visually-hidden">Where (pick none for anywhere)</span>
+      {% for o in settings %}{% if !loop.first %}{% if loop.last %} <span class="or">or</span> {% else %}<span class="comma">,</span> {% endif %}{% endif %}<label class="place-word place-{{ o.value }}"><input type="checkbox" name="settings" value="{{ o.value }}"><span>{{ o.label|lower }}</span></label>{%- endfor -%}
+    </span><span class="w">,</span>
+    <span class="w">going</span>
+    <span class="blank">
+      <label for="f-km" class="visually-hidden">How far</label>
+      <select id="f-km" name="max_km">
+        <option value="">as far as it takes</option>
+        {% for o in kms %}<option value="{{ o.value }}">within {{ o.label }}</option>{% endfor %}
+      </select>
+    </span>
+    {%- if !froms.is_empty() -%}
+    <span class="from-clause" data-from> <span class="w">of</span>
+      <span class="blank">
+        <label for="f-from" class="visually-hidden">Starting from</label>
+        <select id="f-from" name="from">
+          <option value="">both our places</option>
+          {% for o in froms %}<option value="{{ o.value }}">{{ o.label }}</option>{% endfor %}
+        </select>
+      </span></span>
+    {%- endif -%}<span class="w">,</span>
+    <span class="w">feeling</span>
+    <span class="blank">
+      <label for="f-tag" class="visually-hidden">Vibe</label>
+      <select id="f-tag" name="tag">
+        <option value="">anything</option>
+        {% for o in tags %}<option value="{{ o.value }}">{{ o.label }}</option>{% endfor %}
+      </select>
+    </span>
+    <span class="w">with</span>
+    <span class="blank">
+      <label for="f-energy" class="visually-hidden">Energy</label>
+      <select id="f-energy" name="energy">
+        <option value="">any</option>
+        {% for o in energies %}<option value="{{ o.value }}">{{ o.label|lower }}</option>{% endfor %}
+      </select>
+    </span>
+    <span class="w">energy.</span>
+  </p>
+</form>
+
+<section class="stage" id="stage" aria-label="The jar" data-couple="{{ couple }}">
+  <div class="jar" id="jar" aria-hidden="true">
+    <div class="jar-shadow"></div>
+    <div class="jar-mouth">
+      <div class="jar-inside"></div>
+      <div class="heap" id="heap"></div>
+      <div class="fireflies"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+      <svg class="jar-glass" viewBox="0 0 200 200">
+        <circle class="lip" cx="100" cy="100" r="95"/>
+        <circle class="lip-in" cx="100" cy="100" r="88"/>
+        <path class="shine" d="M38 52 A 80 80 0 0 1 86 23"/>
+        <path class="shine shine-2" d="M170 128 A 80 80 0 0 1 150 158"/>
+      </svg>
+    </div>
+  </div>
+
+  {% if count == 0 %}
+  <div class="empty-jar">
+    <p class="empty-title">The jar is empty.</p>
+    <a class="btn btn-stamp" href="/wishlist/new">Write the first slip</a>
+  </div>
+  {% else %}
+  <div id="pick" class="pick" aria-live="polite"></div>
+
+  <div class="draw-row" id="draw-row">
+    <p class="counter" id="counter" role="status"><b>{{ count }}</b> {% if count == 1 %}slip{% else %}slips{% endif %} could happen tonight</p>
+    <button id="draw" class="btn btn-stamp draw" type="submit" form="tonight">Draw a slip</button>
+    <p class="reach hand" aria-hidden="true">or reach in</p>
+  </div>
+  {% endif %}
+</section>
+
+<script type="application/json" id="slips">{{ slips_json|safe }}</script>
+{% endblock %}

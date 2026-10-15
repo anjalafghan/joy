@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}Kept · joy{% endblock %}
+{% block page %}kept{% endblock %}
+{% block head %}
+<script>document.documentElement.classList.add("k-js")</script>
+<link rel="stylesheet" href="/static/kept.css">
+<script src="/static/kept.js" defer></script>
+{% endblock %}
+{% block content %}
+<svg class="k-defs" width="0" height="0" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="k-heart" viewBox="0 0 32 30">
+      <path d="M16.2 27.4C11.6 24.1 3.4 18.3 3.1 10.9 2.9 6.6 6 3.3 9.8 3.4c2.9.1 5 2.2 6.2 4.6 1.3-2.6 3.5-4.8 6.6-4.7 3.9.2 6.5 3.6 6.2 7.7-.5 7.2-8.4 12.6-12.6 16.4z"/>
+    </symbol>
+    <symbol id="k-pin" viewBox="0 0 16 16">
+      <path d="M8 14.6c-2.3-2.7-4.6-5.6-4.5-8.2C3.6 3.9 5.6 2 8.1 2.1c2.4.1 4.3 2 4.2 4.4-.1 2.6-2.2 5.4-4.3 8.1z"/>
+      <circle cx="8" cy="6.4" r="1.6"/>
+    </symbol>
+  </defs>
+</svg>
+
+<header class="k-head">
+  <p class="k-eyebrow">The keepsake box</p>
+  {% if kept > 0 %}
+  <h1 class="k-title"><span class="k-count">{{ kept }}</span> <span class="k-count-word">{% if kept == 1 %}date{% else %}dates{% endif %} kept</span></h1>
+  {% if let Some(first) = months.last() %}
+  <p class="k-since">Together, since {{ first.label }}.</p>
+  {% endif %}
+  <p class="k-margin hand" aria-hidden="true">{% if kept == 1 %}and so it begins{% else %}look at us go{% endif %}</p>
+  {% endif %}
+</header>
+
+{% if months.is_empty() %}
+<section class="k-empty" aria-labelledby="k-empty-h">
+  <div class="k-empty-page grain">
+    <span class="k-corner k-corner-tl" aria-hidden="true"></span>
+    <span class="k-corner k-corner-tr" aria-hidden="true"></span>
+    <span class="k-corner k-corner-bl" aria-hidden="true"></span>
+    <span class="k-corner k-corner-br" aria-hidden="true"></span>
+    <h1 id="k-empty-h" class="k-empty-h">Nothing kept yet.</h1>
+    <p class="k-empty-p">The jar's waiting. Draw a slip, say yes, and it lands here with its stamp.</p>
+    <a class="btn btn-stamp" href="/">Go to the jar</a>
+    <p class="k-empty-hand hand" aria-hidden="true">first page, saved for you</p>
+  </div>
+</section>
+{% else %}
+<div class="k-book" id="k-book">
+  {% for m in months %}
+  <section class="k-month" aria-labelledby="k-m{{ loop.index }}" style="--m: {{ loop.index0 }}">
+    <h2 class="k-month-h" id="k-m{{ loop.index }}">{{ m.label }}<span class="k-month-n hand" aria-hidden="true">{{ m.items.len() }} {% if m.items.len() == 1 %}date{% else %}dates{% endif %}</span></h2>
+    <ol class="k-spread" role="list">
+      {% for h in m.items %}
+      <li class="k-slip grain" id="k{{ h.id }}" data-setting="{{ h.setting }}" data-tape="{{ h.id % 3 }}" style="--r: {{ h.id % 7 }}; --i: {{ loop.index0 }}">
+        <article aria-labelledby="k-t{{ h.id }}">
+          <div class="k-stamp" aria-hidden="true">
+            <span class="k-stamp-top">It's a date</span>
+            <span class="k-stamp-day">{{ h.day_label() }}</span>
+          </div>
+          <h3 class="k-slip-title" id="k-t{{ h.id }}">{{ h.title }}</h3>
+          <p class="k-meta">
+            <time class="visually-hidden" datetime="{{ h.day }}">Stamped {{ h.day_label() }}</time>
+            {% if !h.place.is_empty() %}<span class="k-place"><svg class="k-pin" width="14" height="14" aria-hidden="true"><use href="#k-pin"/></svg>{{ h.place }}</span>{% endif %}
+          </p>
+
+          <form class="k-form" method="post" action="/history/{{ h.id }}"
+                hx-post="/history/{{ h.id }}" hx-trigger="change" hx-swap="none" hx-sync="this:queue last">
+            <fieldset class="k-hearts">
+              <legend class="visually-hidden">How was {{ h.title }}?</legend>
+              <span class="k-hearts-cap hand" aria-hidden="true"></span>
+              <div class="k-hearts-row">
+                {% for n in 1..=5 %}
+                <input class="k-heart-in visually-hidden" type="radio" name="rating" value="{{ n }}" id="r{{ h.id }}-{{ n }}"{% if h.is_rated(n) %} checked{% endif %}>
+                <label class="k-heart" for="r{{ h.id }}-{{ n }}" data-n="{{ n }}"><svg width="30" height="28" aria-hidden="true"><use href="#k-heart"/></svg><span class="visually-hidden">{{ n }} {% if n == 1 %}heart{% else %}hearts{% endif %}</span></label>
+                {% endfor %}
+                <input class="k-heart-in k-clear-in visually-hidden" type="radio" name="rating" value="" id="r{{ h.id }}-0"{% if h.rating.is_none() %} checked{% endif %}>
+                <label class="k-clear" for="r{{ h.id }}-0"><span class="k-clear-x" aria-hidden="true">×</span><span class="visually-hidden">No hearts</span></label>
+              </div>
+            </fieldset>
+
+            <div class="k-note">
+              <label class="visually-hidden" for="n{{ h.id }}">A line to remember {{ h.title }} by</label>
+              <textarea class="k-note-in" id="n{{ h.id }}" name="note" rows="1" maxlength="500" placeholder="Add a line to remember it by…">{{ h.note }}</textarea>
+            </div>
+
+            <div class="k-actions">
+              <button class="k-save" type="submit">Save</button>
+              <span class="k-status hand" role="status" aria-live="polite"></span>
+            </div>
+          </form>
+        </article>
+      </li>
+      {% endfor %}
+    </ol>
+  </section>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if !skipped.is_empty() %}
+<aside class="k-foot" aria-label="Put back">
+  <p><span class="k-foot-mark" aria-hidden="true">*</span>
+  {% if skipped.len() == 1 %}One slip was drawn and put back{% else %}{{ skipped.len() }} slips were drawn and put back{% endif %}, no harm done.</p>
+  <details class="k-foot-more">
+    <summary>Which {% if skipped.len() == 1 %}one{% else %}ones{% endif %}</summary>
+    <ul role="list">
+      {% for s in skipped %}<li>{{ s.title }} <span class="soft">· {{ s.day_label() }}</span></li>{% endfor %}
+    </ul>
+  </details>
+</aside>
+{% endif %}
+{% endblock %}

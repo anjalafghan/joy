@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}{% if id.is_some() %}Edit slip{% else %}Write a slip{% endif %} · joy{% endblock %}
+{% block page %}slips{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="/static/slips.css">
+<script src="/static/slips.js" defer></script>
+{% endblock %}
+{% block content %}
+<div class="write-page">
+  <a class="back" href="/wishlist"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.6 6.2 8.8 12l5.8 5.8"/></svg>All slips</a>
+  <h1 class="write-h">{% if id.is_some() %}Edit this slip{% else %}Write a slip{% endif %}</h1>
+
+  {% if !error.is_empty() %}
+  <div class="kind-error" role="alert" id="form-error">
+    <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.6c4.8 0 8.5 3.6 8.5 8.4s-3.8 8.4-8.5 8.4-8.4-3.6-8.4-8.4 3.6-8.4 8.4-8.4z"/><path d="M12 7.6v5.6"/><path d="M12 16.3v.3"/></svg>
+    <p><strong>Almost.</strong> {{ error }}</p>
+  </div>
+  {% endif %}
+
+  <form class="write-form" method="post" action="{% if let Some(i) = id %}/wishlist/{{ i }}{% else %}/wishlist{% endif %}"{% if !error.is_empty() %} aria-describedby="form-error"{% endif %}>
+    <div class="paper-slip grain tint-{% for o in settings %}{% if o.selected %}{{ o.value }}{% endif %}{% endfor %}" id="paper-slip">
+      <span class="fold" aria-hidden="true"></span>
+      <label class="slip-label" for="f-title">The idea</label>
+      <textarea class="slip-input" id="f-title" name="title" rows="2" maxlength="120" required autocomplete="off" placeholder="Sunset at Marine Drive"{% if error.contains("name") %} aria-invalid="true" autofocus{% endif %}>{{ title }}</textarea>
+      <p class="slip-sign" aria-hidden="true"><span class="hand-note">for {{ couple }}</span></p>
+    </div>
+
+    <fieldset class="chips chips-setting">
+      <legend>Where does it happen?</legend>
+      <div class="chip-row">
+        {% for o in settings %}
+        <label class="chip tint-{{ o.value }}"><input type="radio" name="setting" value="{{ o.value }}"{% if o.selected %} checked{% endif %} required><span><i class="dot" aria-hidden="true"></i>{{ o.label }}</span></label>
+        {% endfor %}
+      </div>
+    </fieldset>
+
+    <div class="pair">
+      <div class="field">
+        <label for="f-cost">Cost for both of us</label>
+        <div class="money"><span class="money-sign" aria-hidden="true">{{ currency }}</span><input id="f-cost" type="number" name="est_cost" value="{{ est_cost }}" inputmode="numeric" min="0" step="1" required placeholder="e.g. 800" aria-describedby="cost-hint"></div>
+        <p class="hint" id="cost-hint">Roughly, in {{ currency }}. Type 0 if it’s free.</p>
+      </div>
+      <div class="field">
+        <label for="f-dur">How long</label>
+        <div class="select"><select id="f-dur" name="duration">{% for o in durations %}<option value="{{ o.value }}"{% if o.selected %} selected{% endif %}>{{ o.label }}</option>{% endfor %}</select></div>
+      </div>
+    </div>
+
+    <fieldset class="chips">
+      <legend>Energy</legend>
+      <div class="chip-row">
+        {% for o in energies %}
+        <label class="chip"><input type="radio" name="energy" value="{{ o.value }}"{% if o.selected %} checked{% endif %}><span>{{ o.label }}</span></label>
+        {% endfor %}
+      </div>
+    </fieldset>
+
+    <fieldset class="group-box">
+      <legend>The place <span class="opt">optional</span></legend>
+      <div class="pair">
+        <div class="field">
+          <label for="f-venue">Venue</label>
+          <input id="f-venue" name="venue" value="{{ venue }}" autocomplete="off" placeholder="Carter Road promenade">
+        </div>
+        <div class="field">
+          <label for="f-area">Area</label>
+          <input id="f-area" name="area" value="{{ area }}" autocomplete="off" placeholder="Bandra">
+        </div>
+      </div>
+      <div class="field">
+        <label for="f-loc">Location <span class="opt">lat, lng</span></label>
+        <input id="f-loc" name="location" value="{{ location }}" autocomplete="off" inputmode="text" spellcheck="false" placeholder="19.13, 72.81" aria-describedby="loc-hint"{% if error.contains("Location") %} aria-invalid="true" autofocus{% endif %}>
+        <p class="hint" id="loc-hint">In Google Maps, long-press the spot and copy the numbers at the top. Leave it blank for at-home plans.</p>
+      </div>
+    </fieldset>
+
+    <div class="field">
+      <label for="f-tags">Vibes</label>
+      <input id="f-tags" name="tags" value="{{ tags }}" autocomplete="off" placeholder="romantic, foodie" aria-describedby="tags-hint">
+      <p class="hint" id="tags-hint">A few words, separated by commas.</p>
+    </div>
+
+    <div class="field">
+      <label for="f-notes">Notes</label>
+      <textarea id="f-notes" class="notes" name="notes" rows="3" placeholder="Go before 6, grab cutting chai on the way.">{{ notes }}</textarea>
+    </div>
+
+    <fieldset class="chips">
+      <legend>Written by</legend>
+      <div class="chip-row">
+        {% for o in people %}
+        <label class="chip"><input type="radio" name="added_by" value="{{ o.value }}"{% if o.selected %} checked{% endif %}><span>{{ o.label }}</span></label>
+        {% endfor %}
+      </div>
+    </fieldset>
+
+    <div class="write-actions">
+      <button type="submit" class="btn btn-stamp" id="save-btn">
+        <svg class="ink-ico" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9.5h14l-1.4 9.4c-.2 1-1 1.7-2 1.7H8.4c-1 0-1.8-.7-2-1.7z"/><path d="M7 6.2h10"/><path d="M12 3.4v8.2M9.4 9l2.6 2.7L14.6 9"/></svg>
+        {% if id.is_some() %}Save the slip{% else %}Fold it into the jar{% endif %}
+      </button>
+      <a class="btn btn-quiet" href="/wishlist">Cancel</a>
+    </div>
+  </form>
+
+  {% if let Some(i) = id %}
+  <form class="write-takeout" method="post" action="/wishlist/{{ i }}/archive">
+    <p class="soft">Not feeling this one for now?</p>
+    <button type="submit" class="takeout-btn">Take it out of the jar</button>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

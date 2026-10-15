@@ -1,0 +1,362 @@
+/* joy — login: the jar on the shelf.
+   One jar, lid on. Right passcode: the lid twists and lifts (hero, ≤1.1s).
+   Wrong passcode: the lid wobbles "nope". Nothing else moves. */
+
+body[data-page="login"] main {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  overflow-x: clip;
+}
+
+.login {
+  --jar-h: clamp(210px, 37svh, 330px);
+  min-height: 100svh;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "copy" "jar" "shelf" "form";
+  align-content: center;
+  padding: max(24px, env(safe-area-inset-top)) 0 max(28px, env(safe-area-inset-bottom));
+  isolation: isolate;
+}
+
+/* ── copy ─────────────────────────────────────────────────── */
+.login-copy, .login-form { position: relative; z-index: 2; }
+.login-copy {
+  grid-area: copy;
+  padding: 0 var(--gutter);
+  max-width: 440px;
+}
+.login-mark {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 640;
+  font-variation-settings: "SOFT" 100, "WONK" 1, "opsz" 144;
+  font-size: clamp(4.6rem, 22vw, 7.5rem);
+  line-height: .82;
+  letter-spacing: -0.045em;
+  color: var(--stamp);
+  margin: 0;
+  padding: 0 0 .2em .06em;
+}
+.login-promise {
+  margin: .5em 0 0;
+  font-family: var(--font-display);
+  font-variation-settings: "SOFT" 100, "WONK" 0, "opsz" 24;
+  font-weight: 420;
+  font-size: var(--step-1);
+  line-height: 1.3;
+  color: var(--ink);
+}
+
+/* ── the jar ──────────────────────────────────────────────── */
+.jar-wrap {
+  grid-area: jar;
+  position: relative;
+  justify-self: end;
+  margin: 30px 14% -13px 0;     /* off-axis: the jar sits right of centre */
+  height: var(--jar-h);
+  aspect-ratio: 240 / 320;
+  z-index: 1;
+}
+/* a pool of soft light on the wall behind the jar (lantern glow at night) */
+.jar-wrap::before {
+  content: "";
+  position: absolute;
+  inset: -22% -60% -6% -60%;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--slip) 85%, transparent), transparent);
+  opacity: .9;
+}
+.jar { width: 100%; height: 100%; overflow: visible; }
+
+.jar-shadow { fill: var(--ink); opacity: .14; }
+.jar-fill { fill: var(--slip); opacity: .42; }
+.jar-glass {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.jar-shine { fill: none; stroke: var(--slip); stroke-width: 5; stroke-linecap: round; opacity: .9; }
+.jar-shine-2 { stroke-width: 3.4; }
+.jar-rim { fill: var(--paper); stroke: var(--ink); stroke-width: 2.2; }
+
+.slip rect { stroke: color-mix(in srgb, var(--ink) 38%, transparent); stroke-width: 1.1; }
+.slip path { fill: none; stroke: color-mix(in srgb, var(--ink) 24%, transparent); stroke-width: 1; }
+.t-home rect { fill: var(--tint-home); }
+.t-local rect { fill: var(--tint-local); }
+.t-day rect { fill: var(--tint-day_trip); }
+.t-travel rect { fill: var(--tint-travel); }
+
+.tag-string { fill: none; stroke: var(--ink-soft); stroke-width: 1.3; stroke-linecap: round; }
+.tag-paper { fill: var(--slip); stroke: color-mix(in srgb, var(--ink) 45%, transparent); stroke-width: 1.2; }
+.tag-hole { fill: var(--paper-2); stroke: var(--ink-soft); stroke-width: 1; }
+.tag-text {
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 23px;
+  fill: var(--stamp);
+}
+
+.lid-base { fill: var(--stamp); }
+.lid-ridges path { stroke: color-mix(in srgb, var(--ink) 30%, transparent); stroke-width: 1.4; }
+.lid-top { stroke: color-mix(in srgb, var(--stamp-ink) 55%, transparent); stroke-width: 2; stroke-linecap: round; }
+.lid-edge { fill: none; stroke: var(--ink); stroke-width: 2.2; }
+
+/* things that only appear in a moment */
+.jar-burst { fill: url(#jar-burst); opacity: 0; }
+.burst-core { stop-color: #ffd69a; stop-opacity: .95; }
+.burst-edge { stop-color: #ffd69a; stop-opacity: 0; }
+.peek { opacity: 0; }
+.flies { display: none; }
+.nope {
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 30px;
+  fill: var(--ink);
+  opacity: 0;
+}
+
+/* transform origins for the moving parts */
+.lid, .lid-body, .peek, .nope { transform-box: fill-box; }
+.lid { transform-origin: 50% 100%; }
+.lid-body { transform-origin: 50% 50%; }
+.peek { transform-origin: 50% 100%; }
+.nope { transform-origin: 0% 100%; }
+
+/* ── the shelf ────────────────────────────────────────────── */
+.shelf {
+  grid-area: shelf;
+  height: 26px;
+  position: relative;
+  background:
+    linear-gradient(var(--paper-2), var(--paper-2)) top / 100% 9px no-repeat,
+    linear-gradient(color-mix(in srgb, var(--paper-2) 70%, var(--ink) 9%), color-mix(in srgb, var(--paper-2) 70%, var(--ink) 9%)) bottom / 100% 17px no-repeat;
+  box-shadow: 0 1px 0 var(--rule) inset, 0 16px 22px -18px color-mix(in srgb, var(--ink) 55%, transparent);
+}
+.shelf::after { /* the hairline where top meets front */
+  content: "";
+  position: absolute; left: 0; right: 0; top: 9px; height: 1px;
+  background: var(--rule);
+}
+
+/* ── the form ─────────────────────────────────────────────── */
+.login-form {
+  grid-area: form;
+  width: 100%;
+  max-width: 440px;
+  padding: 30px var(--gutter) 0;
+  display: grid;
+  gap: 10px;
+}
+.login-label {
+  font: 600 var(--step--1)/1.2 var(--font-ui);
+  letter-spacing: .04em;
+  color: var(--ink-soft);
+}
+.field { position: relative; }
+.field-input {
+  width: 100%;
+  min-height: 54px;
+  padding: 12px 16px;
+  font: 500 1.2rem/1.2 var(--font-ui);
+  letter-spacing: .06em;
+  color: var(--ink);
+  background: var(--slip);
+  border: 0;
+  border-bottom: 2px solid var(--ink-soft);
+  border-radius: var(--radius-slip) var(--radius-slip) 2px 2px;
+  box-shadow: var(--shadow-slip);
+  caret-color: var(--stamp);
+  transition: border-color var(--t-small) var(--ease-out);
+}
+.field-input:hover { border-bottom-color: var(--ink); }
+.field-input:focus { outline: none; }
+.field-input:focus-visible,
+.field-input:focus { outline: 2px solid var(--stamp); outline-offset: 3px; border-bottom-color: var(--ink); }
+.field-input[readonly] { color: var(--ink-soft); }
+.has-toggle .field-input { padding-right: 56px; }
+
+.field-toggle {
+  position: absolute; right: 5px; top: 50%;
+  width: 44px; height: 44px;
+  transform: translateY(-50%);
+  display: grid; place-items: center;
+  padding: 0; border: 0; border-radius: 999px;
+  background: transparent; color: var(--ink-soft);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: color var(--t-small) var(--ease-out);
+}
+.field-toggle:hover { color: var(--ink); }
+.field-toggle[hidden] { display: none; }
+.eye path { fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.eye-slash { transition: opacity var(--t-micro) var(--ease-out); }
+.field-toggle[aria-pressed="false"] .eye-slash { opacity: 0; }
+
+.login-error {
+  margin: 0;
+  min-height: 1.55em;
+  font: 500 var(--step-0)/1.55 var(--font-ui);
+  color: var(--ink);
+}
+.login-error:not(:empty)::before { /* a small hand-inked curl, not an alarm */
+  content: "";
+  display: inline-block;
+  width: 18px; height: 12px;
+  margin-right: 8px;
+  vertical-align: -1px;
+  background: var(--stamp);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 12'%3E%3Cpath d='M1.5 8.5c2.5-5 5-6 6.5-3.5s-1 5-2.5 3S8 2.5 11 3.5s3.5 4 5.5 2.5' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E") center / contain no-repeat;
+          mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 12'%3E%3Cpath d='M1.5 8.5c2.5-5 5-6 6.5-3.5s-1 5-2.5 3S8 2.5 11 3.5s3.5 4 5.5 2.5' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.login-go { width: 100%; min-height: 52px; font-size: var(--step-0); }
+.login-go[aria-busy="true"] { opacity: .78; pointer-events: none; }
+.login-go [hidden] { display: none; }
+
+/* ── wrong passcode: the lid wobbles "nope" ───────────────── */
+.is-nope .lid { animation: lid-nope 680ms var(--ease-in-out) both; }
+.is-nope .nope { animation: nope-note 1700ms var(--ease-out) both; }
+@keyframes lid-nope {
+  0%   { transform: translateY(0) rotate(0); }
+  14%  { transform: translateY(-5px) rotate(-7deg); }
+  32%  { transform: translateY(-4px) rotate(6deg); }
+  50%  { transform: translateY(-2px) rotate(-4deg); }
+  68%  { transform: translateY(-1px) rotate(2.2deg); }
+  84%  { transform: translateY(0) rotate(-.8deg); }
+  100% { transform: translateY(0) rotate(0); }
+}
+@keyframes nope-note {
+  0%   { opacity: 0; transform: translate(-4px, 4px) rotate(-6deg); }
+  14%  { opacity: 1; transform: translate(0, 0) rotate(0); }
+  70%  { opacity: 1; transform: translate(0, 0) rotate(0); }
+  100% { opacity: 0; transform: translate(2px, -3px) rotate(2deg); }
+}
+
+/* ── right passcode: the lid twists, lifts and the light spills out ── */
+.is-open .lid { animation: lid-lift var(--t-hero) var(--ease-out) both; }
+.is-open .lid-ridges { animation: lid-twist var(--t-hero) var(--ease-in-out) both; }
+.is-open .lid-body { animation: lid-turn var(--t-hero) var(--ease-in-out) both; }
+.is-open .jar-burst { animation: burst var(--t-hero) var(--ease-out) both; }
+.is-open .peek-a { animation: peek-a var(--t-hero) var(--ease-spring) both; }
+.is-open .peek-b { animation: peek-b var(--t-hero) var(--ease-spring) both; }
+.is-open .jar-wrap::before { animation: pool var(--t-hero) var(--ease-out) both; }
+.is-open .login-copy,
+.is-open .login-form { animation: recede var(--t-hero) var(--ease-out) both; }
+
+@keyframes lid-twist { /* ridges slide past: the lid is turning */
+  0%   { transform: translateX(0); }
+  30%  { transform: translateX(-24px); }
+  100% { transform: translateX(-24px); }
+}
+@keyframes lid-turn {
+  0%   { transform: rotate(0) scaleX(1); }
+  14%  { transform: rotate(-2deg) scaleX(.985); }
+  30%  { transform: rotate(1deg) scaleX(1); }
+  100% { transform: rotate(0) scaleX(1); }
+}
+@keyframes lid-lift {
+  0%   { transform: translate(0, 0) rotate(0); }
+  26%  { transform: translate(0, -4px) rotate(0); }
+  64%  { transform: translate(40px, -34px) rotate(14deg); }
+  100% { transform: translate(48px, -38px) rotate(17deg); }
+}
+@keyframes burst {
+  0%, 28% { opacity: 0; transform: scale(.6); transform-origin: 50% 100%; }
+  62%     { opacity: 1; transform: scale(1); transform-origin: 50% 100%; }
+  100%    { opacity: .9; transform: scale(1.06); transform-origin: 50% 100%; }
+}
+@keyframes peek-a {
+  0%, 32% { opacity: 0; transform: translateY(14px); }
+  40%     { opacity: 1; }
+  76%, 100% { opacity: 1; transform: translateY(-34px) rotate(-3deg); }
+}
+@keyframes peek-b {
+  0%, 38% { opacity: 0; transform: translateY(14px); }
+  46%     { opacity: 1; }
+  82%, 100% { opacity: 1; transform: translateY(-24px) rotate(4deg); }
+}
+@keyframes pool {
+  0%, 28% { opacity: .9; }
+  100%    { opacity: 1; transform: scale(1.12); }
+}
+@keyframes recede {
+  0%, 30% { opacity: 1; }
+  100%    { opacity: .35; }
+}
+
+/* ── night: the jar is a lantern ──────────────────────────── */
+@media (prefers-color-scheme: dark) {
+  .jar-wrap::before {
+    background: radial-gradient(closest-side, var(--glow), color-mix(in srgb, var(--glow) 30%, transparent) 55%, transparent);
+    opacity: .75;
+  }
+  .jar-fill { fill: url(#jar-lantern); opacity: 1; }
+  .lantern-core { stop-color: #ffbe6e; stop-opacity: .34; }
+  .lantern-edge { stop-color: #ffbe6e; stop-opacity: .05; }
+  .jar-shine { stroke: #ffe3bd; opacity: .32; }
+  .jar-rim { fill: var(--paper-2); }
+  .jar-shadow { fill: #ffbe6e; opacity: .1; }
+  .slip rect { stroke: rgba(255, 214, 160, .28); }
+  .slip path { stroke: rgba(255, 214, 160, .2); }
+  .flies { display: inline; }
+  .peek .t-local rect { fill: color-mix(in srgb, var(--tint-local) 55%, #ffd69a); }
+  .peek .t-home rect { fill: color-mix(in srgb, var(--tint-home) 55%, #ffd69a); }
+  .flies circle { fill: #ffd38a; filter: drop-shadow(0 0 3px #ffbe6e); animation: firefly 4.2s var(--ease-in-out) infinite alternate; }
+  .flies circle:nth-child(2) { animation-duration: 5.1s; animation-delay: -1.3s; }
+  .flies circle:nth-child(3) { animation-duration: 3.7s; animation-delay: -2.2s; }
+  .flies circle:nth-child(4) { animation-duration: 4.8s; animation-delay: -.6s; }
+  .flies circle:nth-child(5) { animation-duration: 5.6s; animation-delay: -3.1s; }
+  .flies circle:nth-child(6) { animation-duration: 4.4s; animation-delay: -1.9s; }
+  .lid-ridges path { stroke: rgba(26, 15, 12, .45); }
+  .tag-paper { stroke: rgba(255, 214, 160, .3); }
+  .shelf {
+    box-shadow: 0 1px 0 var(--rule) inset, 0 18px 26px -18px rgba(0, 0, 0, .9);
+  }
+  .shelf::before { /* lantern light falling on the shelf top */
+    content: "";
+    position: absolute; top: 0; height: 9px;
+    left: 0; right: 0;
+    background: radial-gradient(closest-side, rgba(255, 190, 110, .22), transparent) var(--glow-x, 66%) 0 / 360px 9px no-repeat;
+  }
+}
+@keyframes firefly {
+  0%   { opacity: .25; transform: translate(0, 0); }
+  50%  { opacity: .95; }
+  100% { opacity: .4; transform: translate(4px, -7px); }
+}
+
+/* ── reduced motion: no twist, no wobble, no fireflies drifting ── */
+@media (prefers-reduced-motion: reduce) {
+  .is-nope .lid, .is-nope .nope,
+  .is-open .lid, .is-open .lid-ridges, .is-open .lid-body, .is-open .jar-burst,
+  .is-open .peek-a, .is-open .peek-b, .is-open .jar-wrap::before,
+  .is-open .login-copy, .is-open .login-form,
+  .flies circle { animation: none !important; }
+  .flies circle { opacity: .7; }
+}
+
+/* ── wider screens: copy and form on the left, the jar on the right ── */
+@media (min-width: 760px) {
+  .login {
+    --jar-h: clamp(300px, 52svh, 420px);
+    grid-template-columns: 1fr minmax(0, 400px) minmax(0, 360px) 1fr;
+    grid-template-areas:
+      ". .    jar ."
+      ". copy jar ."
+      ". form jar ."
+      "shelf shelf shelf shelf";
+    grid-template-rows: minmax(0, 6vh) auto auto auto;
+    column-gap: clamp(24px, 5vw, 72px);
+    align-content: center;
+    padding-bottom: 12vh;
+  }
+  .login-copy { padding: 0; align-self: end; }
+  .login-form { padding: 36px 0 52px; align-self: end; }
+  .jar-wrap { justify-self: start; align-self: end; margin: 0 0 -15px; }
+  .shelf { height: 30px; }
+}
+.jar-burst { transform-box: fill-box; transform-origin: 50% 100%; }

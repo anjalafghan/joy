@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f5eee3" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#14121b" media="(prefers-color-scheme: dark)">
+  <meta name="color-scheme" content="light dark">
+  <title>{% block title %}joy{% endblock %}</title>
+  <link rel="preload" href="/static/fonts/Fraunces-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/static/fonts/InstrumentSans-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/static/tokens.css">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='9' y='3' width='14' height='5' rx='1.5' fill='%23b9301b'/%3E%3Cpath d='M8 9h16c1 0 2 1 2 2v14a4 4 0 0 1-4 4H10a4 4 0 0 1-4-4V11c0-1 1-2 2-2z' fill='%23f5eee3' stroke='%232b2433' stroke-width='2'/%3E%3Crect x='11' y='16' width='10' height='4' rx='1' fill='%23b9301b' transform='rotate(-8 16 18)'/%3E%3C/svg%3E">
+  <script src="/static/htmx.min.js" defer></script>
+  {% block head %}{% endblock %}
+</head>
+<body data-page="{% block page %}{% endblock %}">
+  {% block nav %}
+  <header class="top">
+    <a class="wordmark" href="/" aria-label="joy, home">joy</a>
+    <nav aria-label="Main">
+      <a href="/" data-nav="jar">Jar</a>
+      <a href="/wishlist" data-nav="slips">Slips</a>
+      <a href="/history" data-nav="kept">Kept</a>
+      <form method="post" action="/logout"><button type="submit" aria-label="Log out" title="Log out">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 4.2H18a2 2 0 0 1 2 2v11.6a2 2 0 0 1-2 2h-3.5"/><path d="M10.2 16.4 5.8 12l4.4-4.4"/><path d="M6.2 12.1h9.6"/></svg>
+      </button></form>
+    </nav>
+  </header>
+  {% endblock %}
+  <main id="main">{% block content %}{% endblock %}</main>
+</body>
+</html>

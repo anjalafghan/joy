@@ -1,0 +1,519 @@
+/* joy — the Jar (take B: "the sentence is the interface").
+   Uses tokens from tokens.css only. Motion: draw + stamp are the hero moments. */
+
+body[data-page="jar"] main { padding-top: 4px; }
+
+.jarpage { position: relative; }
+
+/* ── kicker ─────────────────────────────────────────────── */
+.kicker {
+  margin: 10px 0 14px;
+  font: 600 .8125rem/1.3 var(--font-ui);
+  letter-spacing: .08em; text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+/* ── the sentence ───────────────────────────────────────── */
+.tonight { margin: 0; }
+.sentence-set { border: 0; margin: 0; padding: 0; min-width: 0; }
+.sentence {
+  font-family: var(--font-display);
+  font-variation-settings: "SOFT" 100, "WONK" 0, "opsz" 72;
+  font-weight: 360;
+  font-size: clamp(1.8rem, 7.6vw, 3rem);
+  line-height: 1.3;
+  letter-spacing: -0.012em;
+  color: var(--ink);
+  text-wrap: pretty;
+  transition: color var(--t-medium) var(--ease-out), opacity var(--t-medium) var(--ease-out);
+}
+
+.blank {
+  position: relative;
+  display: inline;
+  white-space: nowrap;
+  color: var(--ink);
+  -webkit-tap-highlight-color: transparent;
+}
+.blank select {
+  position: absolute; inset: -7px -6px;
+  width: calc(100% + 12px); height: calc(100% + 14px);
+  opacity: 0; cursor: pointer; z-index: 2;
+  font-size: 16px; /* no iOS zoom on focus */
+  -webkit-appearance: none; appearance: none;
+  border: 0; background: transparent;
+}
+.blank-btn {
+  font: inherit; letter-spacing: inherit; color: inherit;
+  background: none; border: 0; padding: 0; margin: 0; cursor: pointer;
+  text-align: inherit;
+}
+.blank-btn::before { content: ""; position: absolute; inset: -7px -6px; }
+.nb { white-space: nowrap; }
+
+.word {
+  position: relative;
+  display: inline;
+  pointer-events: none;
+  font-weight: 640;
+  font-variation-settings: "SOFT" 100, "WONK" 1, "opsz" 96;
+  letter-spacing: -0.02em;
+  padding-bottom: .02em;
+  transition: color var(--t-small) var(--ease-out);
+}
+/* the hand-drawn ink underline, coloured by currentColor via a mask */
+.word::after {
+  content: "";
+  position: absolute; left: -2%; right: -2%; bottom: -.1em; height: .2em;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 8' preserveAspectRatio='none'%3E%3Cpath d='M2 5.4C14 3.1 27 2.6 41 3.6s25 1.9 39 .9 22-2.2 38-.6' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+          mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 8' preserveAspectRatio='none'%3E%3Cpath d='M2 5.4C14 3.1 27 2.6 41 3.6s25 1.9 39 .9 22-2.2 38-.6' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+  opacity: .9;
+  transform-origin: left center;
+}
+/* a blank still at its "any" default reads lighter, like it's waiting to be filled */
+.blank.is-any .word {
+  font-weight: 400; font-style: italic;
+  font-variation-settings: "SOFT" 100, "WONK" 1, "opsz" 72;
+  color: var(--ink-soft);
+}
+.blank.is-any .word::after {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 8' preserveAspectRatio='none'%3E%3Cpath d='M2 4.6c4-.6 6-.6 9 0M18 4.4c4-.5 6-.5 9 0M34 4.5c4-.6 6-.6 9 0M50 4.4c4-.5 6-.5 9 0M66 4.6c4-.6 6-.6 9 0M82 4.4c4-.5 6-.5 9 0M98 4.5c4-.6 6-.6 9 0M112 4.4c3-.4 4-.4 6 0' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E");
+          mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 8' preserveAspectRatio='none'%3E%3Cpath d='M2 4.6c4-.6 6-.6 9 0M18 4.4c4-.5 6-.5 9 0M34 4.5c4-.6 6-.6 9 0M50 4.4c4-.5 6-.5 9 0M66 4.6c4-.6 6-.6 9 0M82 4.4c4-.5 6-.5 9 0M98 4.5c4-.6 6-.6 9 0M112 4.4c3-.4 4-.4 6 0' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+.blank:hover .word { color: var(--ink); }
+
+/* focus lives on the visible word, since the control over it is invisible */
+.blank:has(select:focus-visible) .word,
+.blank-btn:focus-visible .word {
+  outline: 2px solid var(--stamp); outline-offset: 4px; border-radius: 4px;
+}
+.blank-btn:focus-visible { outline: none; }
+.blank-btn[aria-expanded="true"] .word { color: var(--ink); }
+
+/* changed → the ink underline wiggles, the word gives a little nod */
+.word.wiggle::after { animation: ink-wiggle 560ms var(--ease-out); }
+@keyframes word-nod {
+  0% { transform: translateY(0); }
+  35% { transform: translateY(-.06em) rotate(-1.2deg); }
+  100% { transform: none; }
+}
+@keyframes ink-wiggle {
+  0% { transform: scaleX(.15) skewX(-20deg); opacity: .3; }
+  45% { transform: scaleX(1.06) skewX(8deg); opacity: 1; }
+  70% { transform: scaleX(.98) skewX(-4deg); }
+  100% { transform: none; }
+}
+
+.from-clause[hidden] { display: none; }
+
+/* ── where sheet (real checkboxes) ──────────────────────── */
+.where-sheet {
+  margin: 16px 0 0; padding: 16px 16px 14px;
+  border: 1px solid var(--rule); border-radius: var(--radius-slip);
+  background: var(--slip); box-shadow: var(--shadow-slip);
+  min-width: 0;
+  transform-origin: 30% 0;
+  animation: sheet-in var(--t-medium) var(--ease-out);
+}
+.where-sheet[hidden] { display: none; }
+@keyframes sheet-in { from { opacity: 0; transform: translateY(-6px) scaleY(.94); } }
+.where-sheet legend {
+  float: left; width: 100%; padding: 0; margin: 0 0 12px;
+  font: 600 var(--step-0)/1.35 var(--font-ui); color: var(--ink);
+}
+.where-sheet legend .soft { display: block; font-weight: 400; font-size: var(--step--1); }
+.where-opts { clear: both; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.where-opt {
+  position: relative; display: flex; align-items: center; gap: 10px;
+  min-height: 48px; padding: 0 12px;
+  border: 1.5px solid var(--rule); border-radius: 999px;
+  font: 600 var(--step--1)/1.2 var(--font-ui); color: var(--ink);
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+  transition: border-color var(--t-small) var(--ease-out), background var(--t-small) var(--ease-out);
+}
+.where-opt input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.where-dot {
+  flex: none; width: 18px; height: 18px; border-radius: 4px;
+  border: 1.5px solid var(--ink); background: var(--slip);
+  transition: background var(--t-small) var(--ease-out);
+}
+.where-home { --tint: var(--tint-home); }
+.where-local { --tint: var(--tint-local); }
+.where-day_trip { --tint: var(--tint-day_trip); }
+.where-travel { --tint: var(--tint-travel); }
+.where-opt:has(input:checked) { border-color: var(--ink); background: color-mix(in srgb, var(--tint) 55%, var(--slip)); }
+.where-opt:has(input:checked) .where-dot {
+  background: var(--ink) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 18'%3E%3Cpath d='M4.5 9.4l3 2.9 6-6.6' fill='none' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 100% no-repeat;
+}
+@media (prefers-color-scheme: dark) {
+  .where-opt:has(input:checked) .where-dot { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 18'%3E%3Cpath d='M4.5 9.4l3 2.9 6-6.6' fill='none' stroke='%2314121b' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }
+}
+.where-opt:has(input:focus-visible) { outline: 2px solid var(--stamp); outline-offset: 3px; }
+.sheet-done { margin-top: 12px; min-height: 44px; padding: 0 18px; }
+
+/* ── the shelf: marginalia + jar ────────────────────────── */
+.shelf {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 136px;
+  align-items: end;
+  gap: 4px;
+  margin-top: 26px;
+  padding-bottom: 14px;
+  position: relative;
+}
+/* the shelf plank under the jar */
+.shelf::after {
+  content: ""; position: absolute; left: -16px; right: -16px; bottom: 0; height: 14px;
+  background: var(--paper-2);
+  border-top: 1.5px solid var(--rule);
+}
+.margin { padding-bottom: 18px; position: relative; z-index: 1; }
+.tally { margin: 0 0 14px; }
+.tally-hand {
+  display: inline-block;
+  font: 600 1.9rem/1 var(--font-hand);
+  color: var(--ink);
+  white-space: nowrap;
+  transform: rotate(-3deg);
+  transform-origin: left bottom;
+  position: relative;
+}
+.tally-hand::after { /* hand-drawn arrow toward the jar */
+  content: ""; position: absolute; right: -34px; top: .1em; width: 30px; height: 19px;
+  background: var(--ink-soft);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 36 22'%3E%3Cpath d='M2 6c9-4 20-3 29 9M31 15l-1-8M31 15l-8-1' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+          mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 36 22'%3E%3Cpath d='M2 6c9-4 20-3 29 9M31 15l-1-8M31 15l-8-1' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.tally-n { font-size: 1.25em; }
+.tally-star { font-size: .7em; vertical-align: .25em; margin-left: .1em; }
+.tally-hand.is-none .tally-n { color: var(--ink-soft); }
+.tally-hand.bump { animation: tally-bump var(--t-medium) var(--ease-spring); }
+@keyframes tally-bump { 40% { transform: rotate(-5deg) scale(1.08); } }
+.tally-ui {
+  display: block; margin-top: 8px;
+  font: 400 var(--step--1)/1.35 var(--font-ui); color: var(--ink-soft);
+}
+.draw, .draw-empty {
+  min-height: 56px; padding: 0 26px;
+  font-size: var(--step-1);
+  box-shadow: 0 10px 22px -14px color-mix(in srgb, var(--stamp) 80%, transparent);
+}
+.draw:focus-visible, .draw-empty:focus-visible { outline-offset: 4px; }
+
+.jar-wrap {
+  position: relative; z-index: 1;
+  width: 136px; justify-self: end;
+  margin-right: -4px;
+  transform: rotate(2.5deg);
+  transform-origin: 50% 100%;
+}
+.jar { width: 100%; height: auto; overflow: visible; }
+.jar-glass { fill: color-mix(in srgb, var(--slip) 70%, transparent); }
+.jar-outline { fill: none; stroke: var(--ink); stroke-width: 3; stroke-linejoin: round; stroke-linecap: round; }
+.jar-shine { fill: none; stroke: var(--ink); stroke-width: 2.4; stroke-linecap: round; opacity: .28; }
+.jar-neck { fill: var(--paper-2); stroke: var(--ink); stroke-width: 2.5; }
+.jar-lid { fill: var(--ink); }
+.jar-ridges { stroke: var(--paper); stroke-width: 1.4; opacity: .35; }
+.jar-string { fill: none; stroke: var(--ink-soft); stroke-width: 1.2; }
+.jar-tagpaper { fill: var(--slip); stroke: var(--ink); stroke-width: 1.6; }
+.jar-tagmark { fill: none; stroke: var(--ink-soft); stroke-width: 1.3; stroke-linecap: round; }
+.jar-taghole { fill: var(--paper); stroke: var(--ink); stroke-width: 1; }
+.lantern-0 { stop-color: var(--glow); }
+.lantern-1 { stop-color: var(--glow); stop-opacity: 0; }
+.fireflies { display: none; }
+
+/* the slips inside */
+.jslip {
+  transform: translate(calc(var(--x) * 1px), calc(var(--y) * 1px)) rotate(calc(var(--r) * 1deg));
+  transition: transform var(--t-medium) var(--ease-spring) var(--d, 0ms), opacity var(--t-medium) var(--ease-out) var(--d, 0ms);
+}
+.jslip rect { stroke: var(--ink); stroke-width: 1.1; }
+.jslip path { stroke: var(--ink); stroke-width: .8; opacity: .45; fill: none; }
+.jslip.s-home rect { fill: var(--tint-home); }
+.jslip.s-local rect { fill: var(--tint-local); }
+.jslip.s-day_trip rect { fill: var(--tint-day_trip); }
+.jslip.s-travel rect { fill: var(--tint-travel); }
+.jslip.is-out {
+  opacity: .22;
+  transform: translate(calc(var(--x) * 1px), calc(var(--y) * 1px + 5px)) rotate(calc(var(--r) * 1.5deg));
+}
+.jslip.is-drawn { opacity: 0; transition-duration: var(--t-micro); }
+
+/* the shake */
+.jar-wrap.shake .jar { animation: jar-shake 480ms var(--ease-in-out); transform-origin: 50% 92%; }
+@keyframes jar-shake {
+  0% { transform: rotate(0); }
+  18% { transform: rotate(-6deg) translateX(-3px); }
+  38% { transform: rotate(5deg) translateX(3px); }
+  58% { transform: rotate(-3.5deg) translateX(-2px); }
+  78% { transform: rotate(2deg); }
+  100% { transform: rotate(0); }
+}
+.jar-wrap.nope .jar { animation: jar-nope 420ms var(--ease-in-out); transform-origin: 50% 92%; }
+@keyframes jar-nope { 25% { transform: translateX(-4px); } 50% { transform: translateX(3px); } 75% { transform: translateX(-2px); } }
+.jar-wrap.plop .jar { animation: jar-plop 360ms var(--ease-spring); transform-origin: 50% 100%; }
+@keyframes jar-plop { 40% { transform: scale(1.03, .97); } }
+
+/* ── receding while a slip is out ───────────────────────── */
+.jarpage.has-card .sentence { color: var(--ink-soft); }
+.jarpage.has-card .blank:not(.is-any) .word { color: var(--ink); }
+.jarpage.has-card .draw { visibility: hidden; opacity: 0; }
+.draw { transition: opacity var(--t-small) var(--ease-out), transform var(--t-micro) var(--ease-out); }
+.jarpage.has-card .margin { padding-bottom: 26px; }
+
+/* ── the result region ──────────────────────────────────── */
+.pick { position: relative; scroll-margin-top: 76px; }
+.pick:empty { display: none; }
+
+/* the drawn slip */
+.slip-card {
+  --tint: var(--tint-local);
+  position: relative;
+  margin: 26px 0 0;
+  padding: 30px 22px 22px;
+  background:
+    linear-gradient(to bottom, transparent calc(36% - 1px), color-mix(in srgb, var(--ink) 6%, transparent) 36%, transparent calc(36% + 1px)),
+    linear-gradient(to bottom, transparent calc(70% - 1px), color-mix(in srgb, var(--ink) 5%, transparent) 70%, transparent calc(70% + 1px)),
+    var(--slip);
+  border-radius: var(--radius-slip);
+  box-shadow: var(--shadow-slip);
+  transform-origin: 50% 0;
+}
+.slip-card.tint-home { --tint: var(--tint-home); }
+.slip-card.tint-local { --tint: var(--tint-local); }
+.slip-card.tint-day_trip { --tint: var(--tint-day_trip); }
+.slip-card.tint-travel { --tint: var(--tint-travel); }
+/* folded corner, tinted by where it happens */
+.slip-card::after {
+  content: ""; position: absolute; top: 0; right: 0; width: 34px; height: 34px;
+  background: linear-gradient(225deg, var(--paper) 50%, var(--tint) 50%);
+  border-bottom-left-radius: 3px;
+  box-shadow: -2px 2px 3px -1px color-mix(in srgb, var(--ink) 18%, transparent);
+}
+.slip-tape {
+  position: absolute; top: -11px; left: 26px; width: 78px; height: 22px;
+  background: color-mix(in srgb, var(--tint) 80%, transparent);
+  transform: rotate(-3deg);
+  opacity: .9;
+  -webkit-mask: linear-gradient(90deg, transparent 0 2px, #000 2px calc(100% - 2px), transparent calc(100% - 2px));
+}
+.slip-so {
+  margin: 0 0 2px;
+  font: italic 400 var(--step-1)/1.2 var(--font-display);
+  font-variation-settings: "SOFT" 100, "WONK" 1, "opsz" 36;
+  color: var(--ink-soft);
+}
+.slip-title {
+  font-size: clamp(2.1rem, 9.4vw, 3.2rem);
+  font-weight: 620;
+  font-variation-settings: "SOFT" 100, "WONK" 1, "opsz" 144;
+  line-height: 1.02;
+  letter-spacing: -0.025em;
+  overflow-wrap: break-word;
+  hyphens: auto;
+  margin: 0 18px 14px 0;
+}
+.slip-meta {
+  margin: 0 0 12px;
+  font: 600 .8125rem/1.4 var(--font-ui);
+  letter-spacing: .07em; text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.slip-meta strong { color: var(--ink); font-weight: 700; }
+.slip-meta .dot { margin: 0 .45em; }
+.slip-notes {
+  margin: 0 0 14px;
+  font: italic 400 var(--step-1)/1.42 var(--font-display);
+  font-variation-settings: "SOFT" 100, "WONK" 0, "opsz" 24;
+  color: var(--ink);
+  max-width: 34ch;
+  overflow-wrap: anywhere;
+}
+.slip-facts { list-style: none; margin: 0 0 12px; padding: 0; color: var(--ink-soft); font-size: var(--step--1); }
+.slip-facts li { overflow-wrap: anywhere; display: flex; gap: 8px; align-items: flex-start; margin: 4px 0; }
+.ink-icon { flex: none; width: 18px; height: 18px; margin-top: 1px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.slip-tags { margin: 0 0 4px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+.tag { font: 600 var(--step--1)/1.4 var(--font-ui); color: var(--ink-soft); }
+.tag::before { content: "#"; }
+.never { font: 600 1.35rem/1 var(--font-hand); color: var(--ink); transform: rotate(-3deg); display: inline-block; }
+.slip-maps { margin: 10px 0 0; font: 600 var(--step--1)/1 var(--font-ui); }
+.slip-maps a { display: inline-flex; align-items: center; min-height: 44px; }
+
+.slip-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; align-items: center; }
+.slip-actions .accept { flex: 1 1 auto; min-height: 56px; font-size: var(--step-1); }
+.putback { margin: 0; }
+.putback-btn { min-height: 56px; }
+
+.peeks { display: flex; align-items: center; gap: 12px; margin-top: 14px; min-height: 28px; }
+.peek-tokens { display: inline-flex; gap: 7px; }
+.peek {
+  width: 15px; height: 15px; border-radius: 50%;
+  border: 1.75px solid var(--ink-soft);
+  background: transparent;
+}
+.peek.is-full { background: var(--ink); border-color: var(--ink); }
+.peek.just-emptied { animation: peek-empty 640ms var(--ease-out) 200ms backwards; }
+@keyframes peek-empty {
+  0% { background: var(--ink); border-color: var(--ink); transform: scale(1); }
+  40% { transform: scale(1.35); }
+  100% { background: transparent; transform: scale(1); }
+}
+.peek-label { font: 600 1.35rem/1 var(--font-hand); color: var(--ink-soft); }
+.peek-last { color: var(--ink); font-size: 1.45rem; }
+
+/* ── stamped ────────────────────────────────────────────── */
+.slip-card.is-stamped { padding-top: 138px; animation: paper-jolt 420ms var(--ease-out) 260ms; }
+.slip-card.is-stamped .slip-so { display: none; }
+.stamp {
+  position: absolute; top: 22px; left: 16px;
+  width: min(212px, 64%);
+  color: var(--stamp);
+  transform: rotate(-7deg);
+  pointer-events: none;
+  mix-blend-mode: multiply;
+  animation: stamp-thump 560ms var(--ease-spring) backwards;
+  z-index: 2;
+}
+.stamp svg { width: 100%; height: auto; overflow: visible; }
+.stamp-line { fill: none; stroke: currentColor; }
+.stamp-big { fill: currentColor; font: 700 27px/1 var(--font-ui); letter-spacing: 1.5px; }
+.stamp-small { fill: currentColor; font: 600 14px/1 var(--font-ui); letter-spacing: 2px; }
+@keyframes stamp-thump {
+  0% { opacity: 0; transform: translate(10px, -26px) rotate(-18deg) scale(1.9); }
+  45% { opacity: 1; transform: translate(0, 0) rotate(-7deg) scale(.93); }
+  70% { transform: rotate(-7deg) scale(1.03); }
+  100% { opacity: 1; transform: rotate(-7deg) scale(1); }
+}
+@keyframes paper-jolt {
+  0% { transform: none; }
+  25% { transform: translateY(4px) rotate(.5deg); }
+  60% { transform: translateY(-1px) rotate(-.2deg); }
+  100% { transform: none; }
+}
+.hearts { position: absolute; top: 34px; left: min(222px, 66%); width: 1px; height: 1px; pointer-events: none; }
+.hearts svg {
+  position: absolute; width: 16px; height: 16px; fill: var(--stamp); opacity: 0;
+  animation: heart-fly 900ms var(--ease-out) 300ms forwards;
+}
+.hearts svg:nth-child(2) { width: 11px; height: 11px; --hx: 30px; --hy: -46px; --hr: 18deg; animation-delay: 360ms; }
+.hearts svg:nth-child(3) { width: 9px; height: 9px; --hx: -4px; --hy: -60px; --hr: -14deg; animation-delay: 420ms; }
+@keyframes heart-fly {
+  0% { opacity: 0; transform: translate(0, 0) scale(.4); }
+  20% { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--hx, 18px), var(--hy, -34px)) rotate(var(--hr, -10deg)) scale(1); }
+}
+.slip-kept { margin: 14px 0 0; font: italic 400 var(--step-0)/1.45 var(--font-display); color: var(--ink-soft); }
+.slip-actions .again { padding: 0 12px; }
+
+/* ── nothing fits: a handwritten note ───────────────────── */
+.note {
+  position: relative;
+  margin: 26px 6px 0;
+  padding: 18px 20px 20px;
+  isolation: isolate;
+}
+.note::after {
+  content: ""; position: absolute; inset: 0; z-index: -2;
+  background: var(--slip);
+  border-radius: var(--radius-slip);
+  box-shadow: var(--shadow-slip);
+  transform: rotate(-1.4deg);
+}
+.note::before { opacity: .3; transform: rotate(-1.4deg); }
+.note-hand { margin: 0; font: 600 1.9rem/1 var(--font-hand); color: var(--ink-soft); }
+.note-text {
+  margin: 6px 0 16px;
+  font: italic 400 var(--step-1)/1.4 var(--font-display);
+  font-variation-settings: "SOFT" 100, "WONK" 0, "opsz" 24;
+  color: var(--ink);
+}
+.note .relax { margin: 0; }
+.note .btn { min-height: 52px; white-space: normal; text-align: center; line-height: 1.2; padding: 10px 22px; }
+
+/* ── the slip in flight (JS ghost) ──────────────────────── */
+.ghost {
+  position: absolute; z-index: 30; top: 0; left: 0;
+  pointer-events: none;
+  background: var(--slip);
+  border-radius: 2px;
+  border-bottom: 5px solid var(--tint, var(--tint-local));
+  box-shadow: var(--shadow-slip);
+  transform-origin: 0 0;
+}
+.ghost::after {
+  content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 1px;
+  background: color-mix(in srgb, var(--ink) 18%, transparent);
+}
+.ghost-card { position: absolute; z-index: 30; margin: 0 !important; pointer-events: none; }
+
+.oops { margin: 22px 0 0; font: italic 400 var(--step-1)/1.4 var(--font-display); color: var(--ink-soft); }
+
+/* ── night: the jar is a lantern ────────────────────────── */
+@media (prefers-color-scheme: dark) {
+  .jar-glass { fill: color-mix(in srgb, var(--paper-2) 80%, transparent); }
+  .jar-shine { stroke: var(--ink); opacity: .22; }
+  .jar-wrap::before {
+    content: ""; position: absolute; left: 4%; right: 4%; top: 20%; bottom: 2%;
+    border-radius: 40%;
+    background: radial-gradient(closest-side, var(--glow), transparent);
+    filter: blur(18px);
+    opacity: var(--lantern, 1);
+    transition: opacity var(--t-medium) var(--ease-out);
+    z-index: -1;
+  }
+  .fireflies { display: inline; }
+  .fireflies circle { fill: rgb(from var(--glow) r g b); animation: firefly 3.2s ease-in-out infinite; }
+  .fireflies circle:nth-child(2) { animation-delay: -1.1s; animation-duration: 2.7s; }
+  .fireflies circle:nth-child(3) { animation-delay: -2.0s; animation-duration: 3.8s; }
+  .fireflies circle:nth-child(4) { animation-delay: -.6s; animation-duration: 2.4s; }
+  .fireflies circle:nth-child(5) { animation-delay: -1.7s; animation-duration: 3.4s; }
+  .fireflies circle:nth-child(6) { animation-delay: -2.6s; animation-duration: 2.9s; }
+  /* slips catch the lantern light */
+  .jslip rect { stroke: rgb(from var(--glow) r g b / .55); stroke-width: .9; }
+  .jslip.s-home rect { fill: color-mix(in srgb, var(--tint-home) 70%, rgb(from var(--glow) r g b)); }
+  .jslip.s-local rect { fill: color-mix(in srgb, var(--tint-local) 72%, rgb(from var(--glow) r g b)); }
+  .jslip.s-day_trip rect { fill: color-mix(in srgb, var(--tint-day_trip) 74%, rgb(from var(--glow) r g b)); }
+  .jslip.s-travel rect { fill: color-mix(in srgb, var(--tint-travel) 76%, rgb(from var(--glow) r g b)); }
+  .jslip path { stroke: var(--paper); }
+  .jslip.is-out { opacity: .14; }
+  .fireflies circle { r: 2; }
+  .slip-card, .note::after { box-shadow: var(--shadow-slip), 0 -1px 0 rgb(from var(--glow) r g b / .18), 0 0 40px -18px var(--glow); }
+  .stamp { mix-blend-mode: normal; }
+}
+@keyframes firefly { 0%, 100% { opacity: .25; } 50% { opacity: 1; } }
+
+/* ── desktop: a composed two-column page ────────────────── */
+@media (min-width: 900px) {
+  body[data-page="jar"] main, body[data-page="jar"] .top { max-width: 1040px; }
+  .shelf::after { display: none; }
+  .jarpage { display: grid; grid-template-columns: minmax(0, 1fr) 300px; column-gap: 56px; }
+  .tonight { display: contents; }
+  .kicker, .sentence-set, .where-sheet, .pick { grid-column: 1; }
+  .shelf {
+    grid-column: 2; grid-row: 1 / span 4; align-self: start;
+    position: sticky; top: 90px;
+    grid-template-columns: 1fr; margin-top: 40px;
+  }
+  .shelf .jar-wrap { grid-row: 1; width: 220px; justify-self: center; }
+  .shelf .margin { grid-row: 2; padding-top: 18px; }
+  .sentence { font-size: 3rem; }
+  .tally-hand::after { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .word.wiggle, .word.wiggle::after, .tally-hand.bump { animation: none; }
+  .jar-wrap.shake .jar, .jar-wrap.nope .jar, .jar-wrap.plop .jar { animation: none; }
+  .stamp { animation: stamp-fade 150ms linear backwards; }
+  .slip-card.is-stamped { animation: none; }
+  .hearts { display: none; }
+  .fireflies circle { animation: none; opacity: .7; }
+  .jslip { transition-duration: 150ms; transition-delay: 0ms; }
+  .where-sheet { animation: none; }
+}
+@keyframes stamp-fade { from { opacity: 0; } }
+
+/* the lid tips open while a slip is out, and goes back on when you return to the sentence */
+.jar-lid-g { transform-box: view-box; transform-origin: 38px 32px; transition: transform var(--t-medium) var(--ease-spring) 120ms; }
+.jarpage.has-card .jar-lid-g { transform: translate(-10px, -12px) rotate(-22deg); }
+.draw-empty { white-space: nowrap; padding: 0 22px; font-size: var(--step-0); }

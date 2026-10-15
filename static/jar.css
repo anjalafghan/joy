@@ -1,0 +1,395 @@
+/* joy — the Jar (take A: the physical jar).
+   Only tokens from tokens.css; every local colour is derived from them. */
+
+:root {
+  --glass-edge: color-mix(in srgb, var(--ink) 52%, transparent);
+  --glass-fill: color-mix(in srgb, var(--paper-2) 38%, transparent);
+  --glass-base: color-mix(in srgb, var(--rule) 70%, transparent);
+  --glass-hl: color-mix(in srgb, var(--slip) 92%, transparent);
+  --lid: color-mix(in srgb, var(--ink) 78%, var(--paper));
+  --lid-ridge: color-mix(in srgb, var(--paper) 22%, transparent);
+  --tape: color-mix(in srgb, var(--tint-home) 78%, var(--slip));
+  --shelf: color-mix(in srgb, var(--ink) 12%, transparent);
+  --firefly: var(--glow);
+  --lit: 1;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --glass-edge: color-mix(in srgb, var(--ink) 40%, transparent);
+    --glass-fill: color-mix(in srgb, var(--paper-2) 70%, transparent);
+    --glass-base: color-mix(in srgb, var(--rule) 80%, transparent);
+    --glass-hl: color-mix(in srgb, var(--ink) 34%, transparent);
+    --lid: color-mix(in srgb, var(--ink-soft) 46%, var(--paper));
+    --lid-ridge: color-mix(in srgb, var(--ink) 18%, transparent);
+    --tape: color-mix(in srgb, var(--tint-home) 80%, var(--slip));
+    --shelf: color-mix(in srgb, #000 40%, transparent);
+    --firefly: rgb(from var(--glow) r g b);
+  }
+}
+
+body[data-page="jar"] main { padding-top: 0; }
+
+/* ── stage: the jar on its shelf ─────────────────────────── */
+.jar-page { --stage-h: clamp(250px, 72vw, 330px); --jar-w: calc(var(--stage-h) * .8); }
+.stage {
+  position: relative;
+  height: var(--stage-h);
+  margin: 4px 0 0;
+}
+.jar {
+  position: absolute; left: -4px; bottom: 0;
+  height: 100%; aspect-ratio: 240 / 300;
+  transform-origin: 50% 96%;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.jar > svg, .jar > canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.jar-front { pointer-events: none; }
+
+.shelf-shadow { fill: var(--shelf); }
+.glass-fill { fill: var(--glass-fill); }
+.glass-back-rim { fill: none; stroke: var(--glass-edge); stroke-width: 1; opacity: .5; }
+.glass-base { fill: var(--glass-base); }
+.glass-floor { fill: none; stroke: var(--glass-hl); stroke-width: 1.4; }
+.glass-edge { fill: none; stroke: var(--glass-edge); stroke-width: 1.7; stroke-linejoin: round; }
+.hl { fill: none; stroke: var(--glass-hl); stroke-linecap: round; }
+.hl-1 { stroke-width: 5; }
+.hl-2 { stroke-width: 2.4; opacity: .8; }
+.hl-3 { stroke-width: 3; opacity: .9; }
+.hl-4 { stroke-width: 2; opacity: .55; }
+.rim { fill: var(--glass-fill); stroke: var(--glass-edge); stroke-width: 1.5; }
+.lid { transform-box: view-box; transform-origin: 176px 54px; }
+.lid-body { fill: var(--lid); }
+.lid-ridges { stroke: var(--lid-ridge); stroke-width: 1.4; stroke-linecap: round; }
+.lid-shine { stroke: var(--glass-hl); stroke-width: 1.5; stroke-linecap: round; opacity: .6; }
+.tape { fill: var(--tape); opacity: .94; }
+.label-text { font: 600 17px var(--font-hand); fill: var(--ink); }
+
+/* lantern (dark): the glow token is fully transparent in light mode */
+.glow-stop { stop-color: var(--glow); }
+.glow-stop--out { stop-opacity: 0; }
+.lantern { opacity: calc(.35 + .65 * var(--lit)); transition: opacity var(--t-medium) var(--ease-out); }
+.fireflies { display: none; }
+.fireflies circle { fill: var(--firefly); filter: url(#ff-blur); opacity: .2; }
+@media (prefers-color-scheme: dark) {
+  .jar { filter: drop-shadow(0 0 26px color-mix(in srgb, var(--glow) calc(var(--lit) * 70%), transparent)); }
+  .fireflies { display: inline; }
+  .fireflies circle { animation: firefly var(--d) var(--ease-in-out) var(--o) infinite; }
+  .label-text { fill: var(--ink); }
+}
+@keyframes firefly {
+  0%, 100% { opacity: .1; transform: translate(0, 0); }
+  45% { opacity: calc(.35 + .65 * var(--lit)); transform: translate(3px, -6px); }
+  70% { opacity: .25; transform: translate(-2px, -9px); }
+}
+.fireflies circle { transform-box: fill-box; }
+
+/* jar motion: shake (draw), jostle (tap), lid lift */
+.jar.is-shaking { animation: jar-shake 340ms var(--ease-in-out); }
+@keyframes jar-shake {
+  0% { transform: rotate(0); }
+  18% { transform: rotate(-3.2deg) translateX(-3px); }
+  40% { transform: rotate(2.8deg) translateX(3px); }
+  62% { transform: rotate(-1.8deg) translateX(-2px); }
+  82% { transform: rotate(.9deg); }
+  100% { transform: rotate(0); }
+}
+.jar.is-nudged { animation: jar-nudge 260ms var(--ease-out); }
+@keyframes jar-nudge { 30% { transform: rotate(-1.2deg); } 70% { transform: rotate(.7deg); } }
+.lid { transition: transform var(--t-medium) var(--ease-spring); }
+.jar.is-open .lid { transform: translate(14px, -20px) rotate(24deg); }
+
+/* ── the tag tied to the neck: the live counter ──────────── */
+.tag {
+  position: absolute; margin: 0;
+  left: calc(var(--jar-w) - 6px);
+  top: 18%;
+  width: max-content; max-width: calc(100% - var(--jar-w) + 4px);
+  padding: 12px 14px 12px 22px;
+  background: var(--slip);
+  color: var(--ink);
+  border-radius: 3px 10px 10px 3px;
+  box-shadow: var(--shadow-slip);
+  transform: rotate(4deg); transform-origin: 0 30%;
+  clip-path: polygon(10px 0, 100% 0, 100% 100%, 10px 100%, 0 50%);
+  line-height: 1.15;
+}
+.tag::before { /* the punched hole */
+  content: ""; position: absolute; left: 11px; top: calc(50% - 4px); width: 8px; height: 8px; border-radius: 50%;
+  background: var(--paper); box-shadow: inset 0 0 0 1px var(--rule);
+}
+.twine {
+  position: absolute; pointer-events: none; overflow: visible;
+  left: calc(var(--jar-w) * .69 - 4px); top: calc(var(--stage-h) * .2);
+  width: calc(var(--jar-w) * .31 + 12px); height: calc(var(--stage-h) * .165);
+}
+.twine path { fill: none; stroke: color-mix(in srgb, var(--ink-soft) 75%, transparent); stroke-width: 1.4; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.tag-n {
+  display: inline-block;
+  font: 600 var(--step-3)/1 var(--font-display);
+  font-variation-settings: "SOFT" 100, "WONK" 1, "opsz" 144;
+  font-variant-numeric: lining-nums;
+}
+.tag-unit { font: 500 var(--step-1)/1 var(--font-display); font-variation-settings: "SOFT" 100, "WONK" 1, "opsz" 48; }
+.tag-text { display: block; margin-top: 4px; font: 500 var(--step--1)/1.3 var(--font-ui); color: var(--ink-soft); max-width: 11ch; }
+.is-empty .tag-text { max-width: 9ch; }
+
+/* ── the drawn slip / note region ────────────────────────── */
+#pick { position: relative; z-index: 3; }
+#pick:not(:empty) { margin-top: calc(var(--stage-h) * -.2); margin-bottom: 28px; }
+#pick.is-holding { min-height: var(--hold, 0px); }
+
+.slip {
+  --tint: var(--tint-local);
+  position: relative;
+  margin: 0 2px;
+  padding: 26px 20px 20px;
+  background: var(--slip);
+  color: var(--ink);
+  border-radius: var(--radius-slip);
+  box-shadow: var(--shadow-slip), 0 30px 50px -36px color-mix(in srgb, var(--ink) 50%, transparent);
+  transform: rotate(-.8deg);
+  transform-origin: 50% 0;
+  /* a soft deckled bottom edge */
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 3px), 92% 100%, 81% calc(100% - 2px), 69% 100%, 55% calc(100% - 3px), 41% 100%, 27% calc(100% - 2px), 14% 100%, 0 calc(100% - 2px));
+}
+/* the folded edge, tinted by where it happens */
+.slip::after {
+  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 9px;
+  background: linear-gradient(to bottom, var(--tint), color-mix(in srgb, var(--tint) 70%, var(--slip)));
+  border-bottom: 1px dashed color-mix(in srgb, var(--ink) 18%, transparent);
+}
+/* the crease the slip remembers from being folded */
+.slip-crease {
+  position: absolute; left: 0; right: 0; top: 46%; height: 1px; pointer-events: none;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--ink) 10%, transparent) 20%, color-mix(in srgb, var(--ink) 10%, transparent) 80%, transparent);
+}
+.slip-meta {
+  margin: 0 0 10px;
+  font: 600 var(--step--1)/1.35 var(--font-ui); letter-spacing: .02em;
+  color: var(--ink-soft);
+}
+.slip-meta strong { color: var(--ink); font-weight: 700; }
+.slip-setting::before {
+  content: ""; display: inline-block; width: 9px; height: 9px; margin-right: 6px; vertical-align: 0;
+  border-radius: 50%; background: var(--tint); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 30%, transparent);
+}
+.slip-title {
+  font-size: clamp(var(--step-2), 8vw, var(--step-3));
+  font-weight: 560;
+  outline-offset: 6px;
+  overflow-wrap: anywhere;
+}
+.slip-title:focus:not(:focus-visible) { outline: none; }
+.never {
+  margin: 4px 0 0; display: inline-block;
+  font: 600 1.35rem/1 var(--font-hand); color: var(--ink-soft);
+  transform: rotate(-2deg); transform-origin: 0 50%;
+}
+.slip-where { margin: 14px 0 0; display: grid; gap: 4px; }
+.slip-where p { margin: 0; display: flex; gap: 8px; align-items: flex-start; font-size: var(--step--1); line-height: 1.45; }
+.slip-where .soft { color: var(--ink-soft); }
+.ico { flex: none; width: 18px; height: 18px; margin-top: 1px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.slip-notes {
+  margin: 14px 0 0;
+  font: italic 400 1.075rem/1.5 var(--font-display);
+  font-variation-settings: "SOFT" 100, "opsz" 14;
+}
+.slip-tags { margin: 12px 0 0; font-size: var(--step--1); color: var(--ink-soft); display: flex; flex-wrap: wrap; gap: 2px 10px; }
+.slip-maps { margin: 12px 0 0; font-size: var(--step--1); }
+.slip-maps a { display: inline-flex; align-items: center; min-height: 44px; font-weight: 600; }
+
+.slip-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; margin-top: 18px; }
+.slip-actions form { display: contents; }
+.btn-ink { border-color: color-mix(in srgb, var(--ink) 70%, transparent); }
+.btn-ink:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.btn-stamp:hover { background: color-mix(in srgb, var(--stamp) 88%, var(--ink)); }
+
+.peeks { display: flex; align-items: center; gap: 10px; margin-top: 12px; min-height: 30px; }
+.peek-dots { display: inline-flex; gap: 2px; }
+.peek { width: 20px; height: 20px; }
+.peek-ring { fill: none; stroke: var(--ink-soft); stroke-width: 1.5; }
+.peek-fill { fill: var(--ink); transform-origin: 10px 10px; transform: scale(0); transition: transform var(--t-medium) var(--ease-spring); }
+.peek.is-full .peek-fill { transform: scale(1); }
+.peek-label { font: 600 1.3rem/1.1 var(--font-hand); color: var(--ink-soft); }
+
+/* ── the stamp ───────────────────────────────────────────── */
+.slip.is-done { padding-top: 30px; }
+.stamp {
+  position: absolute; right: 10px; top: 50px; width: min(54%, 210px);
+  transform: rotate(-9deg); transform-origin: 50% 50%;
+  pointer-events: none;
+}
+.stamp svg { width: 100%; height: auto; overflow: visible; }
+.stamp-ink { stroke: var(--stamp); fill: var(--stamp); }
+.stamp-ink rect { fill: none; }
+.stamp-big { font: 800 31px/1 var(--font-display); font-variation-settings: "SOFT" 30, "WONK" 0, "opsz" 72; letter-spacing: .05em; stroke: none; }
+.stamp-small { font: 700 15px/1 var(--font-ui); letter-spacing: .22em; stroke: none; }
+@media (prefers-color-scheme: light) { .stamp { mix-blend-mode: multiply; } }
+.slip.is-done .slip-meta { padding-right: 0; }
+.slip.is-done .never { display: none; }
+.slip.is-done .slip-title { margin-top: calc(min(54%, 210px) * .5 + 30px); max-width: 100%; }
+.slip.is-done .slip-actions .btn-quiet { padding: 0 10px; }
+.kept-line { margin: 16px 0 0; color: var(--ink-soft); font-size: var(--step--1); }
+.heart { position: fixed; z-index: 60; width: 16px; height: 16px; pointer-events: none; fill: var(--stamp); }
+
+/* ── nothing fits: the handwritten note ──────────────────── */
+.note {
+  position: relative; margin: 0 6px;
+  padding: 22px 20px 20px;
+  background: var(--slip); color: var(--ink);
+  border-radius: 2px;
+  box-shadow: var(--shadow-slip);
+  transform: rotate(1.2deg);
+}
+.note::before { /* a bit of tape holding it to the jar */
+  content: ""; position: absolute; top: -10px; left: 50%; width: 84px; height: 20px; margin-left: -42px;
+  background: var(--tape); opacity: .9; transform: rotate(-3deg);
+}
+.note-text { margin: 0 0 16px; font: 600 1.6rem/1.2 var(--font-hand); text-wrap: pretty; }
+.note .btn { max-width: 100%; height: auto; min-height: 48px; padding-block: 10px; line-height: 1.2; text-align: center; }
+
+/* ── the sentence: tonight we have… ──────────────────────── */
+.tonight { margin-top: 22px; }
+#pick:not(:empty) + .tonight { margin-top: 8px; }
+.sentence {
+  margin: 0;
+  font: 450 clamp(1.3rem, 5.6vw, 1.75rem)/1.9 var(--font-display);
+  font-variation-settings: "SOFT" 100, "WONK" 1, "opsz" 36;
+  letter-spacing: -.01em;
+  color: var(--ink);
+  text-wrap: pretty;
+}
+.lead { font-weight: 600; }
+.blank { display: inline-block; position: relative; white-space: nowrap; }
+.blank select, .blank input {
+  -webkit-appearance: none; appearance: none;
+  font: inherit; font-weight: 600; letter-spacing: inherit;
+  color: var(--ink);
+  background: transparent; border: 0; border-radius: 0;
+  min-height: 44px; padding: 0 16px 0 1px; margin: 0;
+  vertical-align: baseline;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1.2l4 3.6 4-3.6' fill='none' stroke='%23675d6e' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"),
+    linear-gradient(currentColor, currentColor);
+  background-repeat: no-repeat;
+  background-size: 10px 6px, 100% 1.5px;
+  background-position: right 1px center, 0 calc(100% - 7px);
+  cursor: pointer;
+  field-sizing: content;
+  text-overflow: ellipsis;
+  max-width: calc(100vw - 2 * var(--gutter));
+}
+.blank select:focus-visible, .blank input:focus-visible { outline: 2px solid var(--stamp); outline-offset: 2px; border-radius: 4px; }
+.blank input { padding-right: 2px; background-image: linear-gradient(currentColor, currentColor); background-size: 100% 1.5px; background-position: 0 calc(100% - 7px); cursor: text; width: 6.6em; }
+.blank input:placeholder-shown { background-image: repeating-linear-gradient(90deg, var(--ink-soft) 0 5px, transparent 5px 9px); }
+.blank input::placeholder { color: var(--ink-soft); font-style: italic; font-weight: 450; opacity: 1; }
+.blank input::-webkit-outer-spin-button, .blank input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.blank input { -moz-appearance: textfield; }
+.cur { font-weight: 600; margin-right: 1px; }
+/* unchosen blanks read softer: you see at a glance what you've told the jar */
+.blank select.is-any { color: var(--ink-soft); font-style: italic; font-weight: 450; background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1.2l4 3.6 4-3.6' fill='none' stroke='%23675d6e' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"),
+    repeating-linear-gradient(90deg, currentColor 0 5px, transparent 5px 9px); }
+.blank select option { font: 400 1rem var(--font-ui); font-style: normal; color: var(--ink); background: var(--slip); }
+@media (prefers-color-scheme: dark) {
+  .blank select { background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1.2l4 3.6 4-3.6' fill='none' stroke='%23b3a8b8' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"),
+    linear-gradient(currentColor, currentColor); }
+  .blank select.is-any { background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1.2l4 3.6 4-3.6' fill='none' stroke='%23b3a8b8' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"),
+    repeating-linear-gradient(90deg, currentColor 0 5px, transparent 5px 9px); }
+}
+
+/* without a distance there's nothing to measure from */
+.sentence:has(select[name="max_km"] option[value=""]:checked) .from-clause { display: none; }
+
+/* where: circle the places you'd go, like on paper */
+.where { white-space: normal; }
+.where-l { font-style: italic; color: var(--ink-soft); transition: color var(--t-small) var(--ease-out); }
+.where:has(:checked) .where-l { text-decoration: line-through; text-decoration-thickness: 1.5px; }
+.chip { position: relative; display: inline-block; cursor: pointer; white-space: nowrap; }
+.chip input { position: absolute; opacity: 0; inset: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+.chip span {
+  position: relative; display: inline-block; min-height: 44px; padding: 0 3px;
+  color: var(--ink-soft); font-style: italic;
+  transition: color var(--t-small) var(--ease-out);
+}
+.chip span::after { /* the pen circle */
+  content: ""; position: absolute; inset: 2px -9px -2px -10px; pointer-events: none;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 40' preserveAspectRatio='none'%3E%3Cpath d='M58 4.5C34 2.8 9 7 4.3 18.6 0.5 28 20 36.4 51 36c29-.4 46.6-7.3 45.2-18C95 7.7 72 3.4 45 4.4' fill='none' stroke='%232b2433' stroke-width='1.5' stroke-linecap='round' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E") center/100% 100% no-repeat;
+  clip-path: inset(0 100% 0 0);
+  transition: clip-path var(--t-medium) var(--ease-out);
+}
+@media (prefers-color-scheme: dark) {
+  .chip span::after { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 40' preserveAspectRatio='none'%3E%3Cpath d='M58 4.5C34 2.8 9 7 4.3 18.6 0.5 28 20 36.4 51 36c29-.4 46.6-7.3 45.2-18C95 7.7 72 3.4 45 4.4' fill='none' stroke='%23f1e9df' stroke-width='1.5' stroke-linecap='round' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E"); }
+}
+.chip input:checked + span { color: var(--ink); font-style: normal; font-weight: 600; }
+.chip input:checked + span::after { clip-path: inset(0 0 0 0); }
+.chip input:focus-visible + span { outline: 2px solid var(--stamp); outline-offset: 0; border-radius: 6px; }
+.where:not(:has(:checked)) .chip span { color: var(--ink); }
+.chip span { background: repeating-linear-gradient(90deg, color-mix(in srgb, var(--ink-soft) 80%, transparent) 0 5px, transparent 5px 9px) 3px calc(100% - 7px) / calc(100% - 6px) 1.5px no-repeat; }
+.chip input:checked + span { background: none; }
+.where:has(:checked) .chip span { background-size: 0 0; }
+
+.draw-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin-top: 18px; }
+.btn-draw { min-height: 56px; padding: 0 30px; font-size: var(--step-1); box-shadow: 0 10px 22px -14px var(--stamp); }
+.shake-opt {
+  min-height: 44px; padding: 0 4px; border: 0; background: none; cursor: pointer;
+  font: 600 1.3rem/1 var(--font-hand); color: var(--ink-soft);
+}
+.shake-opt[aria-pressed="true"] { color: var(--ink); }
+
+/* ── empty jar ───────────────────────────────────────────── */
+.empty-note {
+  position: relative; z-index: 3;
+  margin: calc(var(--stage-h) * -.2) 4px 0; padding: 22px 20px 22px;
+  background: var(--slip); border-radius: 3px; box-shadow: var(--shadow-slip); transform: rotate(-1deg);
+}
+.empty-note p { margin: 0 0 14px; }
+.empty-hand { font: 600 1.9rem/1.1 var(--font-hand); }
+
+/* ── motion helpers (driven by jar.js) ───────────────────── */
+.flyer {
+  position: fixed; left: 0; top: 0; z-index: 50; pointer-events: none;
+  width: 34px; height: 14px; border-radius: 1.5px;
+  background: linear-gradient(90deg, var(--tint) 0 55%, color-mix(in srgb, var(--tint) 45%, var(--slip)) 55%);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--ink) 20%, transparent), 0 6px 12px -6px color-mix(in srgb, var(--ink) 50%, transparent);
+  will-change: transform;
+}
+.flyer::after { content: ""; position: absolute; left: 55%; top: 0; bottom: 0; width: 1px; background: color-mix(in srgb, var(--ink) 22%, transparent); }
+.slip-cover { /* blank paper over the text while a slip unfolds */
+  position: absolute; inset: 0; z-index: 2; pointer-events: none;
+  background:
+    linear-gradient(to bottom, transparent 32%, color-mix(in srgb, var(--ink) 9%, transparent) 33%, transparent 36%, transparent 65%, color-mix(in srgb, var(--ink) 9%, transparent) 66%, transparent 69%),
+    var(--slip);
+}
+.ghost { position: fixed; z-index: 45; margin: 0 !important; pointer-events: none; }
+.slip.is-leaving, .note.is-leaving { opacity: 0; }
+.slip.is-arriving, .slip.is-arriving * { pointer-events: none; }
+
+/* ── desktop: jar on the left, everything else on the right ─ */
+@media (min-width: 880px) {
+  body[data-page="jar"] main { max-width: 1060px; }
+  body[data-page="jar"] .top { max-width: 1060px; }
+  .jar-page { display: grid; grid-template-columns: 500px 1fr; column-gap: 40px; align-items: start; }
+  .stage { grid-column: 1; grid-row: 1 / span 3; position: sticky; top: 84px; height: 470px; margin-top: 24px; }
+  .jar { left: 0; }
+  .jar-page { --stage-h: 470px; }
+  .tag { max-width: 150px; }
+  #pick, .tonight, .empty-note { grid-column: 2; }
+  #pick:not(:empty) { margin-top: 40px; }
+  .tonight { margin-top: 56px; }
+  #pick:not(:empty) + .tonight { margin-top: 20px; }
+  .empty-note { margin-top: 80px; }
+  .sentence { font-size: 1.9rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fireflies circle { animation: none !important; opacity: .45; }
+  .jar.is-shaking, .jar.is-nudged { animation: none; }
+  .jar.is-open .lid { transform: none; }
+}
+@supports (field-sizing: content) {
+  .blank input { width: auto; min-width: 2.4em; }
+}

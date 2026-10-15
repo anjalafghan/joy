@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block title %}joy · the jar{% endblock %}
+{% block page %}login{% endblock %}
+{% block head %}
+  <link rel="preload" href="/static/fonts/Fraunces-italic.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/static/login.css">
+  <script src="/static/login.js" defer></script>
+{% endblock %}
+{% block nav %}{% endblock %}
+{% block content %}
+<section class="login{% if !error.is_empty() %} is-nope{% endif %}" id="login" aria-labelledby="login-title">
+
+  <header class="login-copy">
+    <h1 class="login-mark" id="login-title">joy</h1>
+    <p class="login-promise">Too many plans. One&nbsp;jar.</p>
+  </header>
+
+  <div class="jar-wrap" aria-hidden="true">
+    <svg class="jar" viewBox="0 0 240 320" focusable="false">
+      <defs>
+        <radialGradient id="jar-lantern" cx="50%" cy="62%" r="62%">
+          <stop offset="0" class="lantern-core"/>
+          <stop offset="1" class="lantern-edge"/>
+        </radialGradient>
+        <radialGradient id="jar-burst" cx="50%" cy="50%" r="50%">
+          <stop offset="0" class="burst-core"/>
+          <stop offset="1" class="burst-edge"/>
+        </radialGradient>
+        <clipPath id="jar-inside">
+          <path d="M76 78C76 96 41 100 39 130L37 276C37 295 50 303 70 303H170C190 303 203 295 203 276L201 130C199 100 164 96 164 78Z"/>
+        </clipPath>
+        <clipPath id="lid-band">
+          <rect x="61" y="36" width="118" height="31" rx="6"/>
+        </clipPath>
+      </defs>
+
+      <!-- shadow where the glass meets the shelf -->
+      <ellipse class="jar-shadow" cx="120" cy="305" rx="92" ry="7"/>
+
+      <!-- warm light that spills out when the lid comes off -->
+      <ellipse class="jar-burst" cx="120" cy="78" rx="104" ry="84"/>
+
+      <!-- the glass interior -->
+      <path class="jar-fill" d="M76 78C76 96 41 100 39 130L37 276C37 295 50 303 70 303H170C190 303 203 295 203 276L201 130C199 100 164 96 164 78Z"/>
+
+      <g clip-path="url(#jar-inside)">
+        <!-- the pile of folded slips -->
+        <g class="slips">
+          <g class="slip t-home" transform="translate(52 262) rotate(-9)"><rect width="46" height="24" rx="2"/><path d="M0 12h46"/></g>
+          <g class="slip t-travel" transform="translate(96 272) rotate(6)"><rect width="50" height="22" rx="2"/><path d="M25 0v22"/></g>
+          <g class="slip t-local" transform="translate(140 258) rotate(-4)"><rect width="48" height="26" rx="2"/><path d="M0 13h48"/></g>
+          <g class="slip t-day" transform="translate(44 282) rotate(3)"><rect width="52" height="22" rx="2"/><path d="M26 0v22"/></g>
+          <g class="slip t-local" transform="translate(150 280) rotate(11)"><rect width="44" height="22" rx="2"/><path d="M0 11h44"/></g>
+          <g class="slip t-home" transform="translate(98 248) rotate(-14)"><rect width="44" height="24" rx="2"/><path d="M22 0v24"/></g>
+          <g class="slip t-day" transform="translate(74 236) rotate(18)"><rect width="42" height="22" rx="2"/><path d="M0 11h42"/></g>
+          <g class="slip t-travel" transform="translate(128 230) rotate(-22)"><rect width="44" height="22" rx="2"/><path d="M22 0v22"/></g>
+          <g class="slip t-home" transform="translate(160 236) rotate(28)"><rect width="38" height="20" rx="2"/><path d="M0 10h38"/></g>
+          <g class="slip t-local" transform="translate(52 226) rotate(-30)"><rect width="40" height="20" rx="2"/><path d="M20 0v20"/></g>
+        </g>
+
+        <!-- fireflies: only lit at night -->
+        <g class="flies">
+          <circle cx="70" cy="170" r="2.2"/>
+          <circle cx="150" cy="140" r="1.8"/>
+          <circle cx="112" cy="196" r="2.4"/>
+          <circle cx="176" cy="200" r="1.6"/>
+          <circle cx="92" cy="128" r="1.6"/>
+          <circle cx="132" cy="176" r="1.4"/>
+        </g>
+      </g>
+
+      <!-- two slips that peek out of the mouth when it opens -->
+      <g class="peek peek-a"><g transform="translate(86 92) rotate(-12)"><g class="slip t-local"><rect width="30" height="54" rx="2"/><path d="M0 27h30"/></g></g></g>
+      <g class="peek peek-b"><g transform="translate(122 88) rotate(9)"><g class="slip t-home"><rect width="28" height="50" rx="2"/><path d="M0 25h28"/></g></g></g>
+
+      <!-- the glass -->
+      <path class="jar-glass" d="M76.5 79C77 96 42 99 39.5 129.5L37.2 276.5C37 295.5 50.5 303.3 70.5 303.4L170 303.2C190.5 303 203.2 295 203 275.8L201.2 130.4C199.5 100.5 163.6 96.2 164.2 79"/>
+      <path class="jar-shine" d="M52 140C50 180 50 230 52 262"/>
+      <path class="jar-shine jar-shine-2" d="M60 128c-2 4-3 7-3.5 10"/>
+
+      <!-- neck rim -->
+      <rect class="jar-rim" x="68" y="66" width="104" height="14" rx="5"/>
+
+      <!-- a little paper tag tied to the neck -->
+      <g class="tag">
+        <path class="tag-string" d="M168 76c10 4 15 14 17 24"/>
+        <g transform="translate(170 98) rotate(9)">
+          <path class="tag-paper" d="M6 0H44a4 4 0 0 1 4 4V30a4 4 0 0 1-4 4H6L0 17Z"/>
+          <circle class="tag-hole" cx="9" cy="17" r="2.2"/>
+          <text class="tag-text" x="29" y="25" text-anchor="middle">{{ initials }}</text>
+        </g>
+      </g>
+
+      <!-- the lid -->
+      <g class="lid">
+        <g class="lid-body">
+          <rect class="lid-base" x="60" y="34" width="120" height="34" rx="7"/>
+          <g clip-path="url(#lid-band)">
+            <g class="lid-ridges">
+              <path d="M40 38v28M48 38v28M56 38v28M64 38v28M72 38v28M80 38v28M88 38v28M96 38v28M104 38v28M112 38v28M120 38v28M128 38v28M136 38v28M144 38v28M152 38v28M160 38v28M168 38v28M176 38v28M184 38v28M192 38v28M200 38v28"/>
+            </g>
+          </g>
+          <path class="lid-top" d="M66 36.5h108"/>
+          <rect class="lid-edge" x="60" y="34" width="120" height="34" rx="7"/>
+        </g>
+      </g>
+
+      <!-- handwritten "nope", only during the wobble -->
+      <text class="nope" x="210" y="28" text-anchor="middle" transform="rotate(10 210 28)">nope</text>
+    </svg>
+  </div>
+
+  <div class="shelf" aria-hidden="true"></div>
+
+  <form class="login-form" id="login-form" method="post" action="/login">
+    <label class="login-label" for="passcode">Our passcode</label>
+    <div class="field">
+      <input class="field-input" id="passcode" type="password" name="passcode"
+             autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false"
+             required autofocus aria-describedby="login-error">
+      <button class="field-toggle" type="button" aria-pressed="false" aria-controls="passcode" hidden>
+        <span class="visually-hidden" data-label>Show passcode</span>
+        <svg class="eye" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false">
+          <path d="M2.6 12.3C5 7.6 8.4 5.6 12.1 5.7c3.6.1 6.9 2.3 9.3 6.4-2.3 4.3-5.6 6.4-9.3 6.3-3.8-.1-7.2-2.1-9.5-6.1Z"/>
+          <path d="M12 9.1c1.7-.1 3 1.2 3 2.9s-1.3 3-3 3-2.9-1.4-2.9-3 1.2-2.8 2.9-2.9Z"/>
+          <path class="eye-slash" d="M4.2 4.6 19.6 19.8"/>
+        </svg>
+      </button>
+    </div>
+    <p class="login-error" id="login-error" role="status" aria-live="polite">{{ error }}</p>
+    <button class="btn btn-stamp login-go" type="submit">
+      <span data-idle>Open the jar</span><span data-busy hidden>Trying the lid…</span><span data-open hidden>In we go</span>
+    </button>
+  </form>
+
+</section>
+{% endblock %}
