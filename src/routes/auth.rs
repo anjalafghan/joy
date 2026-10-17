@@ -3,6 +3,7 @@ use std::net::SocketAddr;
 use askama::Template;
 use axum::{
     extract::{ConnectInfo, State},
+    http::HeaderMap,
     response::{IntoResponse, Redirect, Response},
 };
 use axum_extra::extract::{cookie::Cookie, Form, SignedCookieJar};
@@ -38,10 +39,12 @@ pub struct LoginForm {
 pub async fn login(
     State(s): State<AppState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
     jar: SignedCookieJar,
     Form(f): Form<LoginForm>,
 ) -> Result<Response, AppError> {
-    let ip = addr.ip();
+    let fly_ip = || headers.get("fly-client-ip")?.to_str().ok()?.parse().ok();
+    let ip = if s.cfg.trust_fly_client_ip { fly_ip().unwrap_or(addr.ip()) } else { addr.ip() };
     if s.limiter.blocked(ip) {
         return Ok(render(LoginTpl::new(&s, "Too many tries. Wait 15 minutes."))?.into_response());
     }

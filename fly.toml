@@ -1,0 +1,31 @@
+# Fly.io config for joy. Secrets (passcode hash, session secret, names, home locations)
+# are set with `fly secrets`, never here. First-time setup: scripts/fly-setup.sh
+
+app = 'joy-jar'
+primary_region = 'sin'
+
+[build]
+
+[env]
+  PORT = '3000'
+  DATABASE_URL = 'sqlite:///data/joy.db?mode=rwc'
+  COOKIE_SECURE = 'true'
+  TRUST_FLY_CLIENT_IP = 'true'
+  CURRENCY_SYMBOL = '₹'
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  # Sleeps when nobody's using it and wakes on the next visit, so it costs almost nothing.
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[vm]]
+  memory = '256mb'
+  cpu_kind = 'shared'
+  cpus = 1
+
+[[mounts]]
+  source = 'joy_data'
+  destination = '/data'

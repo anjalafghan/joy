@@ -57,7 +57,7 @@ async fn main() -> anyhow::Result<()> {
     let db = SqlitePoolOptions::new().connect(&cfg.database_url).await.context("opening database")?;
     sqlx::migrate!().run(&db).await.context("running migrations")?;
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], cfg.port));
+    let addr = SocketAddr::from((cfg.host, cfg.port));
     let state = AppState { db, cfg: Arc::new(cfg), limiter: Default::default() };
 
     let app = Router::new()

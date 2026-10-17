@@ -4,10 +4,15 @@ use axum_extra::extract::cookie::Key;
 pub struct Config {
     pub database_url: String,
     pub port: u16,
+    /// Interface to listen on. 127.0.0.1 when a proxy like `tailscale serve` sits in front.
+    pub host: std::net::IpAddr,
     pub passcode_hash: String,
     pub key: Key,
     pub cookie_secure: bool,
     pub currency: String,
+    /// Behind Fly's proxy: rate-limit logins by the `Fly-Client-IP` header (which Fly sets)
+    /// instead of the proxy's address. Off elsewhere, since the header could be spoofed.
+    pub trust_fly_client_ip: bool,
     /// Skips the passcode. Only for local design work; never set this on a real deploy.
     pub dev_no_login: bool,
     /// The two of us: (name, home lat/lng). Homes only live in .env, never in the DB.
@@ -43,11 +48,13 @@ impl Config {
 
         Ok(Self {
             database_url: var("DATABASE_URL").unwrap_or_else(|| "sqlite://data/joy.db?mode=rwc".into()),
+            host: var("HOST").map(|h| h.parse()).transpose().context("HOST")?.unwrap_or([0, 0, 0, 0].into()),
             port: var("PORT").map(|p| p.parse()).transpose().context("PORT")?.unwrap_or(3000),
             passcode_hash,
             key,
             cookie_secure: var("COOKIE_SECURE").is_some_and(|v| v == "true" || v == "1"),
             currency: var("CURRENCY_SYMBOL").unwrap_or_else(|| "₹".into()),
+            trust_fly_client_ip: var("TRUST_FLY_CLIENT_IP").is_some_and(|v| v == "true" || v == "1"),
             dev_no_login: var("JOY_DEV_NO_LOGIN").is_some_and(|v| v == "1"),
             people: [
                 (var("PERSON_A").unwrap_or_else(|| "Rohit".into()), var("HOME_A").and_then(|s| parse_latlng(&s))),
@@ -165,12 +172,14 @@ mod tests {
     fn cfg(areas: [Option<&str>; 2]) -> Config {
         Config {
             database_url: String::new(),
+            host: [127, 0, 0, 1].into(),
             port: 0,
             passcode_hash: String::new(),
             key: Key::generate(),
             cookie_secure: false,
             currency: "₹".into(),
             dev_no_login: false,
+            trust_fly_client_ip: false,
             people: [("Rohit".into(), None), ("Neha".into(), None)],
             areas: areas.map(|a| a.map(String::from)),
         }

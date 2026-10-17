@@ -10,3 +10,5 @@ design/**/shots/
 
 # Demo videos show real names
 /demo
+
+.DS_Store
