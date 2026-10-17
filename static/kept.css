@@ -79,6 +79,7 @@ body[data-page="kept"] main { max-width: 1080px; padding-bottom: 120px; }
   border-radius: var(--radius-slip);
   box-shadow: var(--shadow-slip);
   transform: rotate(var(--rot));
+  scroll-margin-top: 84px;
 }
 .k-slip:nth-child(even) { margin-left: 18px; margin-right: 2px; }
 .k-slip[data-setting="home"] { --tint: var(--tint-home); }
@@ -158,7 +159,7 @@ body[data-page="kept"] main { max-width: 1080px; padding-bottom: 120px; }
 .k-pin circle { fill: currentColor; stroke: none; }
 
 /* ── ink hearts (real radios) ────────────────────────────── */
-.k-form { margin-top: 14px; }
+.k-form { position: relative; margin-top: 14px; }
 .k-hearts { border: 0; margin: 0; padding: 0; min-width: 0; display: flex; align-items: center; flex-wrap: wrap; column-gap: 6px; }
 .k-hearts-row { display: flex; align-items: center; margin-left: -8px; }
 .k-heart, .k-clear {
@@ -371,3 +372,281 @@ body[data-page="kept"] main { max-width: 1080px; padding-bottom: 120px; }
 @media (min-width: 760px) {
   .k-head:not(:has(.k-title)) { max-width: 620px; padding-left: 0; }
 }
+
+/* ═══ v3: together features ═════════════════════════════════ */
+
+/* ── shared little controls ──────────────────────────────── */
+.k-label { display: block; margin: 0 0 6px; font: 600 var(--step--1)/1.3 var(--font-ui); color: var(--ink); }
+.k-hint { margin: 8px 0 0; font-size: var(--step--1); line-height: 1.4; color: var(--ink-soft); }
+.k-inline { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.k-field {
+  min-height: 44px; min-width: 0; padding: 0 12px;
+  color: var(--ink); background: var(--paper);
+  border: 1.5px solid var(--rule); border-radius: 10px;
+  transition: border-color var(--t-small) var(--ease-out);
+}
+.k-field:hover, .k-field:focus { border-color: var(--ink-soft); }
+.k-field:focus-visible { outline: 2px solid var(--stamp); outline-offset: 2px; }
+.k-btn {
+  -webkit-appearance: none; appearance: none;
+  min-height: 44px; padding: 0 18px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  font: 600 var(--step--1)/1 var(--font-ui); letter-spacing: .02em;
+  color: var(--ink); background: transparent;
+  border: 1.5px solid var(--ink); border-radius: 999px; cursor: pointer;
+  transition: transform var(--t-micro) var(--ease-out);
+}
+.k-btn:active { transform: scale(.97); }
+.k-btn-stamp { color: var(--stamp-ink); background: var(--stamp); border-color: var(--stamp); }
+.k-btn[disabled] { opacity: .55; pointer-events: none; }
+
+/* a quiet tool: icon + words, ink-soft, full-size target */
+.k-tool {
+  display: inline-flex; align-items: center; gap: 6px;
+  min-height: 44px; padding: 0 2px;
+  font: 600 var(--step--1)/1.2 var(--font-ui); letter-spacing: .01em;
+  color: var(--ink-soft); text-decoration: none; cursor: pointer;
+  list-style: none; -webkit-tap-highlight-color: transparent;
+  transition: color var(--t-small) var(--ease-out);
+}
+.k-tool::-webkit-details-marker { display: none; }
+.k-tool:hover { color: var(--ink); }
+.k-tool svg, .k-planned svg, .k-cal svg { flex: none; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.k-tool-quiet { font-weight: 500; text-decoration: underline; text-decoration-color: var(--rule); text-underline-offset: 3px; }
+
+/* ── budget, under the count ─────────────────────────────── */
+.k-budget { margin-top: 22px; max-width: 26rem; scroll-margin-top: 84px; }
+.k-budget .budget-line { font-size: var(--step-0); }
+.k-budget-edit > summary {
+  display: inline-flex; align-items: center; min-height: 44px;
+  font: 600 var(--step--1)/1 var(--font-ui); color: var(--ink-soft); cursor: pointer; list-style: none;
+  text-decoration: underline; text-decoration-color: var(--rule); text-underline-offset: 3px;
+}
+.k-budget-edit > summary::-webkit-details-marker { display: none; }
+.k-budget-edit > summary:hover { color: var(--ink); }
+.k-budget-edit[open] > summary { color: var(--ink); }
+.k-budget-form { padding: 2px 0 6px; }
+.k-budget-form .k-field { width: 9.5rem; }
+
+/* ── photo error (no-JS): pinned under the nav so it's seen wherever we land ── */
+.k-alert {
+  position: fixed; z-index: 30; left: var(--gutter); right: var(--gutter); bottom: max(16px, env(safe-area-inset-bottom));
+  display: flex; align-items: flex-start; gap: 8px;
+  max-width: 560px; margin: 0 auto; padding: 10px 6px 10px 16px;
+  font-size: var(--step--1); line-height: 1.45; color: var(--ink);
+  background: var(--slip); border-left: 4px solid var(--stamp); border-radius: var(--radius-slip);
+  box-shadow: var(--shadow-slip);
+}
+.k-alert p { margin: 0; padding-top: 2px; flex: 1; }
+.k-alert strong { color: var(--stamp); }
+.k-alert-x {
+  flex: none; width: 44px; height: 44px; margin: -10px 0 -10px auto;
+  display: grid; place-items: center; font-size: 1.4rem; color: var(--ink-soft); text-decoration: none;
+}
+
+/* ── when is it? ─────────────────────────────────────────── */
+.k-planned {
+  display: grid; grid-template-columns: 18px minmax(0, 1fr); align-items: center; column-gap: 8px;
+  margin: 10px 0 0; font-size: var(--step--1); line-height: 1.4; color: var(--ink);
+}
+.k-planned > svg { color: var(--stamp); margin-right: -2px; }
+.k-planned strong { font-weight: 650; }
+.k-cal {
+  display: inline-flex; align-items: center; gap: 5px; min-height: 44px; grid-column: 2; justify-self: start; margin: -6px 0 -8px;
+  font-weight: 600; color: var(--ink); text-decoration: underline; text-decoration-color: var(--stamp); text-underline-offset: 3px;
+}
+.k-cal svg { color: var(--ink-soft); }
+
+/* drawer's own unopened surprise: a small wax dot and a whisper */
+.k-secret {
+  display: inline-flex; align-items: center; gap: 7px;
+  margin: 8px 0 0; padding: 3px 10px 3px 6px;
+  font: 600 var(--step--1)/1.3 var(--font-ui); letter-spacing: .02em; color: var(--stamp);
+  border: 1px dashed color-mix(in srgb, var(--stamp) 55%, transparent); border-radius: 999px;
+}
+.k-secret-dot {
+  width: 12px; height: 12px; flex: none; border-radius: 48% 52% 46% 54%;
+  background: var(--stamp); box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--ink) 25%, transparent);
+}
+
+/* ── the slip's tools row ────────────────────────────────── */
+.k-tools {
+  display: flex; flex-wrap: wrap; align-items: center; column-gap: 18px;
+  margin-top: 8px; padding-top: 2px;
+  border-top: 1px dashed var(--rule);
+}
+.k-tools > details[open] { flex-basis: 100%; }
+.k-tools > details > form { padding: 2px 0 10px; }
+.k-tools > details > form p { margin: 0 0 10px; font-size: var(--step--1); color: var(--ink); }
+.k-tools > details[open] > summary { color: var(--ink); }
+.k-when-form .k-field { width: min(100%, 15.5rem); }
+.k-form-err:empty { display: none; }
+.k-form-err { color: var(--stamp); font-weight: 600; }
+
+.k-photo-form { display: flex; flex-wrap: wrap; align-items: center; column-gap: 10px; }
+.k-photo-form .k-file { max-width: 100%; font-size: var(--step--1); }
+.k-js .k-photo-form .k-file {
+  position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; opacity: 0;
+}
+.k-js .k-photo-go { display: none; }
+.k-file:focus-visible + .k-tool { outline: 2px solid var(--stamp); outline-offset: 2px; border-radius: 4px; color: var(--ink); }
+.k-photo-status { font-size: var(--step--1); line-height: 1.4; color: var(--ink-soft); }
+.k-photo-status:empty { display: none; }
+.k-photo-status[data-tone="err"] { flex-basis: 100%; padding-bottom: 8px; color: var(--stamp); font-weight: 600; }
+.k-photo-form.is-busy .k-tool { pointer-events: none; opacity: .55; }
+
+/* ── the polaroid ────────────────────────────────────────── */
+.k-polaroid {
+  --tilt: calc(2.2deg - var(--rot) * 3);
+  position: relative;
+  width: min(100%, 300px); margin: 18px auto 4px;
+  padding: 9px 9px 0;
+  background: var(--slip);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--ink) 16%, transparent), 0 10px 20px -12px color-mix(in srgb, var(--ink) 55%, transparent);
+  transform: rotate(var(--tilt));
+  scroll-margin-top: 90px;
+}
+.k-polaroid:focus { outline: none; }
+.k-polaroid:focus-visible { outline: 2px solid var(--stamp); outline-offset: 4px; }
+/* a scrap of tape holding it on */
+.k-polaroid::before {
+  content: ""; position: absolute; z-index: 1; top: -10px; left: 50%; width: 64px; height: 20px; margin-left: -32px;
+  background: color-mix(in srgb, var(--tint) 70%, transparent);
+  clip-path: polygon(0 10%, 6% 0, 94% 4%, 100% 0, 100% 92%, 94% 100%, 6% 94%, 0 100%);
+  transform: rotate(-4deg);
+}
+.k-polaroid-frame { display: block; }
+.k-polaroid img, .k-dev {
+  display: block; width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: cover;
+  background: var(--paper-2);
+}
+.k-polaroid figcaption {
+  min-height: 38px; padding: 4px 4px 4px; text-align: right;
+  font-size: 1.35rem; line-height: 1.3; color: var(--ink-soft);
+}
+.k-dev { display: grid; place-items: center; font: 600 1.4rem/1 var(--font-hand); color: var(--ink-soft); }
+@keyframes k-develop {
+  0%   { filter: sepia(.7) brightness(1.5) contrast(.6) blur(3px); opacity: .35; }
+  60%  { filter: sepia(.35) brightness(1.15) contrast(.85) blur(.5px); opacity: .9; }
+  100% { filter: none; opacity: 1; }
+}
+@keyframes k-breathe { 50% { opacity: .55; } }
+
+/* ── sealed surprise: an envelope, wax-sealed ────────────── */
+.k-env { padding: 112px 20px 18px; text-align: center; }
+.k-env > article { position: static; }
+.k-env > article::before { display: none; }
+/* tape on the corner, so the flap stays clear */
+.k-env::after { left: -14px; top: 4px; margin-left: 0; width: 72px; height: 22px; transform: rotate(-36deg); }
+.k-env-flap {
+  position: absolute; z-index: 0; top: 0; left: 0; right: 0; height: 86px;
+  background: color-mix(in srgb, var(--ink) 18%, var(--slip));
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+  border-radius: var(--radius-slip) var(--radius-slip) 0 0;
+}
+.k-env-flap::before {
+  content: ""; position: absolute; inset: 0 0 1.5px 0;
+  background: color-mix(in srgb, var(--tint) 55%, var(--slip));
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+}
+.k-wax {
+  position: absolute; z-index: 2; top: 58px; left: 50%;
+  width: 54px; height: 54px; margin-left: -27px;
+  display: grid; place-items: center;
+  color: color-mix(in srgb, var(--stamp-ink) 55%, var(--stamp));
+  background: var(--stamp);
+  border-radius: 47% 53% 50% 48% / 52% 46% 54% 49%;
+  box-shadow:
+    inset 0 0 0 4px color-mix(in srgb, var(--stamp) 80%, var(--ink)),
+    inset 0 0 0 5.5px color-mix(in srgb, var(--stamp) 70%, var(--stamp-ink)),
+    inset 0 -6px 8px color-mix(in srgb, var(--ink) 22%, transparent),
+    0 2px 3px color-mix(in srgb, var(--ink) 30%, transparent);
+  transform: rotate(-8deg);
+}
+.k-wax svg { fill: none; stroke: currentColor; stroke-width: 2.4; }
+.k-post {
+  position: absolute; z-index: 1; top: 12px; right: 16px;
+  width: 70px; height: 70px; border-radius: 50%;
+  display: grid; place-content: center; justify-items: center; gap: 1px;
+  color: var(--ink-soft); background: var(--slip);
+  border: 1.5px dashed currentColor;
+  box-shadow: 0 0 0 3px var(--slip), 0 0 0 4px color-mix(in srgb, var(--ink-soft) 60%, transparent);
+  transform: rotate(12deg);
+}
+.k-post span { font: 700 .56rem/1 var(--font-ui); letter-spacing: .1em; text-transform: uppercase; }
+.k-post b { font: 700 .95rem/1.1 var(--font-display); font-variation-settings: "SOFT" 0, "opsz" 24; text-transform: uppercase; }
+.k-env-eyebrow {
+  margin: 0 0 4px; font: 600 var(--step--1)/1.2 var(--font-ui); letter-spacing: .14em; text-transform: uppercase; color: var(--ink-soft);
+}
+.k-env-title { font-size: var(--step-2); font-style: italic; font-weight: 520; overflow-wrap: break-word; }
+.k-env-aside { margin: 2px 0 0; font-size: 1.35rem; line-height: 1.2; color: var(--ink-soft); transform: rotate(-2deg); }
+.k-hints {
+  list-style: none; margin: 16px auto 0; padding: 0; max-width: 22rem; text-align: left;
+}
+.k-hints li {
+  position: relative; padding: 9px 0 9px 24px;
+  font-size: var(--step-0); line-height: 1.4; color: var(--ink);
+  border-bottom: 1px dashed var(--rule);
+}
+.k-hints li:last-child { border-bottom: 0; }
+.k-hints li::before {
+  content: ""; position: absolute; left: 2px; top: 1.05em; width: 12px; height: 2px; border-radius: 2px;
+  background: var(--stamp); transform: rotate(-8deg);
+}
+.k-hints li:first-child { font-weight: 650; }
+.k-env-foot { display: flex; flex-direction: column; align-items: center; gap: 4px; margin-top: 12px; }
+.k-reveal { width: 100%; }
+.k-reveal-btn {
+  display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: 0 24px;
+  font: 600 var(--step-0)/1 var(--font-ui); color: var(--ink);
+  border: 1.5px solid var(--ink); border-radius: 999px; cursor: pointer; list-style: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.k-reveal-btn::-webkit-details-marker { display: none; }
+.k-r-b { display: none; }
+.k-reveal[open] .k-reveal-btn { border-color: transparent; color: var(--ink-soft); font-size: var(--step--1); text-decoration: underline; text-decoration-color: var(--rule); text-underline-offset: 3px; min-height: 44px; }
+.k-reveal[open] .k-r-a { display: none; }
+.k-reveal[open] .k-r-b { display: inline; }
+.k-reveal-form { display: grid; justify-items: center; gap: 10px; padding: 4px 0 4px; }
+.k-reveal-form p { margin: 0; font: italic 400 var(--step-1)/1.35 var(--font-display); font-variation-settings: "SOFT" 100, "opsz" 24; color: var(--ink); }
+.k-reveal[open] { display: flex; flex-direction: column-reverse; align-items: center; }
+
+/* ── opening it: the flap lifts, the seal gives, the slip is underneath ── */
+.k-cover {
+  position: absolute; inset: 0; z-index: 6; overflow: hidden;
+  background: var(--slip); border-radius: var(--radius-slip);
+  perspective: 600px; cursor: pointer;
+  animation: k-cover-off var(--t-medium) var(--ease-in-out) 560ms forwards;
+}
+.k-cover .k-env-flap { transform-origin: 50% 0; animation: k-flap var(--t-medium) var(--ease-in-out) 200ms forwards; }
+.k-cover .k-wax { animation: k-crack 260ms var(--ease-out) forwards; }
+@keyframes k-crack {
+  40% { transform: rotate(-14deg) scale(1.12); }
+  100% { transform: rotate(10deg) scale(.4); opacity: 0; }
+}
+@keyframes k-flap { to { transform: rotateX(178deg); opacity: .6; } }
+@keyframes k-cover-off { to { transform: translateY(46px); opacity: 0; visibility: hidden; } }
+.k-tada {
+  position: absolute; z-index: 3; right: 14px; bottom: -14px;
+  font-size: 1.5rem; line-height: 1; color: var(--stamp); transform: rotate(-7deg);
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .k-polaroid.k-fresh img { animation: k-develop 1s var(--ease-out) both; }
+  .k-dev { animation: k-breathe 1.4s var(--ease-in-out) infinite; }
+  .k-tada { animation: k-fade var(--t-medium) var(--ease-out) 700ms both; }
+  .k-slip.k-swapped { animation: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .k-cover { display: none; }
+}
+.k-worth { display: inline-block; margin-left: 10px; font-size: 1.3rem; line-height: 1; color: var(--ink-soft); transform: rotate(-4deg) translateY(2px); }
+@media (prefers-color-scheme: dark) {
+  /* at night the polaroid's white border catches the lamp: a hairline keeps it a separate card */
+  .k-polaroid { box-shadow: 0 0 0 1px var(--rule), 0 12px 22px -12px rgba(0, 0, 0, .8); }
+  .k-polaroid::before { background: color-mix(in srgb, color-mix(in srgb, var(--tint) 62%, var(--ink) 38%) 70%, transparent); }
+}
+/* without JS: "Add a photo" reads as the label, then the picker and Upload on one line */
+html:not(.k-js) .k-photo-form { flex-basis: 100%; padding-bottom: 6px; }
+html:not(.k-js) .k-photo-form .k-tool { order: -1; flex-basis: 100%; cursor: default; }

@@ -19,6 +19,7 @@
   let slips = [];
   try { slips = JSON.parse($('#slips').textContent || '[]'); } catch (_) { slips = []; }
   const TOTAL = slips.length;
+  const RAINY = jarEl.dataset.rain === '1';
 
   /* ── colours: canvas can't read CSS variables, so we do ──── */
   let C = {};
@@ -86,7 +87,7 @@
   /* ── the simulation ──────────────────────────────────────── */
   const shown = TOTAL > CAP ? [...slips].sort((a, b) => hash(a.id) - hash(b.id)).slice(0, CAP) : slips;
   const parts = shown.map((s, i) => ({
-    id: s.id, setting: s.setting, rank: hash(s.id * 7 + 3),
+    id: s.id, setting: s.setting, outdoor: !!s.outdoor, rank: hash(s.id * 7 + 3),
     x: 0, y: 0, a: 0, vx: 0, vy: 0, va: 0, tx: 0, ty: 0, ta: 0,
     dim: 0, dimT: 0, delay: 0, k: 120, c: 14, out: false, falling: false, scribble: (hash(s.id) % 3),
   }));
@@ -96,7 +97,9 @@
   function assign(animate) {
     const inJar = parts.filter((p) => !p.out);
     const fits = (p) => !matchSet || matchSet.has(p.id) || (p.subFor != null && matchSet.has(p.subFor));
-    inJar.sort((a, b) => (fits(a) - fits(b)) || (a.rank - b.rank));
+    // rain likely tonight: cozy (at home) slips float up, outdoor ones sink
+    const cozy = (p) => (!RAINY ? 0 : p.setting === 'home' ? 1 : p.outdoor ? -1 : 0);
+    inJar.sort((a, b) => (fits(a) - fits(b)) || (cozy(a) - cozy(b)) || (a.rank - b.rank));
     inJar.forEach((p, i) => {
       const s = slots[i];
       const was = p.dimT;
@@ -553,6 +556,8 @@
 
   document.addEventListener('htmx:beforeRequest', (e) => {
     const elt = e.detail.elt;
+    // only requests that replace the drawn slip get the choreography (not "when is it?")
+    if (e.detail.target !== pick) return;
     if (!elt || !elt.closest || !(elt.closest('#tonight') || elt.closest('#pick'))) return;
     if (busy) { e.preventDefault(); return; }
     busy = true;
@@ -586,7 +591,7 @@
     else unlock();
   });
 
-  const fail = (e) => { if (e.detail && e.detail.target === pick || (e.detail.elt && e.detail.elt.closest && (e.detail.elt.closest('#pick') || e.detail.elt.closest('#tonight')))) errorNote(); };
+  const fail = (e) => { if (e.detail && e.detail.target === pick) errorNote(); };
   document.addEventListener('htmx:responseError', fail);
   document.addEventListener('htmx:sendError', fail);
 
@@ -649,4 +654,77 @@
     try { saved = localStorage.getItem('joy.shake') === '1'; } catch (_) {}
     if (saved && typeof DeviceMotionEvent.requestPermission !== 'function') enable();
   }
+})();
+
+/* ── v3: sharing and "when is it?" (independent of the jar) ── */
+(() => {
+  'use strict';
+  const canShareFiles = (f) => { try { return !!(navigator.canShare && navigator.canShare({ files: [f] })); } catch (_) { return false; } };
+
+  // "Send to Neha": the native share sheet when there is one, else the wa.me link does its job
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest && e.target.closest('a[data-share]');
+    if (!a || !navigator.share) return;
+    e.preventDefault();
+    navigator.share({ text: a.dataset.share }).catch((err) => {
+      if (err && err.name === 'AbortError') return; // they changed their mind
+      window.open(a.href, '_blank', 'noopener');
+    });
+  });
+
+  // the invite is fetched as soon as it exists, so sharing stays inside the tap's user gesture (Safari)
+  const icsCache = new Map();
+  function prepIcs(root) {
+    const btn = root && root.querySelector && root.querySelector('[data-share-ics]');
+    if (!btn || !navigator.share || !navigator.canShare) return;
+    if (!canShareFiles(new File(['x'], 'joy-date.ics', { type: 'text/calendar' }))) return;
+    const url = btn.dataset.shareIcs;
+    fetch(url, { credentials: 'same-origin' })
+      .then((r) => (r.ok ? r.blob() : Promise.reject(r.status)))
+      .then((b) => {
+        const f = new File([b], 'joy-date.ics', { type: 'text/calendar' });
+        if (!canShareFiles(f)) return;
+        icsCache.set(url, f);
+        btn.hidden = false;
+      })
+      .catch(() => {});
+  }
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest && e.target.closest('[data-share-ics]');
+    if (!a) return;
+    const f = icsCache.get(a.dataset.shareIcs);
+    if (!f) return; // falls back to the download link
+    e.preventDefault();
+    const when = (document.querySelector('.planned-label strong') || {}).textContent || '';
+    navigator.share({ files: [f], title: 'Our date', text: when ? `Our date: ${when}` : 'Our date' }).catch((err) => {
+      if (err && err.name === 'AbortError') return;
+      location.href = a.href;
+    });
+  });
+
+  document.addEventListener('htmx:afterSettle', () => {
+    const p = document.getElementById('planned');
+    if (p && p.classList.contains('is-set') && !p.dataset.prepped) {
+      p.dataset.prepped = '1';
+      p.classList.add('is-fresh');
+      // the Save button that had focus is gone: land on the result instead of <body>
+      const lbl = p.querySelector('.planned-label');
+      if (lbl) { lbl.tabIndex = -1; lbl.focus({ preventScroll: true }); }
+      prepIcs(p);
+    }
+  });
+
+  // a 422 from /history/when ("That date and time didn't look right.") isn't swapped: say it inline
+  document.addEventListener('htmx:responseError', (e) => {
+    const t = e.detail && e.detail.target;
+    if (!t || t.id !== 'planned') return;
+    const err = e.detail.elt && e.detail.elt.querySelector('.when-err');
+    if (err) err.textContent = (e.detail.xhr && e.detail.xhr.status === 422 && e.detail.xhr.responseText) || 'That didn\'t save. Try again?';
+  });
+  document.addEventListener('htmx:sendError', (e) => {
+    const t = e.detail && e.detail.target;
+    if (!t || t.id !== 'planned') return;
+    const err = e.detail.elt && e.detail.elt.querySelector('.when-err');
+    if (err) err.textContent = 'No connection. Try again in a moment.';
+  });
 })();

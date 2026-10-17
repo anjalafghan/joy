@@ -1,0 +1,24 @@
+/* "Who's holding this phone?" — two slips to tap. */
+.who { min-height: 80dvh; display: flex; flex-direction: column; justify-content: center; padding: 24px 0; }
+.who-eyebrow { margin: 0 0 6px; font: 600 1.35rem/1 var(--font-hand); color: var(--ink-soft); }
+.who h1 { font-size: var(--step-4); }
+.who-why { margin: 14px 0 26px; max-width: 34ch; }
+.who-choices { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.who-slip {
+  -webkit-appearance: none; appearance: none; cursor: pointer; text-align: left;
+  min-height: 132px; padding: 18px 16px; border: 1px solid var(--rule); border-radius: var(--radius-slip);
+  background: var(--slip); color: var(--ink); box-shadow: var(--shadow-slip);
+  display: flex; flex-direction: column; justify-content: flex-end; gap: 4px;
+  transform: rotate(-1.2deg); transition: transform var(--t-small) var(--ease-spring);
+}
+.who-slip:nth-child(2) { transform: rotate(1.4deg); }
+.who-slip:hover { transform: rotate(0) translateY(-3px); }
+.who-slip:active { transform: scale(.98); }
+.who-slip.is-current { outline: 2px solid var(--stamp); outline-offset: 3px; }
+.who-hand { font: 600 1.3rem/1 var(--font-hand); color: var(--ink-soft); }
+.who-name {
+  font-family: var(--font-display); font-variation-settings: "SOFT" 100, "WONK" 1, "opsz" 96;
+  font-weight: 600; font-size: var(--step-3); line-height: 1; overflow-wrap: anywhere;
+}
+.who-back { margin-top: 22px; }
+.who-back a { display: inline-flex; min-height: 44px; align-items: center; font-weight: 600; }

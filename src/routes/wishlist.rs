@@ -3,7 +3,7 @@ use axum::{
     extract::{Path, State},
     response::{IntoResponse, Redirect, Response},
 };
-use axum_extra::extract::Form;
+use axum_extra::extract::{Form, SignedCookieJar};
 
 use super::{duration_opts, render, ActivityView, AppError, HtmlResult, Opt};
 use crate::{
@@ -22,12 +22,13 @@ struct Group {
 #[derive(Template)]
 #[template(path = "wishlist.html")]
 struct WishlistTpl {
+    me_name: String,
     groups: Vec<Group>,
     archived: Vec<ActivityView>,
     total: usize,
 }
 
-pub async fn page(State(s): State<AppState>) -> HtmlResult {
+pub async fn page(State(s): State<AppState>, jar: SignedCookieJar) -> HtmlResult {
     let active = db::list(&s.db, false).await?;
     let pairs = db::pairs(&s.db).await?;
     let view = |a: &Activity| {
@@ -50,7 +51,7 @@ pub async fn page(State(s): State<AppState>) -> HtmlResult {
         .filter(|g| !g.items.is_empty())
         .collect();
     let archived = db::list(&s.db, true).await?.iter().map(|a| ActivityView::new(&s.cfg, a)).collect();
-    render(WishlistTpl { groups, archived, total: active.len() })
+    render(WishlistTpl { me_name: me_name(&s, &jar), groups, archived, total: active.len() })
 }
 
 #[derive(Template)]
@@ -74,9 +75,10 @@ struct FormTpl {
     people: Vec<Opt>,
     /// Every other slip in the jar, ticked if it pairs with this one.
     pair_opts: Vec<Opt>,
+    me_name: String,
 }
 
-async fn form(s: &AppState, id: Option<i64>, i: &ActivityInput, error: &str) -> HtmlResult {
+async fn form(s: &AppState, jar: &SignedCookieJar, id: Option<i64>, i: &ActivityInput, error: &str) -> HtmlResult {
     let pair_opts = db::list(&s.db, false)
         .await?
         .iter()
@@ -112,6 +114,7 @@ async fn form(s: &AppState, id: Option<i64>, i: &ActivityInput, error: &str) -> 
             p
         },
         pair_opts,
+        me_name: me_name(s, jar),
     })
 }
 
@@ -132,7 +135,7 @@ fn input_from(s: &AppState, a: &Activity) -> ActivityInput {
     }
 }
 
-pub async fn new(State(s): State<AppState>) -> HtmlResult {
+pub async fn new(State(s): State<AppState>, jar: SignedCookieJar) -> HtmlResult {
     let blank = ActivityInput {
         title: String::new(),
         notes: String::new(),
@@ -147,21 +150,21 @@ pub async fn new(State(s): State<AppState>) -> HtmlResult {
         added_by: s.cfg.people[0].0.clone(),
         pairs: vec![],
     };
-    form(&s, None, &blank, "").await
+    form(&s, &jar, None, &blank, "").await
 }
 
-pub async fn edit(State(s): State<AppState>, Path(id): Path<i64>) -> Result<Response, AppError> {
+pub async fn edit(State(s): State<AppState>, jar: SignedCookieJar, Path(id): Path<i64>) -> Result<Response, AppError> {
     Ok(match db::get(&s.db, id).await? {
         Some(a) => {
             let mut input = input_from(&s, &a);
             input.pairs = db::partners(&s.db, id).await?.iter().map(|p| p.id).collect();
-            form(&s, Some(id), &input, "").await?.into_response()
+            form(&s, &jar, Some(id), &input, "").await?.into_response()
         }
         None => Redirect::to("/wishlist").into_response(),
     })
 }
 
-async fn save(s: AppState, id: Option<i64>, i: ActivityInput) -> Result<Response, AppError> {
+async fn save(s: AppState, jar: SignedCookieJar, id: Option<i64>, i: ActivityInput) -> Result<Response, AppError> {
     let latlng = parse_latlng(&i.location);
     let error = if i.title.trim().is_empty() {
         "Give it a name."
@@ -173,22 +176,23 @@ async fn save(s: AppState, id: Option<i64>, i: ActivityInput) -> Result<Response
         ""
     };
     if !error.is_empty() {
-        return Ok(form(&s, id, &i, error).await?.into_response());
+        return Ok(form(&s, &jar, id, &i, error).await?.into_response());
     }
     db::save(&s.db, id, &i, latlng).await?;
     Ok(Redirect::to("/wishlist").into_response())
 }
 
-pub async fn create(State(s): State<AppState>, Form(i): Form<ActivityInput>) -> Result<Response, AppError> {
-    save(s, None, i).await
+pub async fn create(State(s): State<AppState>, jar: SignedCookieJar, Form(i): Form<ActivityInput>) -> Result<Response, AppError> {
+    save(s, jar, None, i).await
 }
 
 pub async fn update(
     State(s): State<AppState>,
+    jar: SignedCookieJar,
     Path(id): Path<i64>,
     Form(i): Form<ActivityInput>,
 ) -> Result<Response, AppError> {
-    save(s, Some(id), i).await
+    save(s, jar, Some(id), i).await
 }
 
 pub async fn archive(State(s): State<AppState>, Path(id): Path<i64>) -> Result<Redirect, AppError> {
@@ -204,4 +208,8 @@ pub async fn restore(State(s): State<AppState>, Path(id): Path<i64>) -> Result<R
 pub async fn delete(State(s): State<AppState>, Path(id): Path<i64>) -> Result<Redirect, AppError> {
     db::delete(&s.db, id).await?;
     Ok(Redirect::to("/wishlist"))
+}
+
+fn me_name(s: &AppState, jar: &SignedCookieJar) -> String {
+    super::Me::new(&s.cfg, crate::auth::who(jar)).name
 }

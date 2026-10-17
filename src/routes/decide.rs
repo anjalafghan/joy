@@ -8,11 +8,17 @@ use axum::{
 use axum_extra::extract::Form;
 use serde::{Deserialize, Serialize};
 
-use super::{distance_from, duration_opts, render, ActivityView, AppError, HtmlResult, Opt};
+use axum_extra::extract::SignedCookieJar;
+
+use super::{
+    budget_view, distance_from, duration_opts, render, share_text, url_encode, ActivityView, AppError, BudgetView,
+    HtmlResult, Me, Opt,
+};
 use crate::{
     db,
+    auth,
     picker::{self, Candidate, Duration, Filters, Hint, PickResult, ENERGIES, MAX_REROLLS, SETTINGS},
-    AppState,
+    weather, AppState,
 };
 
 const KM_CHOICES: [(&str, &str); 5] =
@@ -24,6 +30,8 @@ struct Slip<'a> {
     id: i64,
     title: String,
     setting: &'a str,
+    /// Sinks in the jar when rain is likely.
+    outdoor: bool,
 }
 
 #[derive(Template)]
@@ -40,15 +48,63 @@ struct DecideTpl {
     energies: Vec<Opt>,
     kms: Vec<Opt>,
     froms: Vec<Opt>,
+    /// Who's holding this device ("Rohit"), empty if not chosen yet.
+    me_name: String,
+    /// Whose turn it is to draw ("Neha"), empty when it's anyone's.
+    turn_name: String,
+    /// It's this device's person's turn: they get a bonus peek.
+    my_turn: bool,
+    /// Tonight's rain chance (%) when rain is likely.
+    rain: Option<u8>,
+    /// A kept date from about a year ago this week.
+    memory: Option<Memory>,
+    budget: BudgetView,
 }
 
-pub async fn page(State(s): State<AppState>) -> HtmlResult {
+pub struct Memory {
+    pub title: String,
+    /// "14 Oct 2025"
+    pub when: String,
+}
+
+/// Whose turn it is to draw: the other one of us from whoever kept the last date.
+pub async fn turn(s: &AppState) -> Result<Option<usize>, AppError> {
+    Ok(crate::db::last_drawer(&s.db).await?.and_then(|w| usize::try_from(1 - w).ok()))
+}
+
+/// Is a kept date a surprise this viewer shouldn't see yet? Only whoever planned it sees it
+/// until it's revealed; someone who hasn't said who they are sees nothing (fail closed).
+pub fn sealed_for(row: &db::HistoryRow, me: Option<usize>) -> bool {
+    row.surprise && !row.revealed && (me.is_none() || row.drawn_by != me.map(|m| m as i64))
+}
+
+/// Tonight's rain chance, only when it's likely.
+async fn rain(s: &AppState) -> Option<u8> {
+    s.weather.tonight().await.filter(|p| *p >= weather::LIKELY_PERCENT)
+}
+
+pub async fn page(State(s): State<AppState>, jar: SignedCookieJar) -> HtmlResult {
+    let who = auth::who(&jar);
+    let me = Me::new(&s.cfg, who);
+    let turn = turn(&s).await?;
+    let memory = db::year_ago(&s.db)
+        .await?
+        .into_iter()
+        .find(|r| !sealed_for(r, who))
+        .map(|r| Memory { title: s.cfg.personalize(&r.title), when: format!("{} {}", r.day_label(), r.day.get(..4).unwrap_or("")) });
     let acts = db::list(&s.db, false).await?;
     let mut tags: Vec<String> = acts.iter().flat_map(|a| a.tag_list()).collect();
     tags.sort();
     tags.dedup();
     let slips: Vec<Slip> =
-        acts.iter().map(|a| Slip { id: a.id, title: s.cfg.personalize(&a.title), setting: &a.setting }).collect();
+        acts.iter()
+            .map(|a| Slip {
+                id: a.id,
+                title: s.cfg.personalize(&a.title),
+                setting: &a.setting,
+                outdoor: a.tag_list().iter().any(|t| t == "outdoors"),
+            })
+            .collect();
     render(DecideTpl {
         couple: format!("{} & {}", s.cfg.people[0].0, s.cfg.people[1].0),
         currency: s.cfg.currency.clone(),
@@ -67,6 +123,12 @@ pub async fn page(State(s): State<AppState>) -> HtmlResult {
             .filter(|(_, (_, home))| home.is_some())
             .map(|(i, (name, _))| Opt { value: i.to_string(), label: format!("{name}'s place"), selected: false })
             .collect(),
+        me_name: me.name,
+        turn_name: turn.map(|t| s.cfg.people[t].0.clone()).unwrap_or_default(),
+        my_turn: turn.is_some() && turn == who,
+        rain: rain(&s).await,
+        memory,
+        budget: budget_view(&s).await?,
     })
 }
 
@@ -102,6 +164,7 @@ impl PickForm {
             tag: opt(&self.tag),
             energy: opt(&self.energy),
             max_km: self.max_km.trim().parse().ok(),
+            rain_likely: false,
         }
     }
 
@@ -196,6 +259,19 @@ struct CardTpl {
     /// On an accepted pair: the second slip.
     paired: Option<ActivityView>,
     hidden: Vec<(String, String)>,
+    /// This draw has a bonus peek because it's this person's turn.
+    bonus_peek: bool,
+    /// We know who's holding the phone, so the slip can be kept as a surprise for the other.
+    can_surprise: bool,
+    /// The other one of us ("Neha"), or "your partner".
+    partner: String,
+    /// Accepted as a surprise (done card).
+    surprise: bool,
+    /// History row ids of the accepted date (two for a pair), comma separated, for "when is it?".
+    history_ids: String,
+    /// WhatsApp share: the message, and a ready wa.me link.
+    share_text: String,
+    wa_url: String,
 }
 
 impl CardTpl {
@@ -213,18 +289,38 @@ impl CardTpl {
             pairs: vec![],
             paired: None,
             hidden: vec![],
+            bonus_peek: false,
+            can_surprise: false,
+            partner: String::new(),
+            surprise: false,
+            history_ids: String::new(),
+            share_text: String::new(),
+            wa_url: String::new(),
         }
     }
 }
 
-pub async fn pick(State(s): State<AppState>, Form(f): Form<PickForm>) -> HtmlResult {
+/// Who's drawing and how many peeks they get. Worked out on the server every time.
+struct Drawer {
+    me: Me,
+    max: u32,
+}
+
+async fn drawer(s: &AppState, jar: &SignedCookieJar) -> Result<Drawer, AppError> {
+    let who = auth::who(jar);
+    let turn = turn(s).await?;
+    Ok(Drawer { me: Me::new(&s.cfg, who), max: picker::max_peeks(who.is_some() && turn == who) })
+}
+
+pub async fn pick(State(s): State<AppState>, jar: SignedCookieJar, Form(f): Form<PickForm>) -> HtmlResult {
+    let d = drawer(&s, &jar).await?;
     let mut excluded = f.excluded();
     let mut used: u32 = f.used.parse().unwrap_or(0);
 
     if f.reroll == "1" {
         if let Ok(cur) = f.current.parse::<i64>() {
             let current = db::get(&s.db, cur).await?;
-            match picker::put_back(used, current.as_ref().is_some_and(|a| a.generated)) {
+            match picker::put_back(used, current.as_ref().is_some_and(|a| a.generated), d.max) {
                 Some(next) => {
                     db::record(&s.db, cur, false).await?;
                     excluded.push(cur);
@@ -233,7 +329,7 @@ pub async fn pick(State(s): State<AppState>, Form(f): Form<PickForm>) -> HtmlRes
                 // Out of peeks: the card already hides the button, so just show it again.
                 None => {
                     if let Some(a) = current {
-                        return card(&s, &f, Some(&a), &excluded, used).await;
+                        return card(&s, &d, &f, Some(&a), &excluded, used).await;
                     }
                 }
             }
@@ -241,12 +337,12 @@ pub async fn pick(State(s): State<AppState>, Form(f): Form<PickForm>) -> HtmlRes
     }
 
     let (acts, cands) = candidates(&s, &f).await?;
-    let filters = f.filters();
+    let filters = Filters { rain_likely: rain(&s).await.is_some(), ..f.filters() };
     let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs() as i64;
     let result = picker::pick(&cands, &filters, &excluded, now, &mut rand::thread_rng());
 
     match result {
-        PickResult::Pick(id) => card(&s, &f, acts.iter().find(|a| a.id == id), &excluded, used).await,
+        PickResult::Pick(id) => card(&s, &d, &f, acts.iter().find(|a| a.id == id), &excluded, used).await,
         PickResult::NoMatch(h) => {
             let (relax_label, relax) = relax(&s, &f, &h);
             render(CardTpl {
@@ -259,16 +355,31 @@ pub async fn pick(State(s): State<AppState>, Form(f): Form<PickForm>) -> HtmlRes
     }
 }
 
-async fn card(s: &AppState, f: &PickForm, a: Option<&db::Activity>, excluded: &[i64], used: u32) -> HtmlResult {
+async fn card(
+    s: &AppState,
+    d: &Drawer,
+    f: &PickForm,
+    a: Option<&db::Activity>,
+    excluded: &[i64],
+    used: u32,
+) -> HtmlResult {
     let pairs = match a {
         Some(a) => pair_offers(s, f, a).await?,
         None => vec![],
     };
+    let view = a.map(|a| ActivityView::new(&s.cfg, a));
+    let share = view.as_ref().map(share_text).unwrap_or_default();
     render(CardTpl {
         hidden: f.hidden(excluded, used, a.map_or(0, |a| a.id)),
-        activity: a.map(|a| ActivityView::new(&s.cfg, a)),
-        rerolls_left: picker::rerolls_left(used),
+        rerolls_left: picker::rerolls_left(used, d.max),
+        max_rerolls: d.max,
+        bonus_peek: d.max > MAX_REROLLS,
         free_putback: a.is_some_and(|a| a.generated),
+        can_surprise: d.me.who.is_some(),
+        partner: d.me.partner.clone(),
+        wa_url: format!("https://wa.me/?text={}", url_encode(&share)),
+        share_text: share,
+        activity: view,
         pairs,
         ..CardTpl::blank()
     })
@@ -368,24 +479,42 @@ fn relax(s: &AppState, f: &PickForm, h: &Hint) -> (String, Option<PickForm>) {
 pub struct AcceptQuery {
     /// Accept this partner slip too, as one date.
     with: Option<i64>,
+    /// Keep it as a surprise for the other one of us ("1").
+    #[serde(default)]
+    surprise: Option<String>,
 }
 
-pub async fn accept(State(s): State<AppState>, Path(id): Path<i64>, Query(q): Query<AcceptQuery>) -> HtmlResult {
-    db::accept(&s.db, id).await?;
+pub async fn accept(
+    State(s): State<AppState>,
+    jar: SignedCookieJar,
+    Path(id): Path<i64>,
+    Query(q): Query<AcceptQuery>,
+) -> HtmlResult {
+    let who = auth::who(&jar);
+    // A surprise needs to know who it's from; otherwise it would be sealed for both of us.
+    let surprise = who.is_some() && q.surprise.as_deref() == Some("1");
+    let mut ids = vec![db::accept(&s.db, id, who, surprise).await?];
     let mut paired = None;
     if let Some(with) = q.with {
         // Only a real partner of this slip can ride along.
         if let Some(p) = db::partners(&s.db, id).await?.into_iter().find(|p| p.id == with) {
-            db::accept(&s.db, p.id).await?;
+            ids.push(db::accept(&s.db, p.id, who, surprise).await?);
             paired = Some(ActivityView::new(&s.cfg, &p));
         }
     }
     let a = db::get(&s.db, id).await?;
+    let view = a.as_ref().map(|a| ActivityView::new(&s.cfg, a));
+    let share = view.as_ref().map(share_text).unwrap_or_default();
     render(CardTpl {
-        activity: a.as_ref().map(|a| ActivityView::new(&s.cfg, a)),
         done: true,
         stamp_date: db::today(&s.db).await?,
         paired,
+        surprise,
+        partner: Me::new(&s.cfg, who).partner,
+        history_ids: ids.iter().map(|i| i.to_string()).collect::<Vec<_>>().join(","),
+        wa_url: format!("https://wa.me/?text={}", url_encode(&share)),
+        share_text: share,
+        activity: view,
         ..CardTpl::blank()
     })
 }

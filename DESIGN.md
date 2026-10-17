@@ -123,3 +123,33 @@ The templates are Askama (Jinja-like). Missing or renamed fields are compile err
   - Rating: `POST /history/{id}` with `rating` (1–5 or "") and `note`.
 - `login.html` (`LoginTpl`): `error`. `POST /login` with `passcode`.
 - `base.html`: blocks `title`, `head` (extra CSS and JS per page), `nav`, `content`. It loads `tokens.css`, which carries the fonts and tokens.
+
+
+## Together features (v3)
+
+The jar now knows **who's holding the phone** (a per-device choice made once after login, switchable from the nav). This is convenience, not security: we share one passcode. Everything below hangs off it.
+
+| Feature | Feeling | Where | What happens |
+|---|---|---|---|
+| Who's this | *Welcome* | `/who`, nav | Two slips, "it's me, Rohit" / "it's me, Neha". Nav shows the name in Caveat; tap to switch. |
+| Taking turns | *Fairness, a little game* | Jar page | "It's Neha's turn to draw." The person whose turn it is gets **one bonus peek** (4 instead of 3); the card says so. Anyone can still draw. |
+| Rain-aware | *Being looked after* | Jar page | When rain is likely tonight (≥60%), a quiet line: "Rain likely tonight (70%), so cozy ones float up." Outdoor slips are down-weighted on the server; the jar can show them sinking. |
+| A year ago | *Nostalgia* | Jar page | "This week, a year ago: Cat café · 16 Oct 2025." A small keepsake, not a banner ad. |
+| Monthly budget | *Calm awareness, never guilt* | Jar + Kept | Shared `.budget-line` component in tokens.css. Over budget turns the number vermilion, no alarm. Kept has the edit control. |
+| Surprise mode | *Anticipation, mischief* | Drawn card, stamped card, Kept | Drawer can keep a slip as a surprise for the other. The other's Kept shows a **sealed envelope**: no title, place or note (the server never sends them), just hints (when, how long, what to wear, bring a jacket/umbrella, come hungry) and a "Reveal" button. The drawer's own Kept shows it normally plus "surprise for Neha · sealed". |
+| When is it? + calendar | *Commitment* | Stamped card, Kept | After the stamp: "When is it?" (datetime-local) → saves → "Planned for Sat 18 Oct, 7:00 pm" + **Add to calendar** (.ics). Prefer Web Share with the .ics file ("Send to Neha") when `navigator.canShare({files})`, falling back to the download link. |
+| Photos | *Memory* | Kept | One photo per kept date, taped onto the slip like a polaroid. Upload from the phone (`accept="image/*"`), show progress, friendly errors (HEIC, too big). Delete with confirm. |
+| Share to WhatsApp | *Connection* | Drawn card + stamped card | "Send to Neha" uses `navigator.share({text})` when available, else the precomputed `wa_url` (wa.me link). |
+
+### Server contract additions
+
+- `base.html` nav has `{% block me %}who?{% endblock %}` inside a link to `/who`. Page templates fill it: `{% block me %}{% if me_name.is_empty() %}who?{% else %}{{ me_name }}{% endif %}{% endblock %}`.
+- `DecideTpl` adds: `me_name`, `turn_name` (empty = anyone's turn), `my_turn: bool`, `rain: Option<u8>`, `memory: Option<Memory{title, when}>`, `budget: BudgetView{spent, budget, budget_raw, pct, over}` (`budget` empty = none set).
+- `CardTpl` adds: `bonus_peek: bool`, `max_rerolls` (now 3 or 4), `can_surprise: bool`, `partner` (the other's name), `surprise: bool` (done card), `history_ids` (comma list, done card), `share_text`, `wa_url`.
+  - Keep as surprise: same accept form with `?surprise=1` (and `&with=` for pairs): `/accept/{id}?surprise=1`.
+- `planned.html` (`PlannedTpl`), the response of `POST /history/when` (form: `ids`, `at` = datetime-local value, empty clears) when sent by htmx: `ids, label, input, ics_url, partner`. Without htmx it redirects to Kept.
+- `GET /history/{id}/invite.ics` (text/calendar). `POST /history/{id}/reveal` → redirect.
+- Photos: `POST /history/{id}/photo` multipart field `photo` (≤15 MB). With `HX-Request` or `X-Requested-With`: 204 or 422 + plain-text message. Without: redirect (`?err=heic|big|bad#k{id}`). `POST /history/{id}/photo/delete`. `GET /photos/{id}`.
+- Budget: `POST /budget` (form: `amount`, blank clears; `back` = "/" or "/history").
+- `HistoryTpl`: `months: Vec<Month{label, items: Vec<KeptView>}>`, `kept`, `skipped`, `budget`, `me_name`, `photo_error`.
+  - `KeptView`: `id, sealed, title, setting (key), place, day, day_label, rating, note, from_name, surprise_for, hints: Vec<String>, planned_label, planned_input, ics_url, photo_url: Option<String>` + `is_rated(n)`. When `sealed`, title/place/note/rating are empty: design the envelope from `hints`, `from_name`, `day_label`, `planned_label`.

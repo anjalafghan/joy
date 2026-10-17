@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}The jar · joy{% endblock %}
 {% block page %}jar{% endblock %}
+{% block me %}{% if me_name.is_empty() %}who?{% else %}{{ me_name }}{% endif %}{% endblock %}
 {% block head %}
 <link rel="stylesheet" href="/static/jar.css">
 <script src="/static/jar.js" defer></script>
@@ -11,7 +12,7 @@
 <section class="stage" aria-labelledby="jar-h">
   <h1 id="jar-h" class="visually-hidden">{{ couple }}: the date jar</h1>
 
-  <div class="jar" id="jar" data-total="{{ count }}" aria-hidden="true">
+  <div class="jar{% if rain.is_some() %} is-rainy{% endif %}" id="jar" data-total="{{ count }}"{% if rain.is_some() %} data-rain="1"{% endif %} aria-hidden="true">
     <svg class="jar-back" viewBox="0 0 240 300" focusable="false">
       <defs>
         <radialGradient id="lantern" cx="50%" cy="56%" r="50%">
@@ -50,6 +51,22 @@
       <path class="hl hl-2" d="M42 148v34"/>
       <path class="hl hl-3" d="M58 96c-12 4-19 10-22 20"/>
       <path class="hl hl-4" d="M209 140c1 30 1 70-1 104"/>
+      {% if rain.is_some() %}
+      <!-- rain on the glass: a few beads and two slow trickles -->
+      <g class="rain-glass">
+        <path class="trickle" d="M188 132c.6 14-.8 26 .4 40" style="--d:9s;--o:-2s"/>
+        <path class="trickle" d="M52 176c-.5 12 .6 22-.2 34" style="--d:11s;--o:-6s"/>
+        <g class="beads">
+          <path d="M44 140c2 3 3 4.6 3 6a3 3 0 0 1-6 0c0-1.4 1-3 3-6z"/>
+          <path d="M196 196c1.6 2.4 2.4 3.6 2.4 4.8a2.4 2.4 0 0 1-4.8 0c0-1.2.8-2.4 2.4-4.8z"/>
+          <path d="M160 108c1.4 2 2 3 2 4a2 2 0 0 1-4 0c0-1 .6-2 2-4z"/>
+          <path d="M70 226c1.6 2.4 2.4 3.6 2.4 4.8a2.4 2.4 0 0 1-4.8 0c0-1.2.8-2.4 2.4-4.8z"/>
+          <path d="M138 246c1.4 2 2 3 2 4a2 2 0 0 1-4 0c0-1 .6-2 2-4z"/>
+          <path d="M98 104c1.2 1.8 1.8 2.7 1.8 3.6a1.8 1.8 0 0 1-3.6 0c0-.9.6-1.8 1.8-3.6z"/>
+          <path d="M184 170c1.2 1.8 1.8 2.7 1.8 3.6a1.8 1.8 0 0 1-3.6 0c0-.9.6-1.8 1.8-3.6z"/>
+        </g>
+      </g>
+      {% endif %}
       <!-- rim of the mouth -->
       <rect class="rim" x="66" y="52" width="108" height="9" rx="4"/>
       <!-- lid -->
@@ -86,6 +103,9 @@
 <div id="pick" aria-live="polite"></div>
 
 <form id="tonight" class="tonight" hx-post="/pick" hx-target="#pick" hx-swap="innerHTML swap:260ms" hx-sync="#pick:drop" hx-disabled-elt="find #draw">
+  {% if let Some(p) = rain %}
+  <p class="weather"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.2 15.4a4.3 4.3 0 0 1-.4-8.5 5.4 5.4 0 0 1 10.3 1.4 3.6 3.6 0 0 1 .3 7.1"/><path d="M9 18.2l-.9 2.2M13 17.6l-.9 2.6M16.6 18.2l-.8 2"/></svg><span>Rain likely tonight ({{ p }}%), so cozy ones float up.</span></p>
+  {% endif %}
   <p class="sentence">
     <span class="lead">Tonight we have</span>
     <label class="blank blank-money">
@@ -140,8 +160,29 @@
     <button id="draw" class="btn btn-stamp btn-draw" type="submit">Draw a slip</button>
     <button id="shake" class="shake-opt" type="button" hidden aria-pressed="false">or shake your phone</button>
   </div>
+  {% if !turn_name.is_empty() %}
+  <p class="turn{% if my_turn %} is-mine{% endif %}">
+    <svg class="turn-arrow" viewBox="0 0 40 24" aria-hidden="true" focusable="false"><path d="M36 20C26 21 14 17 8 6"/><path d="M4.6 10.4 7.6 5l5.6 2.2"/></svg>
+    {% if my_turn %}<span>Your turn to draw, {{ me_name }}. You get a bonus peek tonight.</span>{% else %}<span>It's {{ turn_name }}'s turn to draw.</span>{% endif %}
+  </p>
+  {% endif %}
 </form>
 {% endif %}
+
+<aside class="shelf-notes" aria-label="Notes from the shelf">
+  {% if let Some(m) = memory %}
+  <a class="keepsake grain" href="/history">
+    <span class="keepsake-k">This week, a year ago</span>
+    <span class="keepsake-t">{{ m.title }}</span>
+    <span class="keepsake-d">{{ m.when }}<span class="visually-hidden">. Open Kept</span></span>
+  </a>
+  {% endif %}
+  {% if budget.budget.is_empty() %}
+  <div class="budget-line"><p><strong>{{ budget.spent }}</strong> on dates this month<span aria-hidden="true"> · </span><a class="budget-set" href="/history#budget">set a budget</a></p></div>
+  {% else %}
+  <div class="budget-line{% if budget.over %} is-over{% endif %}"><p><strong>{{ budget.spent }}</strong> of {{ budget.budget }} on dates this month{% if budget.over %}<span class="visually-hidden">, over budget</span>{% endif %}</p><span class="budget-bar" style="--pct: {{ budget.pct }}" aria-hidden="true"></span></div>
+  {% endif %}
+</aside>
 
 <script type="application/json" id="slips">{{ slips_json|safe }}</script>
 </div>

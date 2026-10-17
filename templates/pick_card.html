@@ -1,5 +1,5 @@
 {% if let Some(a) = activity %}
-<article class="slip grain{% if done %} is-done{% endif %}" data-kind="{% if done %}done{% else %}card{% endif %}" data-id="{{ a.id }}" data-setting="{{ a.setting_key }}" style="--tint: var(--tint-{{ a.setting_key }})" aria-labelledby="slip-title">
+<article class="slip grain{% if done %} is-done{% endif %}{% if surprise %} is-surprise{% endif %}" data-kind="{% if done %}done{% else %}card{% endif %}" data-id="{{ a.id }}" data-setting="{{ a.setting_key }}" style="--tint: var(--tint-{{ a.setting_key }})" aria-labelledby="slip-title">
   <span class="slip-crease" aria-hidden="true"></span>
   <p class="slip-meta"><span class="slip-setting">{{ a.setting }}</span><span aria-hidden="true"> · </span>{{ a.duration }}<span aria-hidden="true"> · </span><strong>{{ a.cost }}</strong></p>
   <h2 id="slip-title" class="slip-title" tabindex="-1">{{ a.title }}</h2>
@@ -41,7 +41,26 @@
       </g>
     </svg>
   </div>
+  {% if surprise %}
+  <p class="sealed-line"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.6 7.2c0-.9.7-1.6 1.6-1.6h13.6c.9 0 1.6.7 1.6 1.6v9.6c0 .9-.7 1.6-1.6 1.6H5.2c-.9 0-1.6-.7-1.6-1.6z"/><path d="M4 6.6l8 6.4 8-6.4"/><circle class="seal" cx="12" cy="13.4" r="2.6"/></svg><span>Sealed. {{ partner }} will only see hints until it's revealed.</span></p>
+  {% else %}
   <p class="kept-line">In the keepsake box. Rate it after you go.</p>
+  {% endif %}
+  {% if !surprise && !share_text.is_empty() %}
+  <p class="share-row"><a class="share" href="{{ wa_url }}" target="_blank" rel="noopener" data-share="{{ share_text }}"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.6 3.6 3.4 10.4c-.7.3-.6 1.2.1 1.4l6.3 1.9 1.9 6.3c.2.7 1.1.8 1.4.1z"/><path d="M9.8 13.7 20.6 3.6"/></svg><span>Send to {{ partner }}</span><span class="visually-hidden"> (opens WhatsApp)</span></a></p>
+  {% endif %}
+  {% if !history_ids.is_empty() %}
+  <div class="planned" id="planned">
+    <form class="f-when" hx-post="/history/when" hx-target="#planned" hx-swap="outerHTML" hx-disabled-elt="find button">
+      <input type="hidden" name="ids" value="{{ history_ids }}">
+      <div class="when-row">
+        <label class="when-l"><span class="when-q">When is it?</span><input class="when-at" type="datetime-local" name="at" required></label>
+        <button class="btn btn-ink" type="submit">Save</button>
+      </div>
+      <p class="when-err" role="status"></p>
+    </form>
+  </div>
+  {% endif %}
   <div class="slip-actions">
     {% if let Some(url) = a.maps_url %}<a class="btn btn-ink" href="{{ url }}" target="_blank" rel="noopener">Open in Maps<span class="visually-hidden"> (opens in a new tab)</span></a>{% endif %}
     <a class="btn btn-quiet" href="/history">See it in Kept</a>
@@ -75,15 +94,27 @@
     {% endif %}
   </div>
   <div class="peeks" data-left="{{ rerolls_left }}">
-    <span class="peek-dots" aria-hidden="true">{% for i in 0..max_rerolls %}<svg class="peek{% if i < rerolls_left %} is-full{% endif %}" viewBox="0 0 20 20"><path class="peek-ring" d="M10 2.6c4.3-.2 7.4 3.1 7.3 7.3-.1 4.2-3.3 7.4-7.5 7.4-4.1 0-7.2-3.3-7.1-7.5.1-4 3.2-7.1 7.3-7.2z"/><circle class="peek-fill" cx="10" cy="10" r="4.6"/></svg>{% endfor %}</span>
+    <span class="peek-dots" aria-hidden="true">{% for i in 0..max_rerolls %}{% if bonus_peek && loop.last %}<svg class="peek is-bonus{% if i < rerolls_left %} is-full{% endif %}" viewBox="0 0 20 20"><path class="peek-ring" d="M10 1.6l2.3 5.3 5.8.6-4.4 3.8 1.3 5.7L10 14l-5 3 1.3-5.7-4.4-3.8 5.8-.6z"/><path class="peek-fill" d="M10 5.4l1.3 3 3.3.3-2.5 2.2.8 3.2L10 12.4l-2.9 1.7.8-3.2-2.5-2.2 3.3-.3z"/></svg>{% else %}<svg class="peek{% if i < rerolls_left %} is-full{% endif %}" viewBox="0 0 20 20"><path class="peek-ring" d="M10 2.6c4.3-.2 7.4 3.1 7.3 7.3-.1 4.2-3.3 7.4-7.5 7.4-4.1 0-7.2-3.3-7.1-7.5.1-4 3.2-7.1 7.3-7.2z"/><circle class="peek-fill" cx="10" cy="10" r="4.6"/></svg>{% endif %}{% endfor %}</span>
     {% if free_putback %}
     <span class="peek-label">This one goes back for free.</span>
     {% else if rerolls_left > 0 %}
-    <span class="peek-label">{{ rerolls_left }} {% if rerolls_left == 1 %}peek{% else %}peeks{% endif %} left</span>
+    <span class="peek-label">{{ rerolls_left }} {% if rerolls_left == 1 %}peek{% else %}peeks{% endif %} left{% if bonus_peek && rerolls_left == max_rerolls %}<span class="peek-bonus"> · one's a bonus</span>{% endif %}</span>
     {% else %}
     <span class="peek-label">No more peeking. This one's yours.</span>
     {% endif %}
   </div>
+  {% if can_surprise || !share_text.is_empty() %}
+  <div class="slip-more">
+    {% if can_surprise %}
+    <form class="f-accept f-surprise" hx-post="/accept/{{ a.id }}?surprise=1" hx-target="#pick" hx-swap="innerHTML" hx-sync="#pick:drop" hx-disabled-elt="find button">
+      <button class="share" type="submit"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.6 7.2c0-.9.7-1.6 1.6-1.6h13.6c.9 0 1.6.7 1.6 1.6v9.6c0 .9-.7 1.6-1.6 1.6H5.2c-.9 0-1.6-.7-1.6-1.6z"/><path d="M4 6.6l8 6.4 8-6.4"/></svg><span>Keep it a surprise for {{ partner }}</span></button>
+    </form>
+    {% endif %}
+    {% if !share_text.is_empty() %}
+    <a class="share" href="{{ wa_url }}" target="_blank" rel="noopener" data-share="{{ share_text }}"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.6 3.6 3.4 10.4c-.7.3-.6 1.2.1 1.4l6.3 1.9 1.9 6.3c.2.7 1.1.8 1.4.1z"/><path d="M9.8 13.7 20.6 3.6"/></svg><span>Send to {{ partner }}</span><span class="visually-hidden"> (opens WhatsApp)</span></a>
+    {% endif %}
+  </div>
+  {% endif %}
   {% endif %}
 </article>
 {% else %}

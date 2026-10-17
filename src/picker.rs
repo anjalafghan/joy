@@ -78,6 +78,8 @@ pub struct Filters {
     pub tag: Option<String>,
     pub energy: Option<String>,
     pub max_km: Option<f64>,
+    /// Set by the server from the forecast, not the form: rain is likely tonight.
+    pub rain_likely: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -122,13 +124,17 @@ fn checks(c: &Candidate, f: &Filters) -> Checks {
 
 /// Higher weight = more likely. Never-done ideas get a boost, older ones
 /// climb back up over ~2 months, recently skipped ones are damped.
-pub fn weight(c: &Candidate, now: i64) -> f64 {
+pub fn weight(c: &Candidate, now: i64, rain_likely: bool) -> f64 {
     let mut w = match c.last_done_at {
         None => 3.0,
         Some(t) => 1.0 + ((now - t).max(0) as f64 / (30 * DAY) as f64).min(2.0),
     };
     if c.last_skipped_at.is_some_and(|t| now - t < 3 * DAY) {
         w *= 0.5;
+    }
+    // Rain doesn't rule outdoor plans out, it just lets the cozy ones float up.
+    if rain_likely && c.tags.iter().any(|t| t == "outdoors") {
+        w *= 0.3;
     }
     w
 }
@@ -165,7 +171,7 @@ pub fn pick<R: Rng>(
         });
     }
 
-    let weights: Vec<f64> = pool.iter().map(|c| weight(c, now)).collect();
+    let weights: Vec<f64> = pool.iter().map(|c| weight(c, now, f.rain_likely)).collect();
     let mut roll = rng.gen_range(0.0..weights.iter().sum::<f64>());
     for (c, w) in pool.iter().zip(&weights) {
         if roll < *w {
@@ -213,14 +219,19 @@ fn hint(all: &[Candidate], f: &Filters) -> Hint {
     Hint::NoMoodMatch
 }
 
-pub fn rerolls_left(used: u32) -> u32 {
-    MAX_REROLLS.saturating_sub(used)
+/// Peeks for this draw: whoever's turn it is gets one extra.
+pub fn max_peeks(my_turn: bool) -> u32 {
+    MAX_REROLLS + u32::from(my_turn)
+}
+
+pub fn rerolls_left(used: u32, max: u32) -> u32 {
+    max.saturating_sub(used)
 }
 
 /// Peeks used after putting the current slip back, or `None` when it has to stay.
 /// Slips the app generated go back for free, so you can browse them without limit.
-pub fn put_back(used: u32, generated: bool) -> Option<u32> {
-    match (generated, used < MAX_REROLLS) {
+pub fn put_back(used: u32, generated: bool, max: u32) -> Option<u32> {
+    match (generated, used < max) {
         (true, _) => Some(used),
         (false, true) => Some(used + 1),
         (false, false) => None,
@@ -379,28 +390,49 @@ mod tests {
     fn weight_recovers_with_time_and_is_damped_by_skips() {
         let mut c = cand(1, 0, "home", Duration::Short);
         c.last_done_at = Some(NOW - 10 * DAY);
-        let recent = weight(&c, NOW);
+        let recent = weight(&c, NOW, false);
         c.last_done_at = Some(NOW - 100 * DAY);
-        let old = weight(&c, NOW);
+        let old = weight(&c, NOW, false);
         assert!(old > recent);
         assert_eq!(old, 3.0, "capped");
         c.last_skipped_at = Some(NOW - DAY);
-        assert_eq!(weight(&c, NOW), 1.5);
+        assert_eq!(weight(&c, NOW, false), 1.5);
     }
 
     #[test]
     fn generated_slips_go_back_for_free() {
-        assert_eq!(put_back(0, false), Some(1));
-        assert_eq!(put_back(MAX_REROLLS - 1, false), Some(MAX_REROLLS));
-        assert_eq!(put_back(MAX_REROLLS, false), None);
-        assert_eq!(put_back(0, true), Some(0));
-        assert_eq!(put_back(MAX_REROLLS, true), Some(MAX_REROLLS), "free even when out of peeks");
+        assert_eq!(put_back(0, false, MAX_REROLLS), Some(1));
+        assert_eq!(put_back(MAX_REROLLS - 1, false, MAX_REROLLS), Some(MAX_REROLLS));
+        assert_eq!(put_back(MAX_REROLLS, false, MAX_REROLLS), None);
+        assert_eq!(put_back(0, true, MAX_REROLLS), Some(0));
+        assert_eq!(put_back(MAX_REROLLS, true, MAX_REROLLS), Some(MAX_REROLLS), "free even when out of peeks");
     }
 
     #[test]
     fn reroll_cap() {
-        assert_eq!(rerolls_left(0), MAX_REROLLS);
-        assert_eq!(rerolls_left(MAX_REROLLS), 0);
-        assert_eq!(rerolls_left(MAX_REROLLS + 5), 0);
+        assert_eq!(rerolls_left(0, MAX_REROLLS), MAX_REROLLS);
+        assert_eq!(rerolls_left(MAX_REROLLS, MAX_REROLLS), 0);
+        assert_eq!(rerolls_left(MAX_REROLLS + 5, MAX_REROLLS), 0);
+    }
+
+    #[test]
+    fn whoever_s_turn_it_is_gets_a_bonus_peek() {
+        assert_eq!(max_peeks(false), MAX_REROLLS);
+        assert_eq!(max_peeks(true), MAX_REROLLS + 1);
+        assert_eq!(put_back(MAX_REROLLS, false, max_peeks(true)), Some(MAX_REROLLS + 1));
+        assert_eq!(put_back(MAX_REROLLS, false, max_peeks(false)), None);
+    }
+
+    #[test]
+    fn rain_sinks_outdoor_slips_but_never_removes_them() {
+        let mut out = cand(1, 0, "local", Duration::Short);
+        out.tags = vec!["outdoors".into()];
+        let cozy = cand(2, 0, "home", Duration::Short);
+        assert_eq!(weight(&out, NOW, false), weight(&cozy, NOW, false));
+        assert!(weight(&out, NOW, true) < weight(&cozy, NOW, true));
+        let f = Filters { rain_likely: true, ..filters(0) };
+        let r = picks(&[out, cozy], &f, &[], 2000);
+        let outdoor = r.iter().filter(|p| **p == PickResult::Pick(1)).count();
+        assert!((300..700).contains(&outdoor), "outdoor won {outdoor}/2000, expected ~23%");
     }
 }

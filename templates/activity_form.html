@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{% if id.is_some() %}Edit slip{% else %}Write a slip{% endif %} · joy{% endblock %}
 {% block page %}slips{% endblock %}
+{% block me %}{% if me_name.is_empty() %}who?{% else %}{{ me_name }}{% endif %}{% endblock %}
 {% block head %}
 <link rel="stylesheet" href="/static/slips.css">
 <script src="/static/slips.js" defer></script>

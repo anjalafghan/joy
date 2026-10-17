@@ -12,6 +12,8 @@ primary_region = 'sin'
   COOKIE_SECURE = 'true'
   TRUST_FLY_CLIENT_IP = 'true'
   CURRENCY_SYMBOL = '₹'
+  # Local time for stamp dates, months in Kept, and calendar invites.
+  TZ = 'Asia/Kolkata'
 
 [http_service]
   internal_port = 3000

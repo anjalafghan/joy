@@ -203,16 +203,19 @@ pub async fn record(db: &SqlitePool, id: i64, did_it: bool) -> sqlx::Result<()> 
     tx.commit().await
 }
 
-/// Accept a pick. A double-tap within a minute only counts once.
-pub async fn accept(db: &SqlitePool, id: i64) -> sqlx::Result<()> {
+/// Accept a pick and return its history row. A double-tap within a minute only counts once
+/// (the second tap gets the same row back).
+pub async fn accept(db: &SqlitePool, id: i64, drawn_by: Option<usize>, surprise: bool) -> sqlx::Result<i64> {
     let mut tx = db.begin().await?;
     // One statement, so two concurrent taps can't both pass the "recent?" check.
     let inserted = sqlx::query(
-        "INSERT INTO history (activity_id, outcome) SELECT ?1, 'did_it'
+        "INSERT INTO history (activity_id, outcome, drawn_by, surprise) SELECT ?1, 'did_it', ?2, ?3
          WHERE NOT EXISTS (SELECT 1 FROM history WHERE activity_id = ?1 AND outcome = 'did_it'
                            AND picked_at > unixepoch() - 60)",
     )
     .bind(id)
+    .bind(drawn_by.map(|w| w as i64))
+    .bind(surprise)
     .execute(&mut *tx)
     .await?
     .rows_affected();
@@ -222,7 +225,14 @@ pub async fn accept(db: &SqlitePool, id: i64) -> sqlx::Result<()> {
             .execute(&mut *tx)
             .await?;
     }
-    tx.commit().await
+    let row: i64 = sqlx::query_scalar(
+        "SELECT id FROM history WHERE activity_id = ? AND outcome = 'did_it' ORDER BY id DESC LIMIT 1",
+    )
+    .bind(id)
+    .fetch_one(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(row)
 }
 
 /// Today's local date for the "it's a date" stamp, e.g. "14 · 10 · 2026".
@@ -230,17 +240,33 @@ pub async fn today(db: &SqlitePool) -> sqlx::Result<String> {
     sqlx::query_scalar("SELECT strftime('%d · %m · %Y', 'now', 'localtime')").fetch_one(db).await
 }
 
-#[derive(Debug, FromRow)]
+#[derive(Debug, Clone, FromRow)]
 pub struct HistoryRow {
     pub id: i64,
+    pub activity_id: i64,
+    /// Unix seconds when it was drawn/kept.
+    pub picked_at: i64,
     pub title: String,
+    pub notes: String,
     pub setting: String,
     pub place: String,
+    pub duration: String,
+    pub energy: String,
+    pub tags: String,
+    pub lat: Option<f64>,
+    pub lng: Option<f64>,
     /// "YYYY-MM-DD"
     pub day: String,
     pub outcome: String,
     pub rating: Option<i64>,
     pub note: String,
+    pub drawn_by: Option<i64>,
+    pub planned_at: Option<i64>,
+    /// Local time of `planned_at` as "YYYY-MM-DD HH:MM W" (W = weekday, 0 = Sunday).
+    pub planned_local: Option<String>,
+    pub surprise: bool,
+    pub revealed: bool,
+    pub has_photo: bool,
 }
 
 const MONTHS: [&str; 12] = [
@@ -249,10 +275,6 @@ const MONTHS: [&str; 12] = [
 ];
 
 impl HistoryRow {
-    pub fn is_rated(&self, n: &i64) -> bool {
-        self.rating == Some(*n)
-    }
-
     /// "14 Oct"
     pub fn day_label(&self) -> String {
         let mut parts = self.day.split('-').skip(1);
@@ -270,16 +292,99 @@ impl HistoryRow {
     }
 }
 
+const HISTORY_COLS: &str = "h.id, h.activity_id, h.picked_at, a.title, a.notes, a.setting,
+    CASE WHEN a.venue != '' THEN a.venue ELSE a.area END AS place,
+    a.duration, a.energy, a.tags, a.lat, a.lng,
+    date(h.picked_at, 'unixepoch', 'localtime') AS day, h.outcome, h.rating, h.note,
+    h.drawn_by, h.planned_at,
+    strftime('%Y-%m-%d %H:%M %w', h.planned_at, 'unixepoch', 'localtime') AS planned_local,
+    h.surprise, h.revealed, h.has_photo";
+
 pub async fn history(db: &SqlitePool) -> sqlx::Result<Vec<HistoryRow>> {
-    sqlx::query_as(
-        "SELECT h.id, a.title, a.setting,
-                CASE WHEN a.venue != '' THEN a.venue ELSE a.area END AS place,
-                date(h.picked_at, 'unixepoch', 'localtime') AS day, h.outcome, h.rating, h.note
-         FROM history h JOIN activities a ON a.id = h.activity_id
-         ORDER BY h.picked_at DESC, h.id DESC LIMIT 300",
-    )
+    sqlx::query_as(&format!(
+        "SELECT {HISTORY_COLS} FROM history h JOIN activities a ON a.id = h.activity_id
+         ORDER BY h.picked_at DESC, h.id DESC LIMIT 300"
+    ))
     .fetch_all(db)
     .await
+}
+
+pub async fn history_row(db: &SqlitePool, id: i64) -> sqlx::Result<Option<HistoryRow>> {
+    sqlx::query_as(&format!("SELECT {HISTORY_COLS} FROM history h JOIN activities a ON a.id = h.activity_id WHERE h.id = ?"))
+        .bind(id)
+        .fetch_optional(db)
+        .await
+}
+
+/// Kept dates from about this week, one year ago.
+pub async fn year_ago(db: &SqlitePool) -> sqlx::Result<Vec<HistoryRow>> {
+    sqlx::query_as(&format!(
+        "SELECT {HISTORY_COLS} FROM history h JOIN activities a ON a.id = h.activity_id
+         WHERE h.outcome = 'did_it'
+           AND date(h.picked_at, 'unixepoch', 'localtime')
+               BETWEEN date('now', 'localtime', '-1 year', '-3 days') AND date('now', 'localtime', '-1 year', '+3 days')
+         ORDER BY h.picked_at"
+    ))
+    .fetch_all(db)
+    .await
+}
+
+/// Set when these dates happen, from a local "YYYY-MM-DD HH:MM" (or clear it with None).
+pub async fn set_planned(db: &SqlitePool, ids: &[i64], local: Option<&str>) -> sqlx::Result<()> {
+    for id in ids {
+        sqlx::query("UPDATE history SET planned_at = unixepoch(?, 'utc') WHERE id = ? AND outcome = 'did_it'")
+            .bind(local)
+            .bind(id)
+            .execute(db)
+            .await?;
+    }
+    Ok(())
+}
+
+pub async fn reveal(db: &SqlitePool, id: i64) -> sqlx::Result<()> {
+    sqlx::query("UPDATE history SET revealed = 1 WHERE id = ?").bind(id).execute(db).await?;
+    Ok(())
+}
+
+pub async fn set_photo(db: &SqlitePool, id: i64, has: bool) -> sqlx::Result<()> {
+    sqlx::query("UPDATE history SET has_photo = ? WHERE id = ?").bind(has).bind(id).execute(db).await?;
+    Ok(())
+}
+
+/// Who kept the most recent date (0 or 1), if we know.
+pub async fn last_drawer(db: &SqlitePool) -> sqlx::Result<Option<i64>> {
+    sqlx::query_scalar(
+        "SELECT drawn_by FROM history WHERE outcome = 'did_it' AND drawn_by IS NOT NULL ORDER BY id DESC LIMIT 1",
+    )
+    .fetch_optional(db)
+    .await
+}
+
+/// What this calendar month's kept dates add up to (local time).
+pub async fn spent_this_month(db: &SqlitePool) -> sqlx::Result<i64> {
+    sqlx::query_scalar(
+        "SELECT COALESCE(SUM(a.est_cost), 0) FROM history h JOIN activities a ON a.id = h.activity_id
+         WHERE h.outcome = 'did_it'
+           AND strftime('%Y-%m', h.picked_at, 'unixepoch', 'localtime') = strftime('%Y-%m', 'now', 'localtime')",
+    )
+    .fetch_one(db)
+    .await
+}
+
+pub async fn setting(db: &SqlitePool, key: &str) -> sqlx::Result<Option<String>> {
+    sqlx::query_scalar("SELECT value FROM settings WHERE key = ?").bind(key).fetch_optional(db).await
+}
+
+pub async fn set_setting(db: &SqlitePool, key: &str, value: Option<&str>) -> sqlx::Result<()> {
+    match value {
+        Some(v) => sqlx::query("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
+            .bind(key)
+            .bind(v)
+            .execute(db)
+            .await?,
+        None => sqlx::query("DELETE FROM settings WHERE key = ?").bind(key).execute(db).await?,
+    };
+    Ok(())
 }
 
 pub async fn rate(db: &SqlitePool, id: i64, rating: Option<i64>, note: &str) -> sqlx::Result<()> {

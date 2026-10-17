@@ -39,7 +39,13 @@ echo "==> Secrets (from .env, plus a fresh session secret)"
 } | fly secrets import -a "$APP"
 
 echo "==> Deploy"
-fly deploy -a "$APP" --remote-only
+fly deploy -a "$APP" --remote-only --depot=false
+
+echo "==> Public addresses (shared IPv4 and IPv6 are free; a dedicated IPv4 is not)"
+# Without these the app runs but joy-jar.fly.dev doesn't resolve.
+ips="$(fly ips list -a "$APP")"
+grep -q "^v6" <<<"$ips" || fly ips allocate-v6 -a "$APP"
+grep -q "^v4" <<<"$ips" || fly ips allocate-v4 --shared -a "$APP"
 
 echo "==> Upload your data"
 snapshot="$(mktemp -t joy-upload).db"

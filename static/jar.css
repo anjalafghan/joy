@@ -420,3 +420,120 @@ body[data-page="jar"] main { padding-top: 0; }
 .pair-total { color: var(--ink); font-weight: 600; }
 .pair-over { color: var(--ink); font-style: italic; }
 .f-pair .btn { justify-self: start; margin-top: 6px; min-height: 44px; }
+
+/* ── v3: together ─────────────────────────────────────────── */
+
+/* rain on the glass: beads and two slow trickles (static under reduced motion) */
+.rain-glass { pointer-events: none; }
+.beads path { fill: var(--glass-hl); stroke: var(--glass-edge); stroke-width: .7; opacity: .75; }
+.trickle { fill: none; stroke: var(--glass-hl); stroke-width: 1.6; stroke-linecap: round; opacity: .7;
+  stroke-dasharray: 10 60; animation: trickle var(--d) linear var(--o) infinite; }
+@keyframes trickle { from { stroke-dashoffset: 70; } to { stroke-dashoffset: 0; } }
+@media (prefers-color-scheme: dark) { .beads path { opacity: .55; } }
+
+.weather {
+  display: flex; gap: 8px; align-items: flex-start; margin: 0 0 6px;
+  font-size: var(--step--1); line-height: 1.45; color: var(--ink-soft);
+}
+.weather .ico { margin-top: 0; }
+
+/* whose turn: a margin note pointing back at the Draw button */
+.turn {
+  position: relative; display: flex; align-items: flex-start; gap: 6px;
+  margin: 6px 0 0 12px; max-width: 30ch;
+  font: 600 1.3rem/1.15 var(--font-hand); color: var(--ink-soft);
+  transform: rotate(-1.2deg); transform-origin: 0 50%;
+}
+.turn-arrow { flex: none; width: 34px; height: 22px; margin-top: -4px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.turn.is-mine { color: var(--ink); }
+.turn.is-mine .turn-arrow { stroke: var(--stamp); }
+
+/* notes from the shelf: a year ago + the month's budget */
+.shelf-notes { display: grid; gap: 22px; margin-top: 36px; padding-top: 22px; border-top: 1.5px dashed var(--rule); }
+.keepsake {
+  display: grid; gap: 2px; width: fit-content; max-width: 100%;
+  padding: 14px 18px 14px 16px; min-height: 44px;
+  background: var(--slip); color: var(--ink); text-decoration: none;
+  border-radius: var(--radius-slip); box-shadow: var(--shadow-slip);
+  transform: rotate(1.4deg); transform-origin: 0 0;
+  transition: transform var(--t-small) var(--ease-out);
+}
+.keepsake::after { /* tape */
+  content: ""; position: absolute; top: -9px; left: 22px; width: 58px; height: 18px;
+  background: var(--tape); opacity: .9; transform: rotate(-5deg);
+}
+.keepsake:hover { transform: rotate(.4deg) translateY(-1px); }
+.keepsake-k { font: 600 var(--step--1)/1.3 var(--font-ui); letter-spacing: .02em; color: var(--ink-soft); }
+.keepsake-t {
+  font: italic 560 var(--step-1)/1.25 var(--font-display); font-variation-settings: "SOFT" 100, "WONK" 1;
+  overflow-wrap: anywhere; text-decoration: underline; text-decoration-color: var(--stamp); text-decoration-thickness: 1.5px; text-underline-offset: 4px;
+}
+.keepsake-d { font-size: var(--step--1); color: var(--ink-soft); }
+.budget-set { display: inline-block; padding: 12px 2px; margin: -12px 0; font-weight: 600; color: var(--ink); }
+
+/* drawn card: quiet secondary actions */
+.slip-more { display: flex; flex-wrap: wrap; gap: 0 18px; margin-top: 12px; padding-top: 6px; border-top: 1px dashed var(--rule); }
+.slip-more form { display: contents; }
+.share {
+  display: inline-flex; align-items: center; gap: 7px; min-height: 44px; padding: 0 2px;
+  font: 600 var(--step--1)/1.3 var(--font-ui); color: var(--ink-soft); text-align: left;
+  background: none; border: 0; cursor: pointer; text-decoration: underline; text-decoration-color: var(--rule); text-underline-offset: 4px;
+  -webkit-tap-highlight-color: transparent;
+}
+.share:hover { color: var(--ink); text-decoration-color: var(--stamp); }
+.share .ico { margin: 0; }
+.share[disabled] { opacity: .55; pointer-events: none; }
+.f-surprise .share .ico { color: var(--stamp); }
+.share-row { margin: 2px 0 -6px; }
+
+/* the bonus peek: a little star you earned by taking turns */
+.peek.is-bonus .peek-ring { stroke: var(--stamp); stroke-linejoin: round; }
+.peek.is-bonus .peek-fill { fill: var(--stamp); transform-origin: 10px 10px; }
+.peek-dots .peek.is-bonus { margin-left: 3px; }
+.peek-bonus { color: var(--ink-soft); }
+
+/* done card: sealed surprise, when is it? */
+.sealed-line { display: flex; gap: 8px; align-items: flex-start; margin: 16px 0 0; font-size: var(--step--1); color: var(--ink); }
+.sealed-line .ico { margin-top: 1px; color: var(--stamp); }
+.sealed-line .seal { fill: var(--stamp); stroke: none; }
+
+.planned { margin-top: 18px; padding-top: 14px; border-top: 1.5px dashed var(--rule); }
+.f-when { display: grid; gap: 4px; }
+.when-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 8px; }
+.when-l { display: grid; gap: 4px; flex: 1 1 10.5em; min-width: 0; }
+.when-q { font: 600 var(--step--1)/1.3 var(--font-ui); letter-spacing: .02em; color: var(--ink-soft); }
+.when-at {
+  -webkit-appearance: none; appearance: none; width: 100%; min-width: 0; min-height: 48px; padding: 8px 8px 8px 10px;
+  background: var(--paper); color: var(--ink); border: 1.5px solid color-mix(in srgb, var(--ink) 40%, transparent); border-radius: 10px;
+  font: 500 var(--step-0)/1.2 var(--font-ui);
+}
+.when-at:focus-visible { outline: 2px solid var(--stamp); outline-offset: 2px; }
+.when-at::-webkit-calendar-picker-indicator { opacity: .7; cursor: pointer; }
+.when-row .btn { min-height: 48px; padding: 0 18px; }
+.when-err { margin: 0; font-size: var(--step--1); color: var(--stamp); }
+.when-err:empty { display: none; }
+.when-hint { margin: 2px 0 0; font-size: var(--step--1); color: var(--ink-soft); }
+.planned-label { display: flex; gap: 8px; align-items: flex-start; margin: 0; font-size: var(--step-0); }
+.planned-label strong { font-weight: 700; }
+.planned-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; margin-top: 10px; }
+.planned-actions .btn { min-height: 44px; padding: 0 18px; }
+.when-change { margin-top: 4px; }
+.when-change summary {
+  display: inline-flex; align-items: center; min-height: 44px; cursor: pointer; list-style: none;
+  font: 600 var(--step--1)/1 var(--font-ui); color: var(--ink-soft); text-decoration: underline; text-decoration-color: var(--rule); text-underline-offset: 4px;
+}
+.when-change summary::-webkit-details-marker { display: none; }
+.when-change[open] summary { color: var(--ink); }
+.planned.is-fresh .planned-label { animation: planned-in var(--t-medium) var(--ease-spring); }
+@keyframes planned-in { from { opacity: 0; transform: translateY(-4px); } }
+/* a surprise's invite carries the real title: don't offer to send it to them */
+/* .planned-send on a surprise sends the sealed invite (send_url), so it stays. */
+
+@media (min-width: 880px) {
+  .shelf-notes { grid-column: 2; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .trickle { animation: none; stroke-dasharray: none; opacity: .35; }
+  .keepsake { transition: none; }
+}
+.planned-label:focus:not(:focus-visible) { outline: none; }

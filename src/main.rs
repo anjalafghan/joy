@@ -1,14 +1,17 @@
 mod auth;
 mod config;
 mod db;
+mod ics;
+mod photos;
 mod picker;
 mod routes;
+mod weather;
 
 use std::{io::Write, net::SocketAddr, sync::Arc};
 
 use anyhow::Context;
 use axum::{
-    extract::FromRef,
+    extract::{DefaultBodyLimit, FromRef},
     middleware,
     routing::{get, post},
     Router,
@@ -25,6 +28,7 @@ pub struct AppState {
     pub db: SqlitePool,
     pub cfg: Arc<Config>,
     pub limiter: Arc<auth::Limiter>,
+    pub weather: Arc<weather::Weather>,
 }
 
 impl FromRef<AppState> for Key {
@@ -58,7 +62,10 @@ async fn main() -> anyhow::Result<()> {
     sqlx::migrate!().run(&db).await.context("running migrations")?;
 
     let addr = SocketAddr::from((cfg.host, cfg.port));
-    let state = AppState { db, cfg: Arc::new(cfg), limiter: Default::default() };
+    std::fs::create_dir_all(&cfg.photos_dir).context("creating photos directory")?;
+    let fake_rain = std::env::var("WEATHER_FAKE_PERCENT").ok().and_then(|v| v.parse().ok());
+    let weather = Arc::new(weather::Weather::new(weather::midpoint([cfg.people[0].1, cfg.people[1].1]), fake_rain));
+    let state = AppState { db, cfg: Arc::new(cfg), limiter: Default::default(), weather };
 
     let app = Router::new()
         .route("/", get(routes::decide::page))
@@ -72,6 +79,17 @@ async fn main() -> anyhow::Result<()> {
         .route("/wishlist/{id}/restore", post(routes::wishlist::restore))
         .route("/wishlist/{id}/delete", post(routes::wishlist::delete))
         .route("/history", get(routes::history::page))
+        .route("/history/when", post(routes::history::when))
+        .route("/history/{id}/invite.ics", get(routes::history::invite))
+        .route("/history/{id}/reveal", post(routes::history::reveal))
+        .route(
+            "/history/{id}/photo",
+            post(routes::history::upload_photo).layer(DefaultBodyLimit::max(photos::MAX_UPLOAD_BYTES + 64 * 1024)),
+        )
+        .route("/history/{id}/photo/delete", post(routes::history::delete_photo))
+        .route("/photos/{id}", get(routes::history::photo))
+        .route("/budget", post(routes::history::set_budget))
+        .route("/who", get(routes::auth::who_page).post(routes::auth::set_who))
         .route("/history/{id}", post(routes::history::rate))
         .route("/logout", post(routes::auth::logout))
         .route_layer(middleware::from_fn_with_state(state.clone(), auth::require_login))
@@ -80,7 +98,7 @@ async fn main() -> anyhow::Result<()> {
         .layer(TraceLayer::new_for_http())
         .with_state(state);
 
-    tracing::info!("Joy is listening on http://localhost:{}", addr.port());
+    tracing::info!("Joy is listening on {addr}");
     let listener = tokio::net::TcpListener::bind(addr).await?;
     axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>()).await?;
     Ok(())
@@ -100,7 +118,7 @@ fn hash_passcode() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn sqlite_dir(url: &str) -> Option<&std::path::Path> {
+pub(crate) fn sqlite_dir(url: &str) -> Option<&std::path::Path> {
     let path = url.strip_prefix("sqlite://").or_else(|| url.strip_prefix("sqlite:"))?;
     let path = path.split('?').next()?;
     std::path::Path::new(path).parent().filter(|p| !p.as_os_str().is_empty())

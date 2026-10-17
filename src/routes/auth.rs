@@ -53,7 +53,38 @@ pub async fn login(
         return Ok(render(LoginTpl::new(&s, "That's not it."))?.into_response());
     }
     s.limiter.clear(ip);
-    Ok((jar.add(auth::login_cookie(s.cfg.cookie_secure)), Redirect::to("/")).into_response())
+    // First time on this device: ask who's holding it.
+    let next = if auth::who(&jar).is_some() { "/" } else { "/who" };
+    Ok((jar.add(auth::login_cookie(s.cfg.cookie_secure)), Redirect::to(next)).into_response())
+}
+
+#[derive(Template)]
+#[template(path = "who.html")]
+struct WhoTpl {
+    /// (value, name, is the current choice)
+    people: Vec<(usize, String, bool)>,
+    /// Whether this device has chosen before (switching vs first time).
+    switching: bool,
+}
+
+pub async fn who_page(State(s): State<AppState>, jar: SignedCookieJar) -> HtmlResult {
+    let who = auth::who(&jar);
+    render(WhoTpl {
+        people: s.cfg.people.iter().enumerate().map(|(i, (n, _))| (i, n.clone(), who == Some(i))).collect(),
+        switching: who.is_some(),
+    })
+}
+
+#[derive(Deserialize)]
+pub struct WhoForm {
+    who: usize,
+}
+
+pub async fn set_who(State(s): State<AppState>, jar: SignedCookieJar, Form(f): Form<WhoForm>) -> Response {
+    if f.who > 1 {
+        return Redirect::to("/who").into_response();
+    }
+    (jar.add(auth::who_cookie(f.who, s.cfg.cookie_secure)), Redirect::to("/")).into_response()
 }
 
 pub async fn logout(jar: SignedCookieJar) -> impl IntoResponse {

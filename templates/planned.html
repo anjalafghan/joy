@@ -1,0 +1,31 @@
+{# "When is it?" result, swapped over #planned. Fields: ids, label, input, ics_url, send_url (sealed for surprises), partner. #}
+<div class="planned{% if !label.is_empty() %} is-set{% endif %}" id="planned">
+  {% if !label.is_empty() %}
+  <p class="planned-label" role="status"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.6" y="5.2" width="16.8" height="15" rx="2"/><path d="M3.8 9.8h16.4M8 3.4v3.6M16 3.4v3.6"/><path d="M9 14.6l2 2 4-4.2"/></svg><span>Planned for <strong>{{ label }}</strong></span></p>
+  <div class="planned-actions">
+    <a class="btn btn-ink" href="{{ ics_url }}">Add to calendar</a>
+    <a class="share planned-send" href="{{ send_url }}" data-share-ics="{{ send_url }}" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.6 3.6 3.4 10.4c-.7.3-.6 1.2.1 1.4l6.3 1.9 1.9 6.3c.2.7 1.1.8 1.4.1z"/><path d="M9.8 13.7 20.6 3.6"/></svg><span>Send the invite to {{ partner }}</span></a>
+  </div>
+  <details class="when-change">
+    <summary>Change the time</summary>
+    <form class="f-when" hx-post="/history/when" hx-target="#planned" hx-swap="outerHTML" hx-disabled-elt="find button">
+      <input type="hidden" name="ids" value="{{ ids }}">
+      <div class="when-row">
+        <label class="when-l"><span class="when-q">When is it?</span><input class="when-at" type="datetime-local" name="at" value="{{ input }}"></label>
+        <button class="btn btn-ink" type="submit">Save</button>
+      </div>
+      <p class="when-hint">Leave it empty and save to clear the time.</p>
+      <p class="when-err" role="status"></p>
+    </form>
+  </details>
+  {% else %}
+  <form class="f-when" hx-post="/history/when" hx-target="#planned" hx-swap="outerHTML" hx-disabled-elt="find button">
+    <input type="hidden" name="ids" value="{{ ids }}">
+    <div class="when-row">
+        <label class="when-l"><span class="when-q">When is it?</span><input class="when-at" type="datetime-local" name="at" required></label>
+        <button class="btn btn-ink" type="submit">Save</button>
+      </div>
+    <p class="when-err" role="status"></p>
+  </form>
+  {% endif %}
+</div>

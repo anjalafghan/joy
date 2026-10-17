@@ -178,3 +178,24 @@ input, select, textarea { font: inherit; color: inherit; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; scroll-behavior: auto !important; }
 }
+
+/* who's holding this phone: a small handwritten name in the nav */
+.top nav a.who-link { font: 600 1.15rem/1 var(--font-hand); letter-spacing: 0; color: var(--ink-soft); max-width: 7.5em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.top nav a.who-link::after { display: none; }
+@media (max-width: 380px) { .top nav a, .top nav button { padding: 0 7px; } }
+
+/* ── monthly budget line (shared by the jar and Kept) ───────
+   <div class="budget-line[ is-over]"><p><strong>₹4,200</strong> of ₹6,000 this month</p>
+   <span class="budget-bar" style="--pct: 70" aria-hidden="true"></span></div> */
+.budget-line { display: grid; gap: 6px; font-size: var(--step--1); color: var(--ink-soft); }
+.budget-line p { margin: 0; }
+.budget-line strong { color: var(--ink); font-weight: 700; }
+.budget-bar {
+  display: block; height: 6px; border-radius: 99px; background: var(--paper-2); overflow: hidden; position: relative;
+}
+.budget-bar::after {
+  content: ""; position: absolute; inset: 0 auto 0 0; width: calc(var(--pct, 0) * 1%);
+  background: var(--ink); border-radius: inherit; transition: width var(--t-medium) var(--ease-out);
+}
+.budget-line.is-over .budget-bar::after { background: var(--stamp); }
+.budget-line.is-over strong { color: var(--stamp); }

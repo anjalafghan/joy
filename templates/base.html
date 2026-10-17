@@ -27,6 +27,7 @@
       <a href="/" data-nav="jar">Jar</a>
       <a href="/wishlist" data-nav="slips">Slips</a>
       <a href="/history" data-nav="kept">Kept</a>
+      <a href="/who" class="who-link" data-nav="who" title="Who's holding this phone? Tap to switch">{% block me %}who?{% endblock %}</a>
       <form method="post" action="/logout"><button type="submit" aria-label="Log out" title="Log out">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 4.2H18a2 2 0 0 1 2 2v11.6a2 2 0 0 1-2 2h-3.5"/><path d="M10.2 16.4 5.8 12l4.4-4.4"/><path d="M6.2 12.1h9.6"/></svg>
       </button></form>

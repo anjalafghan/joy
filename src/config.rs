@@ -17,6 +17,8 @@ pub struct Config {
     pub dev_no_login: bool,
     /// The two of us: (name, home lat/lng). Homes only live in .env, never in the DB.
     pub people: [(String, Option<(f64, f64)>); 2],
+    /// Where kept-date photos are stored (next to the database by default).
+    pub photos_dir: std::path::PathBuf,
     /// Neighbourhood names (e.g. "Bandra") used in personal slip notes. Optional.
     pub areas: [Option<String>; 2],
 }
@@ -61,6 +63,10 @@ impl Config {
                 (var("PERSON_B").unwrap_or_else(|| "Neha".into()), var("HOME_B").and_then(|s| parse_latlng(&s))),
             ],
             areas: [var("HOME_A_AREA"), var("HOME_B_AREA")],
+            photos_dir: var("PHOTOS_DIR").map(Into::into).unwrap_or_else(|| {
+                let url = var("DATABASE_URL").unwrap_or_else(|| "sqlite://data/joy.db".into());
+                crate::sqlite_dir(&url).map(|d| d.join("photos")).unwrap_or_else(|| "photos".into())
+            }),
         })
     }
 
@@ -182,6 +188,7 @@ mod tests {
             trust_fly_client_ip: false,
             people: [("Rohit".into(), None), ("Neha".into(), None)],
             areas: areas.map(|a| a.map(String::from)),
+            photos_dir: "photos".into(),
         }
     }
 

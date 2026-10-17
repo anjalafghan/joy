@@ -20,6 +20,23 @@ use axum_extra::extract::{cookie::Cookie, SignedCookieJar};
 use crate::AppState;
 
 pub const COOKIE: &str = "joy_auth";
+/// Which of us is holding this device: "0" (PERSON_A) or "1" (PERSON_B). Convenience, not auth:
+/// we share one passcode, so either of us can switch.
+pub const WHO_COOKIE: &str = "joy_who";
+
+pub fn who(jar: &SignedCookieJar) -> Option<usize> {
+    jar.get(WHO_COOKIE)?.value().parse().ok().filter(|i| *i < 2)
+}
+
+pub fn who_cookie(i: usize, secure: bool) -> Cookie<'static> {
+    Cookie::build((WHO_COOKIE, i.to_string()))
+        .path("/")
+        .http_only(true)
+        .secure(secure)
+        .same_site(axum_extra::extract::cookie::SameSite::Lax)
+        .max_age(time::Duration::days(365))
+        .build()
+}
 const MAX_FAILURES: u32 = 10;
 const WINDOW: Duration = Duration::from_secs(15 * 60);
 

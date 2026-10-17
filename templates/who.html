@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Who's this? · joy{% endblock %}
+{% block page %}who{% endblock %}
+{% block nav %}{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/who.css">{% endblock %}
+{% block content %}
+<section class="who" aria-labelledby="who-h">
+  <p class="who-eyebrow">{% if switching %}switching phones?{% else %}one quick thing{% endif %}</p>
+  <h1 id="who-h">Who’s holding this phone?</h1>
+  <p class="soft who-why">So the jar knows whose turn it is, and keeps surprises sealed for the other one. You can switch any time from the top bar.</p>
+  <form method="post" action="/who" class="who-choices">
+    {% for (i, name, current) in people %}
+    <button class="who-slip grain{% if current %} is-current{% endif %}" type="submit" name="who" value="{{ i }}"{% if current %} aria-current="true"{% endif %}>
+      <span class="who-hand" aria-hidden="true">it’s me,</span>
+      <span class="who-name">{{ name }}</span>
+    </button>
+    {% endfor %}
+  </form>
+  {% if switching %}<p class="who-back"><a href="/">Back to the jar</a></p>{% endif %}
+</section>
+{% endblock %}
