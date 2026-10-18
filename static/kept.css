@@ -650,3 +650,17 @@ body[data-page="kept"] main { max-width: 1080px; padding-bottom: 120px; }
 /* without JS: "Add a photo" reads as the label, then the picker and Upload on one line */
 html:not(.k-js) .k-photo-form { flex-basis: 100%; padding-bottom: 6px; }
 html:not(.k-js) .k-photo-form .k-tool { order: -1; flex-basis: 100%; cursor: default; }
+
+/* ── estimate vs actual cost ─────────────────────────────── */
+.k-cost { display: flex; align-items: baseline; gap: 8px; margin: 8px 0 0; font-size: var(--step--1); color: var(--ink-soft); line-height: 1.45; }
+.k-cost strong { color: var(--ink); font-weight: 700; }
+.k-cost-sign, .k-cost-ico { flex: none; width: 18px; text-align: center; font-weight: 700; color: var(--stamp); }
+.k-cost-ico { display: inline-block; font-size: 1rem; line-height: 1; }
+.k-cost-diff { white-space: nowrap; }
+.k-cost-diff.is-over { color: var(--stamp); font-weight: 600; }
+.k-money { display: inline-flex; align-items: center; gap: 6px; flex: 1 1 auto; min-width: 0; }
+.k-money > span { color: var(--ink-soft); font-weight: 600; }
+.k-money .k-field { flex: 1 1 auto; min-width: 0; }
+.k-check { display: flex; align-items: center; gap: 10px; min-height: 44px; margin-top: 6px; font-size: var(--step--1); color: var(--ink); cursor: pointer; }
+.k-check input { width: 20px; height: 20px; flex: none; margin: 0; accent-color: var(--stamp); }
+.k-check input:focus-visible { outline: 2px solid var(--stamp); outline-offset: 2px; }

@@ -47,6 +47,15 @@ pub struct KeptView {
     /// Calendar invite, when a time is set.
     pub ics_url: String,
     pub photo_url: Option<String>,
+    /// "₹1,000": the slip's estimate.
+    pub cost_est: String,
+    /// "₹5,000", or empty when the real cost isn't filled in.
+    pub cost_actual: String,
+    /// Value for the cost field ("5000" or "").
+    pub cost_actual_raw: String,
+    /// "₹4,000 more", "₹200 less" or "spot on"; empty without a real cost.
+    pub cost_diff: String,
+    pub cost_over: bool,
     /// Comma-separated history ids that share a time: this one, plus its pair if it was
     /// kept as a pair, so "change time" moves both.
     pub pair_ids: String,
@@ -105,6 +114,16 @@ fn view(s: &AppState, r: &HistoryRow, who: Option<usize>, rain: bool, pair_ids: 
             format!("/photos/{}?v={v}", r.id)
         }),
         pair_ids,
+        cost_est: if sealed { String::new() } else { s.cfg.money(r.est_cost) },
+        cost_actual: r.actual_cost.filter(|_| !sealed).map(|c| s.cfg.money(c)).unwrap_or_default(),
+        cost_actual_raw: r.actual_cost.filter(|_| !sealed).map(|c| c.to_string()).unwrap_or_default(),
+        cost_diff: match r.actual_cost.filter(|_| !sealed).map(|c| c - r.est_cost) {
+            None => String::new(),
+            Some(0) => "spot on".into(),
+            Some(d) if d > 0 => format!("{} more", s.cfg.money(d)),
+            Some(d) => format!("{} less", s.cfg.money(-d)),
+        },
+        cost_over: !sealed && r.actual_cost.is_some_and(|c| c > r.est_cost),
         planned_label: planned,
         from_name,
     }
@@ -155,6 +174,8 @@ struct HistoryTpl {
     me_name: String,
     /// Shown when a photo upload failed and JS wasn't there to say so.
     photo_error: String,
+    /// "₹", for the cost field.
+    currency: String,
 }
 
 #[derive(Deserialize)]
@@ -197,6 +218,7 @@ pub async fn page(State(s): State<AppState>, jar: SignedCookieJar, Query(q): Que
         budget: budget_view(&s).await?,
         me_name: Me::new(&s.cfg, who).name,
         photo_error: photo_error_text(&q.err).into(),
+        currency: s.cfg.currency.clone(),
     })
 }
 
@@ -353,6 +375,41 @@ pub async fn delete(State(s): State<AppState>, jar: SignedCookieJar, Path(id): P
     }
     db::delete_history(&s.db, id).await?;
     Ok(Redirect::to("/history").into_response())
+}
+
+#[derive(Deserialize)]
+pub struct CostForm {
+    /// What it really cost; blank clears it.
+    #[serde(default)]
+    actual: String,
+    /// "1": also set the slip's estimate to this.
+    #[serde(default)]
+    update_estimate: String,
+}
+
+pub async fn set_cost(
+    State(s): State<AppState>,
+    jar: SignedCookieJar,
+    Path(id): Path<i64>,
+    Form(f): Form<CostForm>,
+) -> Result<Response, AppError> {
+    let Some(row) = db::history_row(&s.db, id).await? else {
+        return Ok(StatusCode::NOT_FOUND.into_response());
+    };
+    if sealed_for(&row, auth::who(&jar)) {
+        return Ok(StatusCode::FORBIDDEN.into_response());
+    }
+    let raw: String = f.actual.trim().trim_start_matches(s.cfg.currency.as_str()).chars().filter(|c| !matches!(c, ',' | ' ')).collect();
+    let actual = if raw.is_empty() {
+        None
+    } else {
+        match raw.parse::<i64>() {
+            Ok(v) if v >= 0 => Some(v),
+            _ => return Ok((StatusCode::UNPROCESSABLE_ENTITY, "That amount didn't look right.").into_response()),
+        }
+    };
+    db::set_actual(&s.db, id, actual, f.update_estimate == "1").await?;
+    Ok(Redirect::to(&format!("/history#k{id}")).into_response())
 }
 
 pub async fn reveal(State(s): State<AppState>, Path(id): Path<i64>) -> Result<Redirect, AppError> {

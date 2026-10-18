@@ -209,7 +209,8 @@ pub async fn accept(db: &SqlitePool, id: i64, drawn_by: Option<usize>, surprise:
     let mut tx = db.begin().await?;
     // One statement, so two concurrent taps can't both pass the "recent?" check.
     let inserted = sqlx::query(
-        "INSERT INTO history (activity_id, outcome, drawn_by, surprise) SELECT ?1, 'did_it', ?2, ?3
+        "INSERT INTO history (activity_id, outcome, drawn_by, surprise, est_cost)
+         SELECT ?1, 'did_it', ?2, ?3, (SELECT est_cost FROM activities WHERE id = ?1)
          WHERE NOT EXISTS (SELECT 1 FROM history WHERE activity_id = ?1 AND outcome = 'did_it'
                            AND picked_at > unixepoch() - 60)",
     )
@@ -253,6 +254,10 @@ pub struct HistoryRow {
     pub duration: String,
     pub energy: String,
     pub tags: String,
+    /// The slip's estimate when it was kept (total for both of us).
+    pub est_cost: i64,
+    /// What it really cost, when someone filled it in.
+    pub actual_cost: Option<i64>,
     pub lat: Option<f64>,
     pub lng: Option<f64>,
     /// "YYYY-MM-DD"
@@ -294,7 +299,7 @@ impl HistoryRow {
 
 const HISTORY_COLS: &str = "h.id, h.activity_id, h.picked_at, a.title, a.notes, a.setting,
     CASE WHEN a.venue != '' THEN a.venue ELSE a.area END AS place,
-    a.duration, a.energy, a.tags, a.lat, a.lng,
+    a.duration, a.energy, a.tags, COALESCE(h.est_cost, a.est_cost) AS est_cost, h.actual_cost, a.lat, a.lng,
     date(h.picked_at, 'unixepoch', 'localtime') AS day, h.outcome, h.rating, h.note,
     h.drawn_by, h.planned_at,
     strftime('%Y-%m-%d %H:%M %w', h.planned_at, 'unixepoch', 'localtime') AS planned_local,
@@ -364,6 +369,25 @@ pub async fn delete_history(db: &SqlitePool, id: i64) -> sqlx::Result<()> {
     tx.commit().await
 }
 
+/// Record what a kept date really cost (None clears it). Optionally teach the slip:
+/// set its estimate to the real cost, so future draws and budget filters are closer.
+pub async fn set_actual(db: &SqlitePool, id: i64, actual: Option<i64>, update_estimate: bool) -> sqlx::Result<()> {
+    let mut tx = db.begin().await?;
+    sqlx::query("UPDATE history SET actual_cost = ? WHERE id = ? AND outcome = 'did_it'")
+        .bind(actual)
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+    if let (Some(cost), true) = (actual, update_estimate) {
+        sqlx::query("UPDATE activities SET est_cost = ? WHERE id = (SELECT activity_id FROM history WHERE id = ?)")
+            .bind(cost)
+            .bind(id)
+            .execute(&mut *tx)
+            .await?;
+    }
+    tx.commit().await
+}
+
 pub async fn reveal(db: &SqlitePool, id: i64) -> sqlx::Result<()> {
     sqlx::query("UPDATE history SET revealed = 1 WHERE id = ?").bind(id).execute(db).await?;
     Ok(())
@@ -383,10 +407,11 @@ pub async fn last_drawer(db: &SqlitePool) -> sqlx::Result<Option<i64>> {
     .await
 }
 
-/// What this calendar month's kept dates add up to (local time).
+/// What this calendar month's kept dates add up to (local time): the real cost where
+/// we filled it in, the estimate otherwise.
 pub async fn spent_this_month(db: &SqlitePool) -> sqlx::Result<i64> {
     sqlx::query_scalar(
-        "SELECT COALESCE(SUM(a.est_cost), 0) FROM history h JOIN activities a ON a.id = h.activity_id
+        "SELECT COALESCE(SUM(COALESCE(h.actual_cost, h.est_cost, a.est_cost)), 0) FROM history h JOIN activities a ON a.id = h.activity_id
          WHERE h.outcome = 'did_it'
            AND strftime('%Y-%m', h.picked_at, 'unixepoch', 'localtime') = strftime('%Y-%m', 'now', 'localtime')",
     )

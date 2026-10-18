@@ -84,6 +84,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/history/{id}/invite.ics", get(routes::history::invite))
         .route("/history/{id}/reveal", post(routes::history::reveal))
         .route("/history/{id}/delete", post(routes::history::delete))
+        .route("/history/{id}/cost", post(routes::history::set_cost))
         .route(
             "/history/{id}/photo",
             post(routes::history::upload_photo).layer(DefaultBodyLimit::max(photos::MAX_UPLOAD_BYTES + 64 * 1024)),

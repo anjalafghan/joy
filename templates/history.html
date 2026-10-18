@@ -150,6 +150,14 @@
             {% if !h.ics_url.is_empty() %}<a class="k-cal" href="{{ h.ics_url }}" download><svg width="16" height="16" aria-hidden="true"><use href="#k-cal"/></svg>Add to calendar</a>{% endif %}
           </p>
           {% endif %}
+          <p class="k-cost">
+            <span class="k-cost-sign" aria-hidden="true">{{ currency }}</span>
+            {% if h.cost_actual.is_empty() %}
+            <span>Estimated <strong>{{ h.cost_est }}</strong></span>
+            {% else %}
+            <span>Estimated {{ h.cost_est }} · actually <strong>{{ h.cost_actual }}</strong> <span class="k-cost-diff{% if h.cost_over %} is-over{% endif %}">({{ h.cost_diff }})</span></span>
+            {% endif %}
+          </p>
 
           {% if let Some(src) = h.photo_url %}
           <figure class="k-polaroid" id="kp{{ h.id }}" tabindex="-1">
@@ -203,6 +211,19 @@
                   <button class="k-btn" type="submit">Save time</button>
                 </div>
                 <p class="k-hint">Empty it and save to clear the time.</p>
+                <p class="k-form-err" role="status" aria-live="polite"></p>
+              </form>
+            </details>
+            <details class="k-when-edit k-cost-edit">
+              <summary class="k-tool"><span class="k-cost-ico" aria-hidden="true">{{ currency }}</span>{% if h.cost_actual.is_empty() %}What did it cost?{% else %}Change cost{% endif %}</summary>
+              <form class="k-when-form" method="post" action="/history/{{ h.id }}/cost" data-swap="{{ h.id }}">
+                <label class="k-label" for="c{{ h.id }}">What did it actually cost, for both of you?</label>
+                <div class="k-inline">
+                  <span class="k-money"><span aria-hidden="true">{{ currency }}</span><input class="k-field" id="c{{ h.id }}" type="number" name="actual" inputmode="numeric" min="0" step="1" value="{{ h.cost_actual_raw }}" placeholder="e.g. 5000"></span>
+                  <button class="k-btn" type="submit">Save cost</button>
+                </div>
+                <label class="k-check"><input type="checkbox" name="update_estimate" value="1" checked> Also update this slip’s estimate in the jar</label>
+                <p class="k-hint">So next time the jar knows what it really costs. Empty it and save to clear.</p>
                 <p class="k-form-err" role="status" aria-live="polite"></p>
               </form>
             </details>
