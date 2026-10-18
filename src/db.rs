@@ -341,6 +341,29 @@ pub async fn set_planned(db: &SqlitePool, ids: &[i64], local: Option<&str>) -> s
     Ok(())
 }
 
+/// Remove a kept date. The slip stays in the jar; its "done" count and last-done
+/// time are recalculated from what's left, so the picker's weighting stays right.
+pub async fn delete_history(db: &SqlitePool, id: i64) -> sqlx::Result<()> {
+    let mut tx = db.begin().await?;
+    let activity: Option<i64> = sqlx::query_scalar("SELECT activity_id FROM history WHERE id = ?")
+        .bind(id)
+        .fetch_optional(&mut *tx)
+        .await?;
+    sqlx::query("DELETE FROM history WHERE id = ?").bind(id).execute(&mut *tx).await?;
+    if let Some(a) = activity {
+        sqlx::query(
+            "UPDATE activities SET
+               times_done = (SELECT COUNT(*) FROM history WHERE activity_id = ?1 AND outcome = 'did_it'),
+               last_done_at = (SELECT MAX(picked_at) FROM history WHERE activity_id = ?1 AND outcome = 'did_it')
+             WHERE id = ?1",
+        )
+        .bind(a)
+        .execute(&mut *tx)
+        .await?;
+    }
+    tx.commit().await
+}
+
 pub async fn reveal(db: &SqlitePool, id: i64) -> sqlx::Result<()> {
     sqlx::query("UPDATE history SET revealed = 1 WHERE id = ?").bind(id).execute(db).await?;
     Ok(())

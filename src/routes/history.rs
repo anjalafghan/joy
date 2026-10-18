@@ -340,6 +340,21 @@ pub async fn invite(
         .into_response())
 }
 
+pub async fn delete(State(s): State<AppState>, jar: SignedCookieJar, Path(id): Path<i64>) -> Result<Response, AppError> {
+    let Some(row) = db::history_row(&s.db, id).await? else {
+        return Ok(Redirect::to("/history").into_response());
+    };
+    // A surprise still sealed for you isn't yours to throw away.
+    if sealed_for(&row, auth::who(&jar)) {
+        return Ok(StatusCode::FORBIDDEN.into_response());
+    }
+    if row.has_photo {
+        let _ = tokio::fs::remove_file(photos::path(&s.cfg.photos_dir, id)).await;
+    }
+    db::delete_history(&s.db, id).await?;
+    Ok(Redirect::to("/history").into_response())
+}
+
 pub async fn reveal(State(s): State<AppState>, Path(id): Path<i64>) -> Result<Redirect, AppError> {
     db::reveal(&s.db, id).await?;
     Ok(Redirect::to(&format!("/history#k{id}")))

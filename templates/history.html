@@ -215,6 +215,13 @@
               </form>
             </details>
             {% endif %}
+            <details class="k-photo-del k-date-del">
+              <summary class="k-tool k-tool-quiet">Delete this date<span class="visually-hidden">: {{ h.title }}</span></summary>
+              <form method="post" action="/history/{{ h.id }}/delete">
+                <p>Take “{{ h.title }}” out of Kept? Its rating{% if h.photo_url.is_some() %}, note and photo{% else %} and note{% endif %} go too. The slip stays in the jar.</p>
+                <button class="k-btn k-btn-stamp" type="submit">Yes, delete it</button>
+              </form>
+            </details>
           </div>
         </article>
       </li>
