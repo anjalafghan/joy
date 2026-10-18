@@ -71,6 +71,21 @@ pub struct ActivityView {
     pub generated: bool,
     /// Titles of slips this pairs with (filled in where shown).
     pub pairs: Vec<String>,
+    /// One-way cab and train estimates from each of our homes (empty when we can't tell).
+    pub travel: Vec<TravelLine>,
+    /// Opens Uber with this place as the drop-off, to see the real fare.
+    pub uber_url: Option<String>,
+}
+
+pub struct TravelLine {
+    /// "Rohit"
+    pub name: String,
+    /// "~₹380"
+    pub cab: String,
+    /// "35 min"
+    pub cab_time: String,
+    pub train: String,
+    pub train_time: String,
 }
 
 impl ActivityView {
@@ -101,6 +116,29 @@ impl ActivityView {
             times_done: a.times_done,
             generated: a.generated,
             pairs: vec![],
+            travel: cfg
+                .distances(a.latlng())
+                .iter()
+                .zip(&cfg.people)
+                .filter_map(|(d, (name, _))| {
+                    let km = (*d)?;
+                    let (cab, train) = (crate::travel::cab(km), crate::travel::train(km));
+                    Some(TravelLine {
+                        name: name.clone(),
+                        cab: format!("~{}", cfg.money(cab.rupees)),
+                        cab_time: crate::travel::duration_label(cab.minutes),
+                        train: format!("~{}", cfg.money(train.rupees)),
+                        train_time: crate::travel::duration_label(train.minutes),
+                    })
+                })
+                .collect(),
+            uber_url: a.latlng().map(|(lat, lng)| {
+                format!(
+                    "https://m.uber.com/ul/?action=setPickup&pickup=my_location\
+                     &dropoff%5Blatitude%5D={lat}&dropoff%5Blongitude%5D={lng}&dropoff%5Bnickname%5D={}",
+                    url_encode(if a.venue.is_empty() { &a.title } else { &a.venue })
+                )
+            }),
         }
     }
 }

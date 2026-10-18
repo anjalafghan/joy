@@ -537,3 +537,17 @@ body[data-page="jar"] main { padding-top: 0; }
   .keepsake { transition: none; }
 }
 .planned-label:focus:not(:focus-visible) { outline: none; }
+
+/* ── getting there: cab vs train, one way ───────────────── */
+.travel { margin: 14px 0 0; padding: 10px 12px 6px; border: 1px dashed var(--rule); border-radius: var(--radius-slip); background: color-mix(in srgb, var(--paper-2) 40%, transparent); }
+.travel-h { margin: 0 0 4px; font: 600 1.2rem/1.1 var(--font-hand); color: var(--ink-soft); }
+.travel-h span { font-size: 1.05rem; }
+.travel-t { width: 100%; border-collapse: collapse; font-size: var(--step--1); }
+.travel-t th, .travel-t td { text-align: left; padding: 5px 4px; vertical-align: baseline; }
+.travel-t thead th { font-weight: 600; color: var(--ink-soft); font-size: .78rem; letter-spacing: .04em; text-transform: uppercase; padding-bottom: 2px; }
+.travel-t tbody tr + tr th, .travel-t tbody tr + tr td { border-top: 1px solid var(--rule); }
+.travel-t tbody th { font-weight: 600; color: var(--ink); white-space: nowrap; padding-right: 10px; }
+.travel-t td strong { display: block; color: var(--ink); font-weight: 700; }
+.travel-t td span { display: block; color: var(--ink-soft); font-size: .8rem; }
+.travel-link { margin: 4px 0 0; font-size: var(--step--1); }
+.travel-link a { display: inline-flex; align-items: center; min-height: 44px; font-weight: 600; }

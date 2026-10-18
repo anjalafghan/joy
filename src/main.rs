@@ -5,6 +5,7 @@ mod ics;
 mod photos;
 mod picker;
 mod routes;
+mod travel;
 mod weather;
 
 use std::{io::Write, net::SocketAddr, sync::Arc};
