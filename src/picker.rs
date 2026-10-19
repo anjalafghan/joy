@@ -67,6 +67,10 @@ pub struct Candidate {
     pub last_skipped_at: Option<i64>,
     /// Approx road km for whichever of us is farther. None = at home / unknown.
     pub distance_km: Option<f64>,
+    /// Weekdays it's closed (0 = Sunday … 6 = Saturday).
+    pub closed_days: Vec<u8>,
+    /// Months it's in season, inclusive, possibly wrapping the new year (11, 5 = Nov–May).
+    pub season: Option<(u8, u8)>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -80,6 +84,40 @@ pub struct Filters {
     pub max_km: Option<f64>,
     /// Set by the server from the forecast, not the form: rain is likely tonight.
     pub rain_likely: bool,
+    /// Today (local), so closed days and seasons apply. None ignores them.
+    pub today: Option<Today>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Today {
+    /// 0 = Sunday … 6 = Saturday.
+    pub weekday: u8,
+    /// 1–12.
+    pub month: u8,
+}
+
+pub const WEEKDAYS: [(&str, &str); 7] =
+    [("sun", "Sunday"), ("mon", "Monday"), ("tue", "Tuesday"), ("wed", "Wednesday"), ("thu", "Thursday"), ("fri", "Friday"), ("sat", "Saturday")];
+pub const MONTHS_SHORT: [&str; 12] = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/// "mon,wed" → [1, 3].
+pub fn parse_closed(s: &str) -> Vec<u8> {
+    s.split(',').filter_map(|d| WEEKDAYS.iter().position(|(k, _)| *k == d.trim()).map(|i| i as u8)).collect()
+}
+
+/// In season this month? Handles seasons that wrap the new year.
+pub fn in_season(season: Option<(u8, u8)>, month: u8) -> bool {
+    match season {
+        None => true,
+        Some((from, to)) if from <= to => (from..=to).contains(&month),
+        Some((from, to)) => month >= from || month <= to,
+    }
+}
+
+/// "Nov–May", or "Dec" for a single month.
+pub fn season_label(from: u8, to: u8) -> String {
+    let m = |i: u8| MONTHS_SHORT.get(usize::from(i).saturating_sub(1)).copied().unwrap_or("?");
+    if from == to { m(from).into() } else { format!("{}–{}", m(from), m(to)) }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -91,6 +129,10 @@ pub enum Hint {
     NeedsMoreTime { title: String, duration: Duration },
     TooFar { title: String, km: i64 },
     OtherSetting { title: String, setting: String },
+    /// Fits everything except today: closed on this weekday.
+    ClosedToday { title: String, weekday: u8 },
+    /// Fits everything except the time of year.
+    OutOfSeason { title: String, from: u8, to: u8 },
     NoMoodMatch,
 }
 
@@ -107,6 +149,8 @@ struct Checks {
     distance: bool,
     setting: bool,
     mood: bool,
+    /// Open today and in season.
+    open: bool,
 }
 
 fn checks(c: &Candidate, f: &Filters) -> Checks {
@@ -119,6 +163,7 @@ fn checks(c: &Candidate, f: &Filters) -> Checks {
         setting: f.settings.is_empty() || f.settings.iter().any(|s| *s == c.setting),
         mood: f.tag.as_ref().is_none_or(|t| c.tags.iter().any(|ct| ct == t))
             && f.energy.as_ref().is_none_or(|e| *e == c.energy),
+        open: f.today.is_none_or(|t| !c.closed_days.contains(&t.weekday) && in_season(c.season, t.month)),
     }
 }
 
@@ -142,7 +187,7 @@ pub fn weight(c: &Candidate, now: i64, rain_likely: bool) -> f64 {
 /// Does this candidate pass every hard filter? (Exclusions aside.)
 pub fn matches(c: &Candidate, f: &Filters) -> bool {
     let k = checks(c, f);
-    k.budget && k.duration && k.distance && k.setting && k.mood
+    k.budget && k.duration && k.distance && k.setting && k.mood && k.open
 }
 
 pub fn pick<R: Rng>(
@@ -190,30 +235,39 @@ fn hint(all: &[Candidate], f: &Filters) -> Hint {
     };
 
     let mut over_budget =
-        only_fails(|k| !k.budget && k.duration && k.distance && k.setting && k.mood);
+        only_fails(|k| !k.budget && k.duration && k.distance && k.setting && k.mood && k.open);
     over_budget.sort_by_key(|c| c.est_cost);
     if let Some(c) = over_budget.first() {
         return Hint::OverBudget { title: c.title.clone(), cost: c.est_cost };
     }
 
     let mut longer =
-        only_fails(|k| k.budget && !k.duration && k.distance && k.setting && k.mood);
+        only_fails(|k| k.budget && !k.duration && k.distance && k.setting && k.mood && k.open);
     longer.sort_by_key(|c| c.duration);
     if let Some(c) = longer.first() {
         return Hint::NeedsMoreTime { title: c.title.clone(), duration: c.duration };
     }
 
     let mut farther =
-        only_fails(|k| k.budget && k.duration && !k.distance && k.setting && k.mood);
+        only_fails(|k| k.budget && k.duration && !k.distance && k.setting && k.mood && k.open);
     farther.sort_by(|a, b| a.distance_km.partial_cmp(&b.distance_km).unwrap());
     if let Some(c) = farther.first() {
         return Hint::TooFar { title: c.title.clone(), km: c.distance_km.unwrap_or(0.0).round() as i64 };
     }
 
-    if let Some(c) = only_fails(|k| k.budget && k.duration && k.distance && !k.setting && k.mood)
+    if let Some(c) = only_fails(|k| k.budget && k.duration && k.distance && !k.setting && k.mood && k.open)
         .first()
     {
         return Hint::OtherSetting { title: c.title.clone(), setting: c.setting.clone() };
+    }
+
+    if let (Some(today), Some(c)) =
+        (f.today, only_fails(|k| k.budget && k.duration && k.distance && k.setting && k.mood && !k.open).first())
+    {
+        return match c.season {
+            Some((from, to)) if !in_season(c.season, today.month) => Hint::OutOfSeason { title: c.title.clone(), from, to },
+            _ => Hint::ClosedToday { title: c.title.clone(), weekday: today.weekday },
+        };
     }
 
     Hint::NoMoodMatch
@@ -257,6 +311,8 @@ mod tests {
             last_done_at: None,
             last_skipped_at: None,
             distance_km: None,
+            closed_days: vec![],
+            season: None,
         }
     }
 
@@ -332,6 +388,40 @@ mod tests {
         let ids: Vec<i64> = all.iter().filter(|c| matches(c, &f)).map(|c| c.id).collect();
         assert_eq!(ids, vec![1]);
         assert!(picks(&all, &f, &[], 50).iter().all(|p| *p == PickResult::Pick(1)));
+    }
+
+    #[test]
+    fn closed_days_and_seasons_are_hard_filters() {
+        let monday = Today { weekday: 1, month: 7 };
+        let mut planetarium = cand(1, 0, "local", Duration::Short);
+        planetarium.closed_days = parse_closed("mon");
+        let mut flamingos = cand(2, 0, "local", Duration::Short);
+        flamingos.season = Some((11, 5));
+        let open = cand(3, 0, "local", Duration::Short);
+        let f = Filters { today: Some(monday), ..filters(0) };
+        assert!(picks(&[planetarium.clone(), flamingos.clone(), open], &f, &[], 200).iter().all(|p| *p == PickResult::Pick(3)));
+        assert_eq!(
+            picks(&[planetarium.clone()], &f, &[], 1)[0],
+            PickResult::NoMatch(Hint::ClosedToday { title: "idea 1".into(), weekday: 1 })
+        );
+        assert_eq!(
+            picks(&[flamingos.clone()], &f, &[], 1)[0],
+            PickResult::NoMatch(Hint::OutOfSeason { title: "idea 2".into(), from: 11, to: 5 })
+        );
+        // Without a date, nothing is filtered on it.
+        assert_eq!(picks(&[planetarium], &filters(0), &[], 1)[0], PickResult::Pick(1));
+    }
+
+    #[test]
+    fn seasons_wrap_the_new_year() {
+        assert!(in_season(Some((11, 5)), 12) && in_season(Some((11, 5)), 1) && in_season(Some((11, 5)), 5));
+        assert!(!in_season(Some((11, 5)), 6) && !in_season(Some((11, 5)), 10));
+        assert!(in_season(Some((3, 3)), 3) && !in_season(Some((3, 3)), 4), "single month");
+        assert!(in_season(Some((6, 10)), 8) && !in_season(Some((6, 10)), 11));
+        assert!(in_season(None, 9), "no season = all year");
+        assert_eq!(season_label(11, 5), "Nov–May");
+        assert_eq!(season_label(12, 12), "Dec");
+        assert_eq!(parse_closed("mon, wed,xyz"), vec![1, 3]);
     }
 
     #[test]

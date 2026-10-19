@@ -11,13 +11,14 @@ use serde::{Deserialize, Serialize};
 use axum_extra::extract::SignedCookieJar;
 
 use super::{
+    learned, Learned,
     budget_view, distance_from, duration_opts, render, share_text, url_encode, ActivityView, AppError, BudgetView,
     HtmlResult, Me, Opt,
 };
 use crate::{
     db,
     auth,
-    picker::{self, Candidate, Duration, Filters, Hint, PickResult, ENERGIES, MAX_REROLLS, SETTINGS},
+    picker::{self, Candidate, Duration, Filters, Hint, PickResult, Today, ENERGIES, MAX_REROLLS, SETTINGS},
     weather, AppState,
 };
 
@@ -59,6 +60,52 @@ struct DecideTpl {
     /// A kept date from about a year ago this week.
     memory: Option<Memory>,
     budget: BudgetView,
+    /// A gentle line: "Tomorrow, 7:00 pm: Saltt + Long drive", or "It's been 3 weeks…". Empty = none.
+    nudge: String,
+    /// The nudge is about a date coming up (vs. a gap since the last one).
+    nudge_soon: bool,
+}
+
+/// Weeks without a date before the jar says so.
+const NUDGE_AFTER_DAYS: i64 = 21;
+
+/// The gentle nudge for the jar page. A surprise sealed for this viewer shows only who it's from.
+async fn nudge(s: &AppState, who: Option<usize>) -> Result<(String, bool), AppError> {
+    let (today, tomorrow, _, _) = db::local_today(&s.db).await?;
+    let upcoming = db::upcoming(&s.db).await?;
+    if let Some(first) = upcoming.first() {
+        let together: Vec<&db::HistoryRow> = upcoming.iter().filter(|r| r.planned_at == first.planned_at).collect();
+        let local = first.planned_local.clone().unwrap_or_default();
+        let hour: u32 = local.get(11..13).and_then(|h| h.parse().ok()).unwrap_or(0);
+        let day = match local.get(..10) {
+            Some(d) if d == today && hour >= 17 => "Tonight",
+            Some(d) if d == today => "Today",
+            Some(d) if d == tomorrow => "Tomorrow",
+            _ => "Soon",
+        };
+        let time = super::planned_label(&local).split(", ").nth(1).unwrap_or("").to_string();
+        let what: Vec<String> = together
+            .iter()
+            .map(|r| {
+                if sealed_for(r, who) {
+                    let from = r.drawn_by.and_then(|d| s.cfg.people.get(d as usize)).map_or("one of you", |p| p.0.as_str());
+                    format!("a surprise from {from}")
+                } else {
+                    s.cfg.personalize(&r.title)
+                }
+            })
+            .collect::<Vec<_>>();
+        let mut what = what;
+        what.dedup();
+        return Ok((format!("{day}, {time}: {}", what.join(" + ")), true));
+    }
+    if !db::anything_planned(&s.db).await? {
+        if let Some(days) = db::days_since_last_date(&s.db).await?.filter(|d| *d >= NUDGE_AFTER_DAYS) {
+            let weeks = days / 7;
+            return Ok((format!("It's been {weeks} weeks since your last date."), false));
+        }
+    }
+    Ok((String::new(), false))
 }
 
 pub struct Memory {
@@ -92,7 +139,9 @@ pub async fn page(State(s): State<AppState>, jar: SignedCookieJar) -> HtmlResult
         .into_iter()
         .find(|r| !sealed_for(r, who))
         .map(|r| Memory { title: s.cfg.personalize(&r.title), when: format!("{} {}", r.day_label(), r.day.get(..4).unwrap_or("")) });
-    let acts = db::list(&s.db, false).await?;
+    let nudge = nudge(&s, who).await?;
+    let jar = jar_data(&s).await?;
+    let acts = &jar.acts;
     let mut tags: Vec<String> = acts.iter().flat_map(|a| a.tag_list()).collect();
     tags.sort();
     tags.dedup();
@@ -129,6 +178,8 @@ pub async fn page(State(s): State<AppState>, jar: SignedCookieJar) -> HtmlResult
         rain: rain(&s).await,
         memory,
         budget: budget_view(&s).await?,
+        nudge: nudge.0,
+        nudge_soon: nudge.1,
     })
 }
 
@@ -152,6 +203,8 @@ pub struct PickForm {
     used: String,
     current: String,
     reroll: String,
+    /// "1": whoever's holding the phone passes on the current slip for good ("Not for me").
+    veto: String,
 }
 
 impl PickForm {
@@ -165,6 +218,7 @@ impl PickForm {
             energy: opt(&self.energy),
             max_km: self.max_km.trim().parse().ok(),
             rain_likely: false,
+            today: None,
         }
     }
 
@@ -199,17 +253,37 @@ impl PickForm {
     }
 }
 
-async fn candidates(s: &AppState, f: &PickForm) -> Result<(Vec<db::Activity>, Vec<Candidate>), AppError> {
-    let acts = db::list(&s.db, false).await?;
-    let cands = acts
-        .iter()
-        .map(|a| {
-            let mut c = a.candidate(distance_from(&s.cfg, a, f.from()));
-            c.title = s.cfg.personalize(&c.title);
-            c
-        })
-        .collect();
-    Ok((acts, cands))
+/// What can be drawn right now: slips in the jar that neither of us passed on, what we've
+/// learned about real costs, and today's date (for closed days and seasons). Every place that
+/// suggests or counts slips uses this, so they all agree.
+pub struct JarData {
+    pub acts: Vec<db::Activity>,
+    pub learned: Learned,
+    pub today: Today,
+}
+
+pub async fn jar_data(s: &AppState) -> Result<JarData, AppError> {
+    let vetoed: Vec<i64> = db::vetoes(&s.db).await?.into_iter().map(|(a, _)| a).collect();
+    let acts = db::list(&s.db, false).await?.into_iter().filter(|a| !vetoed.contains(&a.id)).collect();
+    let (_, _, weekday, month) = db::local_today(&s.db).await?;
+    Ok(JarData { acts, learned: learned(s).await?, today: Today { weekday, month } })
+}
+
+impl JarData {
+    fn candidates(&self, s: &AppState, f: &PickForm) -> Vec<Candidate> {
+        self.acts
+            .iter()
+            .map(|a| {
+                let mut c = a.candidate(distance_from(&s.cfg, a, f.from()), self.learned.cost);
+                c.title = s.cfg.personalize(&c.title);
+                c
+            })
+            .collect()
+    }
+
+    fn filters(&self, f: &PickForm, rain_likely: bool) -> Filters {
+        Filters { rain_likely, today: Some(self.today), ..f.filters() }
+    }
 }
 
 #[derive(Serialize)]
@@ -221,8 +295,9 @@ pub struct MatchCount {
 
 /// Which slips fit the current filters — lets the jar react live as filters change.
 pub async fn matching(State(s): State<AppState>, Form(f): Form<PickForm>) -> Result<Json<MatchCount>, AppError> {
-    let (_, cands) = candidates(&s, &f).await?;
-    let filters = f.filters();
+    let jar = jar_data(&s).await?;
+    let cands = jar.candidates(&s, &f);
+    let filters = jar.filters(&f, rain(&s).await.is_some());
     let ids: Vec<i64> = cands.iter().filter(|c| picker::matches(c, &filters)).map(|c| c.id).collect();
     Ok(Json(MatchCount { count: ids.len(), total: cands.len(), ids }))
 }
@@ -263,6 +338,8 @@ struct CardTpl {
     bonus_peek: bool,
     /// We know who's holding the phone, so the slip can be kept as a surprise for the other.
     can_surprise: bool,
+    /// We know who's holding the phone, so they can pass on this slip ("Not for me").
+    can_veto: bool,
     /// The other one of us ("Neha"), or "your partner".
     partner: String,
     /// Accepted as a surprise (done card).
@@ -291,6 +368,7 @@ impl CardTpl {
             hidden: vec![],
             bonus_peek: false,
             can_surprise: false,
+            can_veto: false,
             partner: String::new(),
             surprise: false,
             history_ids: String::new(),
@@ -317,7 +395,13 @@ pub async fn pick(State(s): State<AppState>, jar: SignedCookieJar, Form(f): Form
     let mut excluded = f.excluded();
     let mut used: u32 = f.used.parse().unwrap_or(0);
 
-    if f.reroll == "1" {
+    // "Not for me": out of the draw for both of us, and it doesn't cost a peek.
+    if f.veto == "1" {
+        if let (Some(me), Ok(cur)) = (d.me.who, f.current.parse::<i64>()) {
+            db::veto(&s.db, cur, me).await?;
+            excluded.push(cur);
+        }
+    } else if f.reroll == "1" {
         if let Ok(cur) = f.current.parse::<i64>() {
             let current = db::get(&s.db, cur).await?;
             match picker::put_back(used, current.as_ref().is_some_and(|a| a.generated), d.max) {
@@ -329,20 +413,24 @@ pub async fn pick(State(s): State<AppState>, jar: SignedCookieJar, Form(f): Form
                 // Out of peeks: the card already hides the button, so just show it again.
                 None => {
                     if let Some(a) = current {
-                        return card(&s, &d, &f, Some(&a), &excluded, used).await;
+                        let learned = learned(&s).await?;
+                        return card(&s, &d, &f, Some(&a), &excluded, used, &learned).await;
                     }
                 }
             }
         }
     }
 
-    let (acts, cands) = candidates(&s, &f).await?;
-    let filters = Filters { rain_likely: rain(&s).await.is_some(), ..f.filters() };
+    let jar = jar_data(&s).await?;
+    let cands = jar.candidates(&s, &f);
+    let filters = jar.filters(&f, rain(&s).await.is_some());
     let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs() as i64;
     let result = picker::pick(&cands, &filters, &excluded, now, &mut rand::thread_rng());
 
     match result {
-        PickResult::Pick(id) => card(&s, &d, &f, acts.iter().find(|a| a.id == id), &excluded, used).await,
+        PickResult::Pick(id) => {
+            card(&s, &d, &f, jar.acts.iter().find(|a| a.id == id), &excluded, used, &jar.learned).await
+        }
         PickResult::NoMatch(h) => {
             let (relax_label, relax) = relax(&s, &f, &h);
             render(CardTpl {
@@ -362,12 +450,13 @@ async fn card(
     a: Option<&db::Activity>,
     excluded: &[i64],
     used: u32,
+    learned: &Learned,
 ) -> HtmlResult {
     let pairs = match a {
-        Some(a) => pair_offers(s, f, a).await?,
+        Some(a) => pair_offers(s, f, a, learned).await?,
         None => vec![],
     };
-    let view = a.map(|a| ActivityView::new(&s.cfg, a));
+    let view = a.map(|a| ActivityView::new(&s.cfg, a, learned));
     let share = view.as_ref().map(share_text).unwrap_or_default();
     render(CardTpl {
         hidden: f.hidden(excluded, used, a.map_or(0, |a| a.id)),
@@ -376,6 +465,7 @@ async fn card(
         bonus_peek: d.max > MAX_REROLLS,
         free_putback: a.is_some_and(|a| a.generated),
         can_surprise: d.me.who.is_some(),
+        can_veto: d.me.who.is_some(),
         partner: d.me.partner.clone(),
         wa_url: format!("https://wa.me/?text={}", url_encode(&share)),
         share_text: share,
@@ -386,18 +476,22 @@ async fn card(
 }
 
 /// Up to two partners for the drawn slip, with the combined cost against tonight's budget.
-async fn pair_offers(s: &AppState, f: &PickForm, a: &db::Activity) -> Result<Vec<PairOffer>, AppError> {
+async fn pair_offers(s: &AppState, f: &PickForm, a: &db::Activity, learned: &Learned) -> Result<Vec<PairOffer>, AppError> {
     let budget = f.filters().budget;
+    let vetoed: Vec<i64> = db::vetoes(&s.db).await?.into_iter().map(|(a, _)| a).collect();
     Ok(db::partners(&s.db, a.id)
         .await?
         .iter()
+        .filter(|p| !vetoed.contains(&p.id))
         .take(2)
         .map(|p| {
-            let together = a.est_cost + p.est_cost;
+            // Same costs the jar uses everywhere else.
+            let (mine, theirs) = (a.effective_cost(learned.cost), p.effective_cost(learned.cost));
+            let together = mine + theirs;
             PairOffer {
                 id: p.id,
                 title: s.cfg.personalize(&p.title),
-                cost: s.cfg.money(p.est_cost),
+                cost: s.cfg.money(theirs),
                 duration: p.duration().label().into(),
                 together: s.cfg.money(together),
                 over: if budget != i64::MAX && together > budget {
@@ -437,6 +531,13 @@ fn hint_text(s: &AppState, form: &PickForm, f: &Filters, h: Hint) -> String {
             "Nothing in those places. {title} ({}) would fit.",
             picker::setting_label(&setting).to_lowercase()
         ),
+        Hint::ClosedToday { title, weekday } => format!(
+            "{title} would fit, but it's closed on {}s.",
+            picker::WEEKDAYS.get(weekday as usize).map_or("this day", |d| d.1)
+        ),
+        Hint::OutOfSeason { title, from, to } => {
+            format!("{title} would fit, but it's only on {}.", picker::season_label(from, to))
+        }
         Hint::NoMoodMatch => "Nothing matches that vibe or energy.".into(),
     }
 }
@@ -462,6 +563,8 @@ fn relax(s: &AppState, f: &PickForm, h: &Hint) -> (String, Option<PickForm>) {
             r.settings.push(setting.clone());
             format!("Include {}", picker::setting_label(setting).to_lowercase())
         }
+        // Nothing to loosen: we can't change the day or the season.
+        Hint::ClosedToday { .. } | Hint::OutOfSeason { .. } => return (String::new(), None),
         Hint::NoMoodMatch => {
             r.tag.clear();
             r.energy.clear();
@@ -493,17 +596,18 @@ pub async fn accept(
     let who = auth::who(&jar);
     // A surprise needs to know who it's from; otherwise it would be sealed for both of us.
     let surprise = who.is_some() && q.surprise.as_deref() == Some("1");
+    let learned = learned(&s).await?;
     let mut ids = vec![db::accept(&s.db, id, who, surprise).await?];
     let mut paired = None;
     if let Some(with) = q.with {
         // Only a real partner of this slip can ride along.
         if let Some(p) = db::partners(&s.db, id).await?.into_iter().find(|p| p.id == with) {
             ids.push(db::accept(&s.db, p.id, who, surprise).await?);
-            paired = Some(ActivityView::new(&s.cfg, &p));
+            paired = Some(ActivityView::new(&s.cfg, &p, &learned));
         }
     }
     let a = db::get(&s.db, id).await?;
-    let view = a.as_ref().map(|a| ActivityView::new(&s.cfg, a));
+    let view = a.as_ref().map(|a| ActivityView::new(&s.cfg, a, &learned));
     let share = view.as_ref().map(share_text).unwrap_or_default();
     render(CardTpl {
         done: true,

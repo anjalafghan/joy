@@ -86,6 +86,29 @@
       <textarea id="f-notes" class="notes" name="notes" rows="3" placeholder="Go before 6, grab cutting chai on the way.">{{ notes }}</textarea>
     </div>
 
+    <fieldset class="group-box when-open">
+      <legend>When it’s on <span class="opt">optional</span></legend>
+      <fieldset class="chips">
+        <legend class="sub-legend">Closed on</legend>
+        <div class="chip-row">
+          {% for o in closed_opts %}
+          <label class="chip"><input type="checkbox" name="closed" value="{{ o.value }}"{% if o.selected %} checked{% endif %}><span>{{ o.label }}</span></label>
+          {% endfor %}
+        </div>
+      </fieldset>
+      <div class="pair season-pair">
+        <div class="field">
+          <label for="f-season-from">In season from</label>
+          <div class="select"><select id="f-season-from" name="season_from"><option value="">All year</option>{% for o in season_from_opts %}<option value="{{ o.value }}"{% if o.selected %} selected{% endif %}>{{ o.label }}</option>{% endfor %}</select></div>
+        </div>
+        <div class="field">
+          <label for="f-season-to">until</label>
+          <div class="select"><select id="f-season-to" name="season_to"><option value="">All year</option>{% for o in season_to_opts %}<option value="{{ o.value }}"{% if o.selected %} selected{% endif %}>{{ o.label }}</option>{% endfor %}</select></div>
+        </div>
+      </div>
+      <p class="hint">The jar won’t suggest it on closed days or out of season. Seasons can wrap the new year (Nov until May).</p>
+    </fieldset>
+
     {% if !pair_opts.is_empty() %}
     <fieldset class="group-box pairs-box">
       <legend>Pairs well with <span class="opt">optional</span></legend>

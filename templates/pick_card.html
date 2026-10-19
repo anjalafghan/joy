@@ -2,6 +2,8 @@
 <article class="slip grain{% if done %} is-done{% endif %}{% if surprise %} is-surprise{% endif %}" data-kind="{% if done %}done{% else %}card{% endif %}" data-id="{{ a.id }}" data-setting="{{ a.setting_key }}" style="--tint: var(--tint-{{ a.setting_key }})" aria-labelledby="slip-title">
   <span class="slip-crease" aria-hidden="true"></span>
   <p class="slip-meta"><span class="slip-setting">{{ a.setting }}</span><span aria-hidden="true"> · </span>{{ a.duration }}<span aria-hidden="true"> · </span><strong>{{ a.cost }}</strong></p>
+  {% if !a.cost_note.is_empty() %}<p class="cost-note">{{ a.cost_note }}</p>{% endif %}
+  {% if !a.closed_label.is_empty() %}<p class="closed-note"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.6" y="5.2" width="16.8" height="15" rx="2"/><path d="M3.8 9.8h16.4M8 3.4v3.6M16 3.4v3.6"/></svg><span>{{ a.closed_label }}</span></p>{% endif %}
   <h2 id="slip-title" class="slip-title" tabindex="-1">{{ a.title }}</h2>
   {% if done %}{% if let Some(p) = paired %}<p class="paired-line"><span aria-hidden="true">+ </span><span class="visually-hidden">paired with </span>{{ p.title }}</p>{% endif %}{% endif %}
   {% if a.generated %}<p class="gen-tag"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.2l1.5 4.3 4.3 1.5-4.3 1.5L8 12.8 6.5 8.5 2.2 7l4.3-1.5z"/></svg>generated for you</p>{% endif %}
@@ -28,6 +30,7 @@
         {% endfor %}
       </tbody>
     </table>
+    {% if !a.travel_note.is_empty() %}<p class="travel-note">cab fares {{ a.travel_note }}</p>{% endif %}
     {% if let Some(u) = a.uber_url %}<p class="travel-link"><a href="{{ u }}" target="_blank" rel="noopener">Check the real fare in Uber<span class="visually-hidden"> (opens the Uber app or site)</span></a></p>{% endif %}
   </section>
   {% endif %}
@@ -121,7 +124,7 @@
     <span class="peek-label">No more peeking. This one's yours.</span>
     {% endif %}
   </div>
-  {% if can_surprise || !share_text.is_empty() %}
+  {% if can_surprise || can_veto || !share_text.is_empty() %}
   <div class="slip-more">
     {% if can_surprise %}
     <form class="f-accept f-surprise" hx-post="/accept/{{ a.id }}?surprise=1" hx-target="#pick" hx-swap="innerHTML" hx-sync="#pick:drop" hx-disabled-elt="find button">
@@ -130,6 +133,14 @@
     {% endif %}
     {% if !share_text.is_empty() %}
     <a class="share" href="{{ wa_url }}" target="_blank" rel="noopener" data-share="{{ share_text }}"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.6 3.6 3.4 10.4c-.7.3-.6 1.2.1 1.4l6.3 1.9 1.9 6.3c.2.7 1.1.8 1.4.1z"/><path d="M9.8 13.7 20.6 3.6"/></svg><span>Send to {{ partner }}</span><span class="visually-hidden"> (opens WhatsApp)</span></a>
+    {% endif %}
+    {% if can_veto %}
+    {# "Not for me": out of the draw for both of us, no peek spent. Undo it from Slips. #}
+    <form class="f-putback f-veto" hx-post="/pick" hx-target="#pick" hx-swap="innerHTML swap:420ms" hx-sync="#pick:drop" hx-disabled-elt="find button">
+      {% for (k, v) in hidden %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+      <input type="hidden" name="veto" value="1">
+      <button class="share" type="submit"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.4"/><path d="M6.2 17.8 17.8 6.2"/></svg><span>Not for me<span class="visually-hidden">: take “{{ a.title }}” out of the draw</span></span></button>
+    </form>
     {% endif %}
   </div>
   {% endif %}

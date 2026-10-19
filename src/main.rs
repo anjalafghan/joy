@@ -5,6 +5,8 @@ mod ics;
 mod photos;
 mod picker;
 mod routes;
+#[cfg(test)]
+mod route_tests;
 mod travel;
 mod weather;
 
@@ -68,7 +70,17 @@ async fn main() -> anyhow::Result<()> {
     let weather = Arc::new(weather::Weather::new(weather::midpoint([cfg.people[0].1, cfg.people[1].1]), fake_rain));
     let state = AppState { db, cfg: Arc::new(cfg), limiter: Default::default(), weather };
 
-    let app = Router::new()
+    let app = build_app(state);
+
+    tracing::info!("Joy is listening on {addr}");
+    let listener = tokio::net::TcpListener::bind(addr).await?;
+    axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>()).await?;
+    Ok(())
+}
+
+/// Every route, wired to `state`. Shared by `main` and the route tests.
+pub fn build_app(state: AppState) -> Router {
+    Router::new()
         .route("/", get(routes::decide::page))
         .route("/pick", post(routes::decide::pick))
         .route("/match", post(routes::decide::matching))
@@ -79,6 +91,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/wishlist/{id}/archive", post(routes::wishlist::archive))
         .route("/wishlist/{id}/restore", post(routes::wishlist::restore))
         .route("/wishlist/{id}/delete", post(routes::wishlist::delete))
+        .route("/wishlist/{id}/unveto", post(routes::wishlist::unveto))
         .route("/history", get(routes::history::page))
         .route("/history/when", post(routes::history::when))
         .route("/history/{id}/invite.ics", get(routes::history::invite))
@@ -99,12 +112,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/login", get(routes::auth::page).post(routes::auth::login))
         .nest_service("/static", ServeDir::new("static"))
         .layer(TraceLayer::new_for_http())
-        .with_state(state);
-
-    tracing::info!("Joy is listening on {addr}");
-    let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>()).await?;
-    Ok(())
+        .with_state(state)
 }
 
 /// `joy hash-passcode`: reads the shared passcode from stdin and prints .env lines.

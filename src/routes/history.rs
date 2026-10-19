@@ -56,6 +56,8 @@ pub struct KeptView {
     /// "₹4,000 more", "₹200 less" or "spot on"; empty without a real cost.
     pub cost_diff: String,
     pub cost_over: bool,
+    /// Per person: (name, real one-way cab fare as entered or ""), for the cost editor.
+    pub cabs: Vec<(String, String)>,
     /// Comma-separated history ids that share a time: this one, plus its pair if it was
     /// kept as a pair, so "change time" moves both.
     pub pair_ids: String,
@@ -124,6 +126,13 @@ fn view(s: &AppState, r: &HistoryRow, who: Option<usize>, rain: bool, pair_ids: 
             Some(d) => format!("{} less", s.cfg.money(-d)),
         },
         cost_over: !sealed && r.actual_cost.is_some_and(|c| c > r.est_cost),
+        cabs: s
+            .cfg
+            .people
+            .iter()
+            .zip([r.cab_fare_0, r.cab_fare_1])
+            .map(|((name, _), fare)| (name.clone(), fare.filter(|_| !sealed).map(|f| f.to_string()).unwrap_or_default()))
+            .collect(),
         planned_label: planned,
         from_name,
     }
@@ -176,6 +185,8 @@ struct HistoryTpl {
     photo_error: String,
     /// "₹", for the cost field.
     currency: String,
+    /// "Your dates usually run about 40% over the estimate (5 dates).", once there's enough to say.
+    cost_insight: String,
 }
 
 #[derive(Deserialize)]
@@ -219,6 +230,7 @@ pub async fn page(State(s): State<AppState>, jar: SignedCookieJar, Query(q): Que
         me_name: Me::new(&s.cfg, who).name,
         photo_error: photo_error_text(&q.err).into(),
         currency: s.cfg.currency.clone(),
+        cost_insight: cost_insight(&super::learned(&s).await?),
     })
 }
 
@@ -377,6 +389,24 @@ pub async fn delete(State(s): State<AppState>, jar: SignedCookieJar, Path(id): P
     Ok(Redirect::to("/history").into_response())
 }
 
+/// What the real costs say, in plain words.
+fn cost_insight(l: &super::Learned) -> String {
+    if l.cost_samples < db::MIN_SAMPLES {
+        return String::new();
+    }
+    let pct = ((l.cost_ratio - 1.0) * 100.0).round() as i64;
+    let how = match pct {
+        -5..=5 => "usually cost about what the slips say".to_string(),
+        p if p > 0 => format!("usually run about {p}% over the estimate"),
+        p => format!("usually come in about {}% under the estimate", -p),
+    };
+    let mut line = format!("Your dates {how} ({} dates with real costs).", l.cost_samples);
+    if l.cost.is_some() && !(-5..=5).contains(&pct) {
+        line.push_str(" The jar now adjusts estimates to match.");
+    }
+    line
+}
+
 #[derive(Deserialize)]
 pub struct CostForm {
     /// What it really cost; blank clears it.
@@ -385,6 +415,11 @@ pub struct CostForm {
     /// "1": also set the slip's estimate to this.
     #[serde(default)]
     update_estimate: String,
+    /// Real one-way cab fares per person (blank = didn't take one / don't know).
+    #[serde(default)]
+    cab_0: String,
+    #[serde(default)]
+    cab_1: String,
 }
 
 pub async fn set_cost(
@@ -399,16 +434,24 @@ pub async fn set_cost(
     if sealed_for(&row, auth::who(&jar)) {
         return Ok(StatusCode::FORBIDDEN.into_response());
     }
-    let raw: String = f.actual.trim().trim_start_matches(s.cfg.currency.as_str()).chars().filter(|c| !matches!(c, ',' | ' ')).collect();
-    let actual = if raw.is_empty() {
-        None
-    } else {
-        match raw.parse::<i64>() {
-            Ok(v) if v >= 0 => Some(v),
-            _ => return Ok((StatusCode::UNPROCESSABLE_ENTITY, "That amount didn't look right.").into_response()),
+    let amount = |v: &str| -> Result<Option<i64>, ()> {
+        let raw: String = v.trim().trim_start_matches(s.cfg.currency.as_str()).chars().filter(|c| !matches!(c, ',' | ' ')).collect();
+        if raw.is_empty() {
+            return Ok(None);
         }
+        raw.parse::<i64>().ok().filter(|v| *v >= 0).map(Some).ok_or(())
+    };
+    let (Ok(actual), Ok(cab_0), Ok(cab_1)) = (amount(&f.actual), amount(&f.cab_0), amount(&f.cab_1)) else {
+        return Ok((StatusCode::UNPROCESSABLE_ENTITY, "That amount didn't look right.").into_response());
     };
     db::set_actual(&s.db, id, actual, f.update_estimate == "1").await?;
+    // Each real fare is saved next to what the model would have said for that trip (uncalibrated),
+    // so later changes to rates or home locations can't skew what we learn.
+    let km = s.cfg.distances(row.lat.zip(row.lng));
+    for (person, fare) in [(0, cab_0), (1, cab_1)] {
+        let model = km[person].map(|k| crate::travel::cab(k).rupees);
+        db::set_cab_fare(&s.db, id, person, fare.filter(|f| *f > 0), model).await?;
+    }
     Ok(Redirect::to(&format!("/history#k{id}")).into_response())
 }
 

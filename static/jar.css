@@ -551,3 +551,13 @@ body[data-page="jar"] main { padding-top: 0; }
 .travel-t td span { display: block; color: var(--ink-soft); font-size: .8rem; }
 .travel-link { margin: 4px 0 0; font-size: var(--step--1); }
 .travel-link a { display: inline-flex; align-items: center; min-height: 44px; font-weight: 600; }
+
+/* ── smarter jar: learned cost, closed days, nudge ───────── */
+.cost-note, .closed-note, .travel-note { margin: 4px 0 0; font-size: var(--step--1); color: var(--ink-soft); }
+.cost-note { font-style: italic; }
+.closed-note { display: flex; align-items: center; gap: 6px; }
+.closed-note .ico { width: 15px; height: 15px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.6; }
+.travel-note { margin-top: 2px; font: 600 1.05rem/1.2 var(--font-hand); }
+.nudge { display: flex; align-items: flex-start; gap: 8px; margin: 14px 0 0; padding: 10px 12px; border: 1px dashed var(--rule); border-radius: var(--radius-slip); font-size: var(--step--1); color: var(--ink); background: color-mix(in srgb, var(--slip) 70%, transparent); }
+.nudge .ico { width: 18px; height: 18px; flex: none; margin-top: 1px; fill: none; stroke: var(--stamp); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.nudge.is-soon { border-style: solid; border-color: color-mix(in srgb, var(--stamp) 45%, var(--rule)); }

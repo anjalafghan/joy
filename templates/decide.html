@@ -166,6 +166,12 @@
     {% if my_turn %}<span>Your turn to draw, {{ me_name }}. You get a bonus peek tonight.</span>{% else %}<span>It's {{ turn_name }}'s turn to draw.</span>{% endif %}
   </p>
   {% endif %}
+  {% if !nudge.is_empty() %}
+  <p class="nudge{% if nudge_soon %} is-soon{% endif %}" role="note">
+    {% if nudge_soon %}<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.6" y="5.2" width="16.8" height="15" rx="2"/><path d="M3.8 9.8h16.4M8 3.4v3.6M16 3.4v3.6"/><path d="M9 14.6l2 2 4-4.2"/></svg>{% else %}<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.3c-4.6-3.2-8.3-6.4-8.3-10.4 0-2.6 2-4.6 4.4-4.6 1.6 0 3 .9 3.9 2.2.9-1.3 2.3-2.2 3.9-2.2 2.4 0 4.4 2 4.4 4.6 0 4-3.7 7.2-8.3 10.4z"/></svg>{% endif %}
+    <span>{{ nudge }}</span>
+  </p>
+  {% endif %}
 </form>
 {% endif %}
 

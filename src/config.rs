@@ -70,6 +70,25 @@ impl Config {
         })
     }
 
+    /// A config for route tests: login off unless asked, fixed key, no weather lookups.
+    #[cfg(test)]
+    pub fn for_tests(photos_dir: std::path::PathBuf, passcode_hash: &str, dev_no_login: bool) -> Self {
+        Self {
+            database_url: "sqlite::memory:".into(),
+            host: [127, 0, 0, 1].into(),
+            port: 0,
+            passcode_hash: passcode_hash.into(),
+            key: Key::from(&[7u8; 64]),
+            cookie_secure: false,
+            currency: "₹".into(),
+            trust_fly_client_ip: false,
+            dev_no_login,
+            people: [("Rohit".into(), Some((19.00, 73.05))), ("Neha".into(), Some((19.28, 72.87)))],
+            areas: [None, None],
+            photos_dir,
+        }
+    }
+
     pub fn money(&self, amount: i64) -> String {
         if amount == 0 {
             return "Free".into();

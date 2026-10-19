@@ -73,6 +73,14 @@ pub struct ActivityView {
     pub pairs: Vec<String>,
     /// One-way cab and train estimates from each of our homes (empty when we can't tell).
     pub travel: Vec<TravelLine>,
+    /// "calibrated from 4 real rides", when cab estimates have learned from us.
+    pub travel_note: String,
+    /// Why `cost` differs from the slip's own estimate, if it does.
+    pub cost_note: String,
+    /// "Closed Mondays · Nov–May only", or empty.
+    pub closed_label: String,
+    /// Who passed on this slip ("Neha"), when someone did (filled in where shown).
+    pub vetoed_by: String,
     /// Opens Uber with this place as the drop-off, to see the real fare.
     pub uber_url: Option<String>,
 }
@@ -89,7 +97,7 @@ pub struct TravelLine {
 }
 
 impl ActivityView {
-    pub fn new(cfg: &Config, a: &Activity) -> Self {
+    pub fn new(cfg: &Config, a: &Activity, learned: &Learned) -> Self {
         let distances = cfg
             .distances(a.latlng())
             .iter()
@@ -106,7 +114,15 @@ impl ActivityView {
             title: cfg.personalize(&a.title),
             notes: cfg.personalize(&a.notes),
             place,
-            cost: cfg.money(a.est_cost),
+            cost: cfg.money(a.effective_cost(learned.cost)),
+            cost_note: match learned.cost {
+                Some(_) if !a.est_from_actual && a.effective_cost(learned.cost) != a.est_cost => {
+                    format!("slip says {}; adjusted for how your dates usually go", cfg.money(a.est_cost))
+                }
+                _ if a.est_from_actual => "from what it really cost last time".into(),
+                _ => String::new(),
+            },
+            closed_label: closed_label(a),
             duration: a.duration().label().into(),
             setting: picker::setting_label(&a.setting).into(),
             setting_key: a.setting.clone(),
@@ -116,13 +132,19 @@ impl ActivityView {
             times_done: a.times_done,
             generated: a.generated,
             pairs: vec![],
+            vetoed_by: String::new(),
+            travel_note: learned.cab.map(|_| format!("calibrated from {} real ride{}", learned.rides, if learned.rides == 1 { "" } else { "s" })).unwrap_or_default(),
             travel: cfg
                 .distances(a.latlng())
                 .iter()
                 .zip(&cfg.people)
                 .filter_map(|(d, (name, _))| {
                     let km = (*d)?;
-                    let (cab, train) = (crate::travel::cab(km), crate::travel::train(km));
+                    let mut cab = crate::travel::cab(km);
+                    if let Some(f) = learned.cab {
+                        cab.rupees = ((cab.rupees as f64 * f) / 10.0).round() as i64 * 10;
+                    }
+                    let train = crate::travel::train(km);
                     Some(TravelLine {
                         name: name.clone(),
                         cab: format!("~{}", cfg.money(cab.rupees)),
@@ -265,4 +287,48 @@ mod tests {
     fn encodes_for_whatsapp_links() {
         assert_eq!(url_encode("Cat café & chai\n"), "Cat%20caf%C3%A9%20%26%20chai%0A");
     }
+}
+
+/// What the jar has learned from real costs. Worked out per request (a couple of tiny queries).
+#[derive(Debug, Clone, Default)]
+pub struct Learned {
+    /// Multiply plan estimates by this (None until there are enough real costs).
+    pub cost: Option<f64>,
+    /// Real ÷ estimated over all dates with a real cost, and how many there are.
+    pub cost_ratio: f64,
+    pub cost_samples: i64,
+    /// Multiply cab estimates by this (None until there are enough real rides).
+    pub cab: Option<f64>,
+    pub rides: i64,
+}
+
+/// Learned factors are clamped so one odd night can't wreck every estimate.
+const FACTOR_RANGE: (f64, f64) = (0.5, 3.0);
+
+pub async fn learned(s: &AppState) -> Result<Learned, AppError> {
+    let (ratio, n) = crate::db::cost_ratio(&s.db).await?;
+    let (cab_ratio, rides) = crate::db::cab_ratio(&s.db).await?;
+    let usable = |r: f64, n: i64| (n >= crate::db::MIN_SAMPLES).then(|| r.clamp(FACTOR_RANGE.0, FACTOR_RANGE.1));
+    Ok(Learned { cost: usable(ratio, n), cost_ratio: ratio, cost_samples: n, cab: usable(cab_ratio, rides), rides })
+}
+
+/// "Closed Mondays & Wednesdays · Nov–May only".
+fn closed_label(a: &Activity) -> String {
+    let days: Vec<&str> = picker::parse_closed(&a.closed_days)
+        .into_iter()
+        .filter_map(|d| picker::WEEKDAYS.get(d as usize).map(|(_, n)| *n))
+        .collect();
+    let mut parts = vec![];
+    if !days.is_empty() {
+        let days: Vec<String> = days.iter().map(|d| format!("{d}s")).collect();
+        let list = match days.split_last() {
+            Some((last, rest)) if !rest.is_empty() => format!("{} & {last}", rest.join(", ")),
+            _ => days.join(""),
+        };
+        parts.push(format!("Closed {list}"));
+    }
+    if let Some((from, to)) = a.season() {
+        parts.push(format!("{} only", picker::season_label(from, to)));
+    }
+    parts.join(" · ")
 }

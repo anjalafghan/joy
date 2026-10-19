@@ -9,7 +9,7 @@ use super::{duration_opts, render, ActivityView, AppError, HtmlResult, Opt};
 use crate::{
     config::parse_latlng,
     db::{self, Activity, ActivityInput},
-    picker::{Duration, ENERGIES, SETTINGS},
+    picker::{self, Duration, ENERGIES, SETTINGS},
     AppState,
 };
 
@@ -31,8 +31,16 @@ struct WishlistTpl {
 pub async fn page(State(s): State<AppState>, jar: SignedCookieJar) -> HtmlResult {
     let active = db::list(&s.db, false).await?;
     let pairs = db::pairs(&s.db).await?;
+    let vetoes = db::vetoes(&s.db).await?;
+    let learned = super::learned(&s).await?;
     let view = |a: &Activity| {
-        let mut v = ActivityView::new(&s.cfg, a);
+        let mut v = ActivityView::new(&s.cfg, a, &learned);
+        v.vetoed_by = vetoes
+            .iter()
+            .filter(|(act, _)| *act == a.id)
+            .filter_map(|(_, p)| s.cfg.people.get(*p as usize).map(|x| x.0.clone()))
+            .collect::<Vec<_>>()
+            .join(" & ");
         v.pairs = pairs
             .iter()
             .filter_map(|&(x, y)| if x == a.id { Some(y) } else if y == a.id { Some(x) } else { None })
@@ -50,7 +58,7 @@ pub async fn page(State(s): State<AppState>, jar: SignedCookieJar) -> HtmlResult
         })
         .filter(|g| !g.items.is_empty())
         .collect();
-    let archived = db::list(&s.db, true).await?.iter().map(|a| ActivityView::new(&s.cfg, a)).collect();
+    let archived = db::list(&s.db, true).await?.iter().map(|a| ActivityView::new(&s.cfg, a, &learned)).collect();
     render(WishlistTpl { me_name: me_name(&s, &jar), groups, archived, total: active.len() })
 }
 
@@ -76,6 +84,11 @@ struct FormTpl {
     /// Every other slip in the jar, ticked if it pairs with this one.
     pair_opts: Vec<Opt>,
     me_name: String,
+    /// Weekdays (value "mon"…, label "Mon"…), ticked if it's closed then.
+    closed_opts: Vec<Opt>,
+    /// Months for the season pickers; `selected` marks the current from/to.
+    season_from_opts: Vec<Opt>,
+    season_to_opts: Vec<Opt>,
 }
 
 async fn form(s: &AppState, jar: &SignedCookieJar, id: Option<i64>, i: &ActivityInput, error: &str) -> HtmlResult {
@@ -115,7 +128,23 @@ async fn form(s: &AppState, jar: &SignedCookieJar, id: Option<i64>, i: &Activity
         },
         pair_opts,
         me_name: me_name(s, jar),
+        closed_opts: picker::WEEKDAYS
+            .iter()
+            .map(|(k, name)| Opt { value: (*k).into(), label: name[..3].into(), selected: i.closed.iter().any(|c| c == k) })
+            .collect(),
+        season_from_opts: month_opts(&i.season_from),
+        season_to_opts: month_opts(&i.season_to),
     })
+}
+
+fn month_opts(selected: &str) -> Vec<Opt> {
+    (1..=12)
+        .map(|m: usize| Opt {
+            value: m.to_string(),
+            label: picker::MONTHS_SHORT[m - 1].into(),
+            selected: selected == m.to_string(),
+        })
+        .collect()
 }
 
 fn input_from(s: &AppState, a: &Activity) -> ActivityInput {
@@ -132,6 +161,9 @@ fn input_from(s: &AppState, a: &Activity) -> ActivityInput {
         energy: a.energy.clone(),
         added_by: a.added_by.clone(),
         pairs: vec![],
+        closed: a.closed_days.split(',').filter(|d| !d.is_empty()).map(str::to_string).collect(),
+        season_from: a.season().map(|s| s.0.to_string()).unwrap_or_default(),
+        season_to: a.season().map(|s| s.1.to_string()).unwrap_or_default(),
     }
 }
 
@@ -149,6 +181,9 @@ pub async fn new(State(s): State<AppState>, jar: SignedCookieJar) -> HtmlResult 
         energy: "med".into(),
         added_by: s.cfg.people[0].0.clone(),
         pairs: vec![],
+        closed: vec![],
+        season_from: String::new(),
+        season_to: String::new(),
     };
     form(&s, &jar, None, &blank, "").await
 }
@@ -202,6 +237,12 @@ pub async fn archive(State(s): State<AppState>, Path(id): Path<i64>) -> Result<R
 
 pub async fn restore(State(s): State<AppState>, Path(id): Path<i64>) -> Result<Redirect, AppError> {
     db::set_archived(&s.db, id, false).await?;
+    Ok(Redirect::to("/wishlist"))
+}
+
+/// Bring a slip someone passed on back into the draw.
+pub async fn unveto(State(s): State<AppState>, Path(id): Path<i64>) -> Result<Redirect, AppError> {
+    db::unveto(&s.db, id).await?;
     Ok(Redirect::to("/wishlist"))
 }
 

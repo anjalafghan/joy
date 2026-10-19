@@ -60,6 +60,7 @@
       <span class="budget-bar" style="--pct: {{ budget.pct }}" aria-hidden="true"></span>
     </div>
     {% endif %}
+    {% if !cost_insight.is_empty() %}<p class="k-insight">{{ cost_insight }}</p>{% endif %}
     <details class="k-budget-edit">
       <summary>{% if budget.budget.is_empty() %}Set a monthly budget{% else %}Change budget{% endif %}</summary>
       <form class="k-budget-form" method="post" action="/budget">
@@ -216,14 +217,22 @@
             </details>
             <details class="k-when-edit k-cost-edit">
               <summary class="k-tool"><span class="k-cost-ico" aria-hidden="true">{{ currency }}</span>{% if h.cost_actual.is_empty() %}What did it cost?{% else %}Change cost{% endif %}</summary>
-              <form class="k-when-form" method="post" action="/history/{{ h.id }}/cost" data-swap="{{ h.id }}">
-                <label class="k-label" for="c{{ h.id }}">What did it actually cost, for both of you?</label>
-                <div class="k-inline">
-                  <span class="k-money"><span aria-hidden="true">{{ currency }}</span><input class="k-field" id="c{{ h.id }}" type="number" name="actual" inputmode="numeric" min="0" step="1" value="{{ h.cost_actual_raw }}" placeholder="e.g. 5000"></span>
-                  <button class="k-btn" type="submit">Save cost</button>
-                </div>
+              <form class="k-when-form k-cost-form" method="post" action="/history/{{ h.id }}/cost" data-swap="{{ h.id }}">
+                <label class="k-label" for="c{{ h.id }}">What did the plan itself cost, for both of you? <span class="k-opt">not counting travel</span></label>
+                <span class="k-money"><span aria-hidden="true">{{ currency }}</span><input class="k-field" id="c{{ h.id }}" type="number" name="actual" inputmode="numeric" min="0" step="1" value="{{ h.cost_actual_raw }}" placeholder="e.g. 5000"></span>
                 <label class="k-check"><input type="checkbox" name="update_estimate" value="1" checked> Also update this slip’s estimate in the jar</label>
-                <p class="k-hint">So next time the jar knows what it really costs. Empty it and save to clear.</p>
+                <p class="k-hint">So next time the jar knows what it really costs.</p>
+                <fieldset class="k-cabs">
+                  <legend class="k-label">Took a cab? <span class="k-opt">one way, optional</span></legend>
+                  {% for (name, fare) in h.cabs %}
+                  <label class="k-cab"><span>{{ name }}</span><span class="k-money"><span aria-hidden="true">{{ currency }}</span><input class="k-field" type="number" name="cab_{{ loop.index0 }}" inputmode="numeric" min="0" step="1" value="{{ fare }}" placeholder="—" aria-label="{{ name }}'s cab fare, one way"></span></label>
+                  {% endfor %}
+                  <p class="k-hint">Helps the jar’s cab estimates match what you really pay.</p>
+                </fieldset>
+                <div class="k-cost-actions">
+                  <button class="k-btn" type="submit">Save</button>
+                  <span class="k-hint">Empty a field and save to clear it.</span>
+                </div>
                 <p class="k-form-err" role="status" aria-live="polite"></p>
               </form>
             </details>

@@ -664,3 +664,14 @@ html:not(.k-js) .k-photo-form .k-tool { order: -1; flex-basis: 100%; cursor: def
 .k-check { display: flex; align-items: center; gap: 10px; min-height: 44px; margin-top: 6px; font-size: var(--step--1); color: var(--ink); cursor: pointer; }
 .k-check input { width: 20px; height: 20px; flex: none; margin: 0; accent-color: var(--stamp); }
 .k-check input:focus-visible { outline: 2px solid var(--stamp); outline-offset: 2px; }
+
+/* ── what the jar has learned; cab fares ─────────────────── */
+.k-insight { margin: 8px 0 0; font: italic var(--step--1)/1.45 var(--font-display); color: var(--ink); }
+.k-opt { font-weight: 500; color: var(--ink-soft); }
+.k-cabs { border: 0; padding: 0; margin: 12px 0 0; }
+.k-cabs legend { padding: 0; margin-bottom: 6px; }
+.k-cab { display: flex; align-items: center; gap: 10px; min-height: 44px; }
+.k-cab > span:first-child { min-width: 4.5em; font-weight: 600; color: var(--ink); font-size: var(--step--1); }
+.k-cost-form .k-money { display: flex; margin-top: 6px; }
+.k-cost-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-top: 12px; }
+.k-cost-actions .k-hint { margin: 0; }
