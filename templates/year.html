@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+{% block title %}Our {{ year }} · joy{% endblock %}
+{% block page %}year{% endblock %}
+{% block me %}{% if me_name.is_empty() %}who?{% else %}{{ me_name }}{% endif %}{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="/static/year.css?v={{ crate::BUILD }}">
+<script src="/static/year.js?v={{ crate::BUILD }}" defer></script>
+{% endblock %}
+{% block content %}
+<svg class="y-defs" width="0" height="0" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="y-star" viewBox="0 0 24 24">
+      <path d="M12.3 2.4c.9 2 1.7 4 2.6 6.1 2.1.1 4.3.3 6.4.6-1.6 1.4-3.3 2.8-4.9 4.1.5 2.1 1 4.2 1.4 6.3-1.8-1.1-3.7-2.3-5.6-3.4-1.8 1.2-3.6 2.4-5.5 3.5.5-2.2 1-4.3 1.5-6.4C6.6 11.8 5 10.4 3.3 9c2.2-.2 4.4-.4 6.5-.5.8-2 1.6-4 2.5-6.1z"/>
+    </symbol>
+  </defs>
+</svg>
+
+{% if years.len() > 1 || (years.len() == 1 && years[0] - year != 0) %}
+<nav class="y-years" aria-label="Other years">
+  <ul>
+    {% for y in years.iter().copied() %}
+    <li><a href="/year/{{ y }}"{% if y - year == 0 %} aria-current="page"{% endif %}>{{ y }}</a></li>
+    {% endfor %}
+  </ul>
+</nav>
+{% endif %}
+
+<header class="y-head">
+  <div class="y-postmark" aria-hidden="true">
+    <svg viewBox="0 0 200 120" width="200" height="120">
+      <defs><path id="y-ring" d="M140 60m-42 0a42 42 0 1 1 84 0a42 42 0 1 1-84 0"/></defs>
+      <path class="y-pm-wave" d="M2 38c9-6 15-6 24 0s15 6 24 0 15-6 24 0M2 60c9-6 15-6 24 0s15 6 24 0 15-6 24 0M2 82c9-6 15-6 24 0s15 6 24 0 15-6 24 0"/>
+      <circle cx="140" cy="60" r="55" class="y-pm-ring"/>
+      <circle cx="140" cy="60" r="29" class="y-pm-ring y-pm-inner"/>
+      <text class="y-pm-arc"><textPath href="#y-ring" textLength="258" lengthAdjust="spacing">KEPT IN THE JAR · JUST US · </textPath></text>
+      <text x="140" y="68" text-anchor="middle" class="y-pm-year">{{ year }}</text>
+    </svg>
+  </div>
+  <p class="y-eyebrow">Our year in the jar</p>
+  {% if dates > 0 %}
+  <h1 class="y-title"><span class="y-count">{{ dates }}</span> <span class="y-count-word">{% if dates == 1 %}date{% else %}dates{% endif %} kept <span class="y-in">in {{ year }}</span></span></h1>
+  {% if to_come > 0 %}<p class="y-sub">…and {{ to_come }} more on the calendar, still to come.</p>{% endif %}
+  {% else %}
+  <h1 class="y-title y-title-empty">Our {{ year }}</h1>
+  {% endif %}
+  {% if sealed_mine > 0 %}
+  <p class="y-sealed"><span class="y-wax" aria-hidden="true"></span>+{{ sealed_mine }} {% if sealed_mine == 1 %}surprise{% else %}surprises{% endif %} still sealed — {% if sealed_mine == 1 %}it'll join{% else %}they'll join{% endif %} once revealed</p>
+  {% endif %}
+</header>
+
+{% if dates == 0 %}
+<section class="y-empty grain" aria-labelledby="y-empty-h">
+  {% if !years.is_empty() && years[years.len() - 1] - year > 0 %}
+  <h2 id="y-empty-h">Before the jar</h2>
+  <p>No dates kept in {{ year }}: this was before our first slip. Our story starts in <a href="/year/{{ years[years.len() - 1] }}">{{ years[years.len() - 1] }}</a>.</p>
+  <p class="y-empty-hand hand" aria-hidden="true">every jar starts empty</p>
+  {% else %}
+  <h2 id="y-empty-h">This page is still blank</h2>
+  <p>No dates kept in {{ year }}{% if to_come > 0 %} yet: {{ to_come }} {% if to_come == 1 %}is{% else %}are{% endif %} still to come{% endif %}. Every slip we keep this year will land here, month by month.</p>
+  <p class="y-empty-act"><a class="btn btn-stamp" href="/">Draw a slip</a></p>
+  <p class="y-empty-hand hand" aria-hidden="true">the best pages start empty</p>
+  {% endif %}
+</section>
+{% else %}
+
+<div class="y-spread">
+
+<section class="y-sec y-months" aria-labelledby="y-months-h">
+  <div class="y-sec-h">
+    <h2 id="y-months-h">Month by month</h2>
+    {% if !busiest.is_empty() %}<p class="y-aside hand">busiest: {{ busiest }}</p>{% endif %}
+  </div>
+  <ol class="y-strip">
+    {% for m in months %}
+    <li class="y-bar{% if m.n == 0 %} is-zero{% endif %}{% if m.pct == 100 && m.n > 0 %} is-busiest{% endif %}" style="--pct: {{ m.pct }}; --i: {{ loop.index0 }}">
+      <span class="y-bar-n" aria-hidden="true">{% if m.n > 0 %}{{ m.n }}{% endif %}</span>
+      <span class="y-bar-col" aria-hidden="true"></span>
+      <span class="y-bar-l" aria-hidden="true">{{ m.letter }}</span>
+      <span class="visually-hidden">{{ m.name }}: {% if m.n == 0 %}no dates{% else %}{{ m.n }} {% if m.n == 1 %}date{% else %}dates{% endif %}{% endif %}</span>
+    </li>
+    {% endfor %}
+  </ol>
+</section>
+
+{% if !vibe_label.is_empty() %}
+<section class="y-sec y-vibe grain" data-vibe="{{ vibe_key }}" aria-labelledby="y-vibe-h">
+  <p class="y-kicker">Our kind of night</p>
+  <h2 id="y-vibe-h">{{ vibe_label }}</h2>
+  {% if !tags.is_empty() %}
+  <p class="y-tags-lead">mostly</p>
+  <ul class="y-tags" aria-label="Top tags">
+    {% for t in tags %}<li>{{ t }}</li>{% endfor %}
+  </ul>
+  {% endif %}
+</section>
+{% endif %}
+
+{% if let Some(b) = best %}
+<section class="y-sec y-best grain" aria-labelledby="y-best-h">
+  <div class="y-best-stamp" aria-hidden="true"><span>best</span><span>night</span></div>
+  <p class="y-kicker" id="y-best-h">Our best night</p>
+  <h2 class="y-best-title">{{ b.title }}</h2>
+  <p class="y-best-meta">
+    <span class="y-stars" role="img" aria-label="{{ b.rating }} out of 5 stars">{% for n in 1..=5 %}<svg class="y-star{% if n <= b.rating %} is-on{% endif %}" width="22" height="22" aria-hidden="true"><use href="#y-star"/></svg>{% endfor %}</span>
+    <span class="y-best-when">{{ b.when }}</span>
+  </p>
+  {% if !b.note.is_empty() %}<blockquote class="y-note"><p>{{ b.note }}</p></blockquote>{% endif %}
+  {% if b.more > 0 %}<p class="y-more">and {{ b.more }} more {% if b.rating == 5 %}five-star{% else %}{{ b.rating }}-star{% endif %} {% if b.more == 1 %}night{% else %}nights{% endif %}</p>{% endif %}
+  {% if rated > 0 && !avg_rating.is_empty() %}<p class="y-avg"><strong>{{ avg_rating }}</strong> stars on average, across {{ rated }} rated {% if rated == 1 %}night{% else %}nights{% endif %}</p>{% endif %}
+</section>
+{% endif %}
+
+<section class="y-sec y-ledger" aria-labelledby="y-ledger-h">
+  <h2 id="y-ledger-h" class="visually-hidden">The numbers</h2>
+  <dl class="y-stub">
+    {% if streak_weeks > 1 %}
+    <div class="y-row">
+      <dt>Our longest run</dt>
+      <dd><strong>{{ streak_weeks }}</strong> weeks in a row</dd>
+    </div>
+    {% endif %}
+    {% if let Some(m) = money %}
+    <div class="y-row y-money{% if m.over %} is-over{% endif %}">
+      <dt>What it came to</dt>
+      <dd><strong>{{ m.spent }}</strong> spent, {{ m.diff }} <span class="y-quiet">(on the {{ m.n }} {% if m.n == 1 %}date{% else %}dates{% endif %} we logged)</span></dd>
+      {% if !cabs.is_empty() %}<dd class="y-cabs">plus {{ cabs }} getting there</dd>{% endif %}
+    </div>
+    {% else %}{% if !cabs.is_empty() %}
+    <div class="y-row">
+      <dt>Getting there</dt>
+      <dd class="y-cabs">{{ cabs }}</dd>
+    </div>
+    {% endif %}{% endif %}
+    {% if to_come == 0 %}
+    <div class="y-row">
+      <dt>Still to come</dt>
+      <dd>nothing planned yet. <a href="/">Draw a slip?</a></dd>
+    </div>
+    {% endif %}
+  </dl>
+</section>
+
+{% if !photos.is_empty() %}
+<section class="y-sec y-wall" aria-labelledby="y-wall-h">
+  <div class="y-sec-h">
+    <h2 id="y-wall-h">The photo wall</h2>
+    <p class="y-aside hand">{{ photos.len() }} {% if photos.len() == 1 %}photo{% else %}photos{% endif %}</p>
+  </div>
+  <ul class="y-photos">
+    {% for p in photos %}
+    <li class="y-polaroid" style="--r: {{ p.id % 5 }}">
+      <figure>
+        <span class="y-frame"><img src="{{ p.url }}" alt="Photo from {{ p.title }}, {{ p.when }}" loading="lazy" decoding="async" width="480" height="600"></span>
+        <figcaption><span class="y-cap-title">{{ p.title }}</span> <span class="y-cap-when">{{ p.when }}</span></figcaption>
+      </figure>
+      <label class="y-pick" hidden><input type="checkbox" class="y-pick-in" value="{{ p.id }}"> Include in picture</label>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+</div>
+
+<section class="y-share" id="y-share" aria-labelledby="y-share-h" hidden>
+  <h2 id="y-share-h">Make our picture</h2>
+  <p class="y-share-lead">A keepsake of our {{ year }} to share or keep. It says “us” and never our names, notes or homes. Places, money and photos only go in if you tick them.</p>
+  <fieldset class="y-opts">
+    <legend class="visually-hidden">What goes in the picture</legend>
+    <label class="y-opt" data-needs="places"><input type="checkbox" id="y-opt-places"> Show where we went</label>
+    <label class="y-opt" data-needs="spent"><input type="checkbox" id="y-opt-spent"> Show what we spent</label>
+    {% if !photos.is_empty() %}<p class="y-opt-note">Photos: tick “include in picture” on the wall above (up to 9).</p>{% endif %}
+  </fieldset>
+  <button type="button" class="btn btn-stamp y-make" id="y-make">Make our picture</button>
+  <p class="y-status" id="y-status" role="status" aria-live="polite"></p>
+</section>
+
+<dialog class="y-sheet" id="y-sheet" aria-labelledby="y-sheet-h">
+  <div class="y-sheet-in">
+    <h2 id="y-sheet-h">Our {{ year }}, ready</h2>
+    <div class="y-preview-wrap"><img class="y-preview" id="y-preview" alt="Preview of the picture of our {{ year }}"></div>
+    <div class="y-sheet-acts">
+      <button type="button" class="btn btn-stamp" id="y-send">Share</button>
+      <p class="y-save" id="y-save" hidden><a class="btn" id="y-save-link" download="our-{{ year }}.png" href="#">Save image</a> <span class="soft">or long-press the picture to save it</span></p>
+      <button type="button" class="btn btn-quiet" id="y-close">Close</button>
+    </div>
+  </div>
+</dialog>
+{% endif %}
+
+<script type="application/json" id="year-share">{{ share_json|safe }}</script>
+{% endblock %}

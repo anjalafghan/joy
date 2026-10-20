@@ -35,6 +35,16 @@ Joy is a **date jar**: every idea is a slip, you draw one, you can put it back t
 - `design/alternates/` holds two other designs for the jar page that didn't ship, with screenshots.
 - For design work without the passcode, run with `JOY_DEV_NO_LOGIN=1` and a throwaway `DATABASE_URL`. **Never set it on a real deploy.**
 
+## Offline, caching and privacy
+
+A small service worker (`static/sw.js`, served at `/sw.js`) keeps fonts, styles and scripts on the phone, and saves a read-only copy of the jar, Kept, Slips and year pages for up to 7 days, plus up to 25 MB of photos. Offline, those copies show with a note, and buttons are disabled; nothing is queued. The full design is in [docs/year-in-review-and-offline.md](docs/year-in-review-and-offline.md).
+
+- **Saved copies are per person.** Switching who's holding the phone or logging out wipes them, so a copy made for one of you is never shown to the other. Each copy is tagged with who it was made for.
+- **What protects them is the phone's lock screen.** Saved copies are readable offline without the passcode, just as the 30-day login is online. "Keep offline copies on this phone" on the who page turns them off.
+- **Personal pages are never stored in the browser's HTTP cache** (`Cache-Control: no-store`). Asset URLs carry a build hash, so they can be cached forever.
+- **Headers on every response:** `Referrer-Policy: no-referrer` (Maps, Uber and WhatsApp aren't told where links came from), `nosniff`, `X-Frame-Options: DENY`, `Cross-Origin-Opener-Policy`, `Permissions-Policy`, and HSTS when served over HTTPS. A strict CSP is described in the design doc but not enabled yet.
+- **Year in review** (`/year`) is worked out on request from existing data, and the share picture is drawn on the phone. Nothing new is stored on the server.
+
 ## Deploy
 
 ```bash

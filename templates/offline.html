@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Offline · joy{% endblock %}
+{% block page %}offline{% endblock %}
+{% block nav %}{% endblock %}
+{% block content %}
+{# No personal data: the service worker keeps this one page for when there's nothing else. #}
+<section class="offline" aria-labelledby="off-h">
+  <svg class="offline-jar" viewBox="0 0 120 140" aria-hidden="true"><rect x="38" y="8" width="44" height="14" rx="4"/><path d="M36 24h48v8c0 3 2 5 5 8 7 7 11 12 11 22v44c0 11-7 17-18 17H38c-11 0-18-6-18-17V62c0-10 4-15 11-22 3-3 5-5 5-8z"/><path class="offline-z" d="M52 74h14l-14 16h14"/></svg>
+  <h1 id="off-h">No signal, so the jar is resting.</h1>
+  <p class="soft">Pages you opened recently are still on this phone. Try one, or come back when you’re online.</p>
+  <ul class="offline-links">
+    <li><a class="btn btn-ink" href="/">The jar</a></li>
+    <li><a class="btn btn-ink" href="/history">Kept</a></li>
+    <li><a class="btn btn-ink" href="/wishlist">Slips</a></li>
+  </ul>
+</section>
+{% endblock %}

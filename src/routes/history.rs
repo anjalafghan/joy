@@ -537,7 +537,27 @@ pub async fn delete_photo(State(s): State<AppState>, jar: SignedCookieJar, Path(
     Ok(Redirect::to(&format!("/history#k{id}")).into_response())
 }
 
-pub async fn photo(State(s): State<AppState>, jar: SignedCookieJar, Path(id): Path<i64>) -> Result<Response, AppError> {
+#[derive(Deserialize)]
+pub struct PhotoQuery {
+    v: Option<String>,
+}
+
+/// The `?v=` a photo link carries: its file's modified time.
+fn view_version(s: &AppState, id: i64) -> String {
+    std::fs::metadata(photos::path(&s.cfg.photos_dir, id))
+        .and_then(|m| m.modified())
+        .ok()
+        .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+        .map_or(0, |d| d.as_secs())
+        .to_string()
+}
+
+pub async fn photo(
+    State(s): State<AppState>,
+    jar: SignedCookieJar,
+    Path(id): Path<i64>,
+    Query(q): Query<PhotoQuery>,
+) -> Result<Response, AppError> {
     let row = db::history_row(&s.db, id).await?;
     let Some(row) = row.filter(|r| r.has_photo && !sealed_for(r, auth::who(&jar))) else {
         return Ok(StatusCode::NOT_FOUND.into_response());
@@ -545,7 +565,10 @@ pub async fn photo(State(s): State<AppState>, jar: SignedCookieJar, Path(id): Pa
     let Ok(bytes) = tokio::fs::read(photos::path(&s.cfg.photos_dir, row.id)).await else {
         return Ok(StatusCode::NOT_FOUND.into_response());
     };
-    Ok(([(header::CONTENT_TYPE, "image/jpeg"), (header::CACHE_CONTROL, "private, max-age=86400")], bytes).into_response())
+    // The URL is versioned by the file's modified time, so a matching ?v= can be cached for good.
+    let current = view_version(&s, row.id);
+    let cache = if q.v.as_deref() == Some(current.as_str()) { "private, max-age=31536000, immutable" } else { "private, no-cache" };
+    Ok(([(header::CONTENT_TYPE, "image/jpeg"), (header::CACHE_CONTROL, cache)], bytes).into_response())
 }
 
 // ── monthly budget ────────────────────────────────────────────────────────

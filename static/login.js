@@ -70,7 +70,8 @@
   const enter = () => {
     if (leaving) return;
     leaving = true;
-    window.location.href = '/';
+    // Same place the server's redirect points: ask who's holding this phone (logout forgets it).
+    window.location.href = '/who';
   };
 
   const open = () => {

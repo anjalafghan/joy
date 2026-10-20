@@ -5,6 +5,8 @@ COPY Cargo.toml Cargo.lock build.rs ./
 COPY src ./src
 COPY templates ./templates
 COPY migrations ./migrations
+# static/ is hashed into the build id (asset URLs + service worker version)
+COPY static ./static
 RUN cargo build --release
 
 # Run

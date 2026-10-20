@@ -199,3 +199,19 @@ input, select, textarea { font: inherit; color: inherit; }
 }
 .budget-line.is-over .budget-bar::after { background: var(--stamp); }
 .budget-line.is-over strong { color: var(--stamp); }
+
+/* ── offline copies (service worker) ─────────────────────── */
+.joy-bar { position: sticky; top: 0; z-index: 30; margin: 0; padding: 10px var(--gutter); font-size: var(--step--1); text-align: center; background: var(--ink); color: var(--paper); }
+.joy-bar.is-updated { cursor: pointer; background: var(--stamp); color: var(--stamp-ink); }
+.joy-bar.is-updated:focus-visible { outline-offset: -4px; outline-color: var(--stamp-ink); }
+body.is-offline main button[disabled], body.is-offline main input[disabled] { opacity: .5; }
+.offline { min-height: 80dvh; display: flex; flex-direction: column; justify-content: center; gap: 6px; }
+.offline h1 { font-size: var(--step-3); }
+.offline-jar { width: 96px; height: auto; margin-bottom: 12px; fill: var(--slip); stroke: var(--ink); stroke-width: 3; stroke-linejoin: round; }
+.offline-jar rect { fill: var(--stamp); stroke: none; }
+.offline-z { fill: none; stroke: var(--ink-soft); stroke-width: 3; stroke-linecap: round; }
+.offline-links { list-style: none; padding: 0; margin: 18px 0 0; display: flex; flex-wrap: wrap; gap: 10px; }
+.who-offline { margin-top: 26px; padding-top: 18px; border-top: 1px dashed var(--rule); }
+.who-offline label { display: flex; align-items: center; gap: 12px; min-height: 44px; font-weight: 600; cursor: pointer; }
+.who-offline input { width: 22px; height: 22px; accent-color: var(--stamp); margin: 0; flex: none; }
+.who-offline p { margin: 4px 0 0; font-size: var(--step--1); }

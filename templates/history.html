@@ -4,8 +4,8 @@
 {% block me %}{% if me_name.is_empty() %}who?{% else %}{{ me_name }}{% endif %}{% endblock %}
 {% block head %}
 <script>document.documentElement.classList.add("k-js")</script>
-<link rel="stylesheet" href="/static/kept.css">
-<script src="/static/kept.js" defer></script>
+<link rel="stylesheet" href="/static/kept.css?v={{ crate::BUILD }}">
+<script src="/static/kept.js?v={{ crate::BUILD }}" defer></script>
 {% endblock %}
 {% block content %}
 <svg class="k-defs" width="0" height="0" aria-hidden="true" focusable="false">
@@ -49,6 +49,7 @@
   <p class="k-margin hand" aria-hidden="true">{% if kept == 1 %}and so it begins{% else %}look at us go{% endif %}</p>
   {% endif %}
   {% if kept > 0 || !budget.budget.is_empty() %}
+  {% if kept > 0 %}<p class="k-year"><a href="/year">Our year so far <span aria-hidden="true">→</span></a></p>{% endif %}
   <div class="k-budget" id="k-budget">
     {% if budget.budget.is_empty() %}
     <div class="budget-line">

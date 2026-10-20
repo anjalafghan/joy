@@ -9,6 +9,7 @@ mod routes;
 mod route_tests;
 mod travel;
 mod weather;
+mod web;
 
 use std::{io::Write, net::SocketAddr, sync::Arc};
 
@@ -25,6 +26,9 @@ use sqlx::{sqlite::SqlitePoolOptions, SqlitePool};
 use tower_http::{services::ServeDir, trace::TraceLayer};
 
 use config::Config;
+
+/// Short hash of static/ + templates/: versions asset URLs and the service worker.
+pub const BUILD: &str = env!("JOY_BUILD");
 
 #[derive(Clone)]
 pub struct AppState {
@@ -93,6 +97,8 @@ pub fn build_app(state: AppState) -> Router {
         .route("/wishlist/{id}/delete", post(routes::wishlist::delete))
         .route("/wishlist/{id}/unveto", post(routes::wishlist::unveto))
         .route("/history", get(routes::history::page))
+        .route("/year", get(routes::year::current))
+        .route("/year/{year}", get(routes::year::page))
         .route("/history/when", post(routes::history::when))
         .route("/history/{id}/invite.ics", get(routes::history::invite))
         .route("/history/{id}/reveal", post(routes::history::reveal))
@@ -110,7 +116,14 @@ pub fn build_app(state: AppState) -> Router {
         .route("/logout", post(routes::auth::logout))
         .route_layer(middleware::from_fn_with_state(state.clone(), auth::require_login))
         .route("/login", get(routes::auth::page).post(routes::auth::login))
-        .nest_service("/static", ServeDir::new("static"))
+        // Reachable without logging in: the worker must update even after the login cookie expires.
+        .route("/sw.js", get(web::service_worker))
+        .route("/offline", get(web::offline))
+        .nest_service(
+            "/static",
+            tower::ServiceBuilder::new().layer(middleware::from_fn(web::static_cache)).service(ServeDir::new("static")),
+        )
+        .layer(middleware::from_fn_with_state(state.clone(), web::page_headers))
         .layer(TraceLayer::new_for_http())
         .with_state(state)
 }

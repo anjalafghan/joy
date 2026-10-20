@@ -3,8 +3,8 @@
 {% block page %}slips{% endblock %}
 {% block me %}{% if me_name.is_empty() %}who?{% else %}{{ me_name }}{% endif %}{% endblock %}
 {% block head %}
-<link rel="stylesheet" href="/static/slips.css">
-<script src="/static/slips.js" defer></script>
+<link rel="stylesheet" href="/static/slips.css?v={{ crate::BUILD }}">
+<script src="/static/slips.js?v={{ crate::BUILD }}" defer></script>
 {% endblock %}
 {% block content %}
 <div class="write-page">

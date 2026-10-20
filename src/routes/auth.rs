@@ -84,9 +84,14 @@ pub async fn set_who(State(s): State<AppState>, jar: SignedCookieJar, Form(f): F
     if f.who > 1 {
         return Redirect::to("/who").into_response();
     }
-    (jar.add(auth::who_cookie(f.who, s.cfg.cookie_secure)), Redirect::to("/")).into_response()
+    // A different person may now be holding the phone: no cached page from before may show.
+    (jar.add(auth::who_cookie(f.who, s.cfg.cookie_secure)), [("clear-site-data", r#""cache""#)], Redirect::to("/"))
+        .into_response()
 }
 
+/// Logging out also forgets who was holding the phone, and asks the browser to drop joy's
+/// cached pages and storage (the service worker purges its own copies too).
 pub async fn logout(jar: SignedCookieJar) -> impl IntoResponse {
-    (jar.remove(Cookie::build(auth::COOKIE).path("/")), Redirect::to("/login"))
+    let jar = jar.remove(Cookie::build(auth::COOKIE).path("/")).remove(Cookie::build(auth::WHO_COOKIE).path("/"));
+    (jar, [("clear-site-data", r#""cache", "storage""#)], Redirect::to("/login"))
 }

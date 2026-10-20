@@ -3,8 +3,8 @@
 {% block page %}login{% endblock %}
 {% block head %}
   <link rel="preload" href="/static/fonts/Fraunces-italic.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/static/login.css">
-  <script src="/static/login.js" defer></script>
+  <link rel="stylesheet" href="/static/login.css?v={{ crate::BUILD }}">
+  <script src="/static/login.js?v={{ crate::BUILD }}" defer></script>
 {% endblock %}
 {% block nav %}{% endblock %}
 {% block content %}

@@ -31,7 +31,7 @@
       </tbody>
     </table>
     {% if !a.travel_note.is_empty() %}<p class="travel-note">cab fares {{ a.travel_note }}</p>{% endif %}
-    {% if let Some(u) = a.uber_url %}<p class="travel-link"><a href="{{ u }}" target="_blank" rel="noopener">Check the real fare in Uber<span class="visually-hidden"> (opens the Uber app or site)</span></a></p>{% endif %}
+    {% if let Some(u) = a.uber_url %}<p class="travel-link"><a href="{{ u }}" target="_blank" rel="noopener noreferrer">Check the real fare in Uber<span class="visually-hidden"> (opens the Uber app or site)</span></a></p>{% endif %}
   </section>
   {% endif %}
 
@@ -68,7 +68,7 @@
   <p class="kept-line">In the keepsake box. Rate it after you go.</p>
   {% endif %}
   {% if !surprise && !share_text.is_empty() %}
-  <p class="share-row"><a class="share" href="{{ wa_url }}" target="_blank" rel="noopener" data-share="{{ share_text }}"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.6 3.6 3.4 10.4c-.7.3-.6 1.2.1 1.4l6.3 1.9 1.9 6.3c.2.7 1.1.8 1.4.1z"/><path d="M9.8 13.7 20.6 3.6"/></svg><span>Send to {{ partner }}</span><span class="visually-hidden"> (opens WhatsApp)</span></a></p>
+  <p class="share-row"><a class="share" href="{{ wa_url }}" target="_blank" rel="noopener noreferrer" data-share="{{ share_text }}"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.6 3.6 3.4 10.4c-.7.3-.6 1.2.1 1.4l6.3 1.9 1.9 6.3c.2.7 1.1.8 1.4.1z"/><path d="M9.8 13.7 20.6 3.6"/></svg><span>Send to {{ partner }}</span><span class="visually-hidden"> (opens WhatsApp)</span></a></p>
   {% endif %}
   {% if !history_ids.is_empty() %}
   <div class="planned" id="planned">
@@ -83,12 +83,12 @@
   </div>
   {% endif %}
   <div class="slip-actions">
-    {% if let Some(url) = a.maps_url %}<a class="btn btn-ink" href="{{ url }}" target="_blank" rel="noopener">Open in Maps<span class="visually-hidden"> (opens in a new tab)</span></a>{% endif %}
+    {% if let Some(url) = a.maps_url %}<a class="btn btn-ink" href="{{ url }}" target="_blank" rel="noopener noreferrer">Open in Maps<span class="visually-hidden"> (opens in a new tab)</span></a>{% endif %}
     <a class="btn btn-quiet" href="/history">See it in Kept</a>
     <button class="btn btn-quiet" type="button" data-action="back">Back to the jar</button>
   </div>
   {% else %}
-  {% if let Some(url) = a.maps_url %}<p class="slip-maps"><a href="{{ url }}" target="_blank" rel="noopener">Open in Maps<span class="visually-hidden"> (opens in a new tab)</span></a></p>{% endif %}
+  {% if let Some(url) = a.maps_url %}<p class="slip-maps"><a href="{{ url }}" target="_blank" rel="noopener noreferrer">Open in Maps<span class="visually-hidden"> (opens in a new tab)</span></a></p>{% endif %}
   {% if !pairs.is_empty() %}
   <section class="pairs" aria-labelledby="pairs-h">
     <p class="pairs-h" id="pairs-h">pairs nicely with…</p>
@@ -132,7 +132,7 @@
     </form>
     {% endif %}
     {% if !share_text.is_empty() %}
-    <a class="share" href="{{ wa_url }}" target="_blank" rel="noopener" data-share="{{ share_text }}"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.6 3.6 3.4 10.4c-.7.3-.6 1.2.1 1.4l6.3 1.9 1.9 6.3c.2.7 1.1.8 1.4.1z"/><path d="M9.8 13.7 20.6 3.6"/></svg><span>Send to {{ partner }}</span><span class="visually-hidden"> (opens WhatsApp)</span></a>
+    <a class="share" href="{{ wa_url }}" target="_blank" rel="noopener noreferrer" data-share="{{ share_text }}"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.6 3.6 3.4 10.4c-.7.3-.6 1.2.1 1.4l6.3 1.9 1.9 6.3c.2.7 1.1.8 1.4.1z"/><path d="M9.8 13.7 20.6 3.6"/></svg><span>Send to {{ partner }}</span><span class="visually-hidden"> (opens WhatsApp)</span></a>
     {% endif %}
     {% if can_veto %}
     {# "Not for me": out of the draw for both of us, no peek spent. Undo it from Slips. #}

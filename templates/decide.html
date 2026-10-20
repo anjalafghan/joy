@@ -3,8 +3,8 @@
 {% block page %}jar{% endblock %}
 {% block me %}{% if me_name.is_empty() %}who?{% else %}{{ me_name }}{% endif %}{% endblock %}
 {% block head %}
-<link rel="stylesheet" href="/static/jar.css">
-<script src="/static/jar.js" defer></script>
+<link rel="stylesheet" href="/static/jar.css?v={{ crate::BUILD }}">
+<script src="/static/jar.js?v={{ crate::BUILD }}" defer></script>
 {% endblock %}
 {% block content %}
 <div class="jar-page{% if count == 0 %} is-empty{% endif %}">

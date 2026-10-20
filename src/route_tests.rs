@@ -364,3 +364,85 @@ async fn gentle_nudges() {
     let rohit = t.as_person(0).await;
     assert!(t.get("/", &rohit).await.body.contains("Tomorrow, 7:00 pm: A play at Prithvi Theatre"));
 }
+
+#[tokio::test]
+async fn the_year_in_review_never_counts_a_sealed_surprise_or_names_us_in_the_picture() {
+    let t = setup().await;
+    let year: i64 = t.scalar("SELECT CAST(strftime('%Y', 'now', 'localtime') AS INTEGER)").await;
+    let cook = t.id_of("Cook together").await;
+    let hindi = sqlx::query_scalar::<_, i64>("SELECT id FROM activities WHERE title LIKE 'Hindi rap%'")
+        .fetch_one(&t.db)
+        .await
+        .unwrap();
+    for a in [cook, hindi] {
+        t.exec(&format!("INSERT INTO history (activity_id, outcome, rating, picked_at) VALUES ({a}, 'did_it', 5, unixepoch('now', '-1 hour'))")).await;
+    }
+    surprise_from_rohit(&t).await; // planned in two days: still to come, and sealed
+    let play = t.id_of(PLAY).await;
+    t.exec(&format!("INSERT INTO history (activity_id, outcome, drawn_by, surprise, picked_at) VALUES ({play}, 'did_it', 0, 1, unixepoch('now', '-2 hours'))")).await;
+    let (rohit, neha) = (t.as_person(0).await, t.as_person(1).await);
+
+    for who in [&rohit, &neha] {
+        let page = t.get(&format!("/year/{year}"), who).await;
+        assert_eq!(page.status, StatusCode::OK);
+        assert!(page.body.contains("class=\"y-count\">2<"), "sealed surprises aren't counted, for anyone");
+        assert!(!page.body.contains("Prithvi"));
+    }
+    let share = t.get(&format!("/year/{year}"), &neha).await.body;
+    let island = share.split("id=\"year-share\">").nth(1).unwrap().split("</script>").next().unwrap();
+    assert!(!island.contains("Neha") && !island.contains("Rohit"), "no names in the share data: {island}");
+    assert!(island.contains("watch us react"), "names in titles become \"us\": {island}");
+    assert_eq!(t.get("/year", &neha).await.status, StatusCode::SEE_OTHER);
+}
+
+#[tokio::test]
+async fn offline_pieces_work_without_login_and_hold_nothing_personal() {
+    let t = setup_with(false, &auth::hash("pw")).await;
+    let sw = t.get("/sw.js", "").await;
+    assert_eq!(sw.status, StatusCode::OK);
+    assert!(sw.body.contains(&format!("const V = '{}'", crate::BUILD)));
+    assert_eq!(sw.headers.get(header::CACHE_CONTROL).unwrap(), "no-cache");
+    let off = t.get("/offline", "").await;
+    assert_eq!(off.status, StatusCode::OK);
+    assert!(!off.body.contains("Rohit") && !off.body.contains("Neha"));
+    assert_eq!(t.get("/history", "").await.location(), "/login", "everything else still needs the passcode");
+}
+
+#[tokio::test]
+async fn pages_are_never_left_in_the_browser_cache_and_carry_privacy_headers() {
+    let t = setup().await;
+    let neha = t.as_person(1).await;
+    let page = t.get("/history", &neha).await;
+    assert_eq!(page.headers.get(header::CACHE_CONTROL).unwrap(), "no-store");
+    assert_eq!(page.headers.get("x-joy-viewer").unwrap(), "1");
+    assert_eq!(page.headers.get("referrer-policy").unwrap(), "no-referrer");
+    assert_eq!(page.headers.get("x-content-type-options").unwrap(), "nosniff");
+    assert_eq!(t.get("/history", "").await.headers.get("x-joy-viewer").unwrap(), "none");
+    assert!(page.body.contains(&format!("/static/tokens.css?v={}", crate::BUILD)), "assets are versioned");
+}
+
+#[tokio::test]
+async fn logout_forgets_who_is_holding_the_phone_and_switching_clears_the_cache() {
+    let t = setup().await;
+    let switch = t.send(Method::POST, "/who", "", Some("who=1"), false).await;
+    assert_eq!(switch.headers.get("clear-site-data").unwrap(), "\"cache\"");
+    let out = t.send(Method::POST, "/logout", &cookies(&switch.headers), Some(""), false).await;
+    assert_eq!(out.headers.get("clear-site-data").unwrap(), "\"cache\", \"storage\"");
+    let cleared: Vec<String> = out.headers.get_all(header::SET_COOKIE).iter().map(|v| v.to_str().unwrap().to_string()).collect();
+    assert!(cleared.iter().any(|c| c.starts_with("joy_who=") && c.contains("Max-Age=0")), "{cleared:?}");
+}
+
+#[tokio::test]
+async fn a_year_whose_only_date_is_a_sealed_surprise_isnt_listed() {
+    let t = setup().await;
+    let play = t.id_of(PLAY).await;
+    t.exec(&format!("INSERT INTO history (activity_id, outcome, drawn_by, surprise, picked_at) VALUES ({play}, 'did_it', 0, 1, unixepoch('2024-05-01'))")).await;
+    let cook = t.id_of("Cook together").await;
+    t.exec(&format!("INSERT INTO history (activity_id, outcome, picked_at) VALUES ({cook}, 'did_it', unixepoch('2025-05-01'))")).await;
+    t.exec(&format!("INSERT INTO history (activity_id, outcome, picked_at) VALUES ({cook}, 'did_it', unixepoch('2026-01-10'))")).await;
+    let neha = t.as_person(1).await;
+    let page = t.get("/year/2025", &neha).await.body;
+    let near: Vec<&str> = page.match_indices("/year/2024").map(|(i, _)| &page[i.saturating_sub(120)..(i + 40).min(page.len())]).collect();
+    assert!(page.contains("/year/2026"), "the switcher lists the other visible year");
+    assert!(near.is_empty(), "2024 holds only a sealed surprise: {near:?}");
+}

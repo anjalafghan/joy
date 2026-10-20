@@ -2,7 +2,7 @@
 {% block title %}Who's this? · joy{% endblock %}
 {% block page %}who{% endblock %}
 {% block nav %}{% endblock %}
-{% block head %}<link rel="stylesheet" href="/static/who.css">{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/who.css?v={{ crate::BUILD }}">{% endblock %}
 {% block content %}
 <section class="who" aria-labelledby="who-h">
   <p class="who-eyebrow">{% if switching %}switching phones?{% else %}one quick thing{% endif %}</p>
@@ -17,5 +17,9 @@
     {% endfor %}
   </form>
   {% if switching %}<p class="who-back"><a href="/">Back to the jar</a></p>{% endif %}
+  <div class="who-offline">
+    <label><input type="checkbox" id="offline-copies" checked> Keep offline copies on this phone</label>
+    <p class="soft" id="offline-copies-note">Saved pages stay on this phone for up to a week, readable without signal. They’re cleared whenever you switch who’s holding it or log out.</p>
+  </div>
 </section>
 {% endblock %}

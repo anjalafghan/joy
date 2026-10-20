@@ -9,14 +9,15 @@
   <title>{% block title %}joy{% endblock %}</title>
   <link rel="preload" href="/static/fonts/Fraunces-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="/static/fonts/InstrumentSans-normal.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/static/tokens.css">
-  <link rel="manifest" href="/static/manifest.webmanifest">
-  <link rel="apple-touch-icon" href="/static/icons/icon-180.png">
+  <link rel="stylesheet" href="/static/tokens.css?v={{ crate::BUILD }}">
+  <link rel="manifest" href="/static/manifest.webmanifest?v={{ crate::BUILD }}">
+  <link rel="apple-touch-icon" href="/static/icons/icon-180.png?v={{ crate::BUILD }}">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="joy">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='9' y='3' width='14' height='5' rx='1.5' fill='%23b9301b'/%3E%3Cpath d='M8 9h16c1 0 2 1 2 2v14a4 4 0 0 1-4 4H10a4 4 0 0 1-4-4V11c0-1 1-2 2-2z' fill='%23f5eee3' stroke='%232b2433' stroke-width='2'/%3E%3Crect x='11' y='16' width='10' height='4' rx='1' fill='%23b9301b' transform='rotate(-8 16 18)'/%3E%3C/svg%3E">
-  <script src="/static/htmx.min.js" defer></script>
+  <script src="/static/htmx.min.js?v={{ crate::BUILD }}" defer></script>
+  <script src="/static/app.js?v={{ crate::BUILD }}" defer></script>
   {% block head %}{% endblock %}
 </head>
 <body data-page="{% block page %}{% endblock %}">
