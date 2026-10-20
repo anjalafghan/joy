@@ -317,6 +317,21 @@ async fn the_jar_learns_from_real_costs() {
 }
 
 #[tokio::test]
+async fn the_budget_only_counts_what_we_really_spent() {
+    let t = setup().await;
+    let a = t.id_of("Cat café").await;
+    let add = |actual: &str, planned: &str| {
+        format!("INSERT INTO history (activity_id, outcome, est_cost, actual_cost, planned_at) VALUES ({a}, 'did_it', 900, {actual}, {planned})")
+    };
+    t.exec(&add("1500", "NULL")).await; // done this month, cost filled in: counts
+    t.exec(&add("NULL", "NULL")).await; // kept but no real cost yet: doesn't
+    t.exec(&add("700", "unixepoch() + 60 * 86400")).await; // happens in a later month
+    t.exec(&add("400", "unixepoch() - 45 * 86400")).await; // happened in an earlier month
+    assert_eq!(crate::db::spent_this_month(&t.db).await.unwrap(), 1500);
+    assert!(t.get("/history", "").await.body.contains("<strong>₹1,500</strong>"));
+}
+
+#[tokio::test]
 async fn cab_estimates_calibrate_from_real_fares() {
     let t = setup().await;
     let sassoon = t.id_of("Sunrise at Sassoon Docks").await;

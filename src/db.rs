@@ -456,13 +456,14 @@ pub async fn last_drawer(db: &SqlitePool) -> sqlx::Result<Option<i64>> {
     .await
 }
 
-/// What this calendar month's kept dates add up to (local time): the real cost where
-/// we filled it in, the estimate otherwise.
+/// What we really spent on dates this calendar month (local time). Only dates with an
+/// actual cost filled in count: a kept slip that hasn't happened yet isn't money spent.
+/// A date counts in the month it happens (its planned time), else the month it was drawn.
 pub async fn spent_this_month(db: &SqlitePool) -> sqlx::Result<i64> {
     sqlx::query_scalar(
-        "SELECT COALESCE(SUM(COALESCE(h.actual_cost, h.est_cost, a.est_cost)), 0) FROM history h JOIN activities a ON a.id = h.activity_id
-         WHERE h.outcome = 'did_it'
-           AND strftime('%Y-%m', h.picked_at, 'unixepoch', 'localtime') = strftime('%Y-%m', 'now', 'localtime')",
+        "SELECT COALESCE(SUM(actual_cost), 0) FROM history
+         WHERE outcome = 'did_it' AND actual_cost IS NOT NULL
+           AND strftime('%Y-%m', COALESCE(planned_at, picked_at), 'unixepoch', 'localtime') = strftime('%Y-%m', 'now', 'localtime')",
     )
     .fetch_one(db)
     .await
