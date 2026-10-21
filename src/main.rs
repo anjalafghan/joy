@@ -87,6 +87,7 @@ pub fn build_app(state: AppState) -> Router {
     Router::new()
         .route("/", get(routes::decide::page))
         .route("/pick", post(routes::decide::pick))
+        .route("/middle", post(routes::middle::check_in))
         .route("/match", post(routes::decide::matching))
         .route("/accept/{id}", post(routes::decide::accept))
         .route("/wishlist", get(routes::wishlist::page).post(routes::wishlist::create))

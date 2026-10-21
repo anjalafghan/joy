@@ -561,3 +561,43 @@ body[data-page="jar"] main { padding-top: 0; }
 .nudge { display: flex; align-items: flex-start; gap: 8px; margin: 14px 0 0; padding: 10px 12px; border: 1px dashed var(--rule); border-radius: var(--radius-slip); font-size: var(--step--1); color: var(--ink); background: color-mix(in srgb, var(--slip) 70%, transparent); }
 .nudge .ico { width: 18px; height: 18px; flex: none; margin-top: 1px; fill: none; stroke: var(--stamp); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .nudge.is-soon { border-style: solid; border-color: color-mix(in srgb, var(--stamp) 45%, var(--rule)); }
+
+/* ── meet in the middle ───────────────────────────────────── */
+.middle {
+  position: relative; margin: 22px 0 6px; padding: 16px 16px 14px;
+  background: var(--slip); border: 1px solid var(--rule); border-radius: var(--radius-slip);
+  box-shadow: var(--shadow-slip);
+}
+.middle.is-met { border-color: color-mix(in srgb, var(--stamp) 45%, var(--rule)); }
+.middle-mark { position: absolute; top: 14px; right: 14px; width: 46px; height: 20px; fill: none; stroke: var(--ink-soft); stroke-width: 1.4; }
+.middle-mark .middle-lens { fill: color-mix(in srgb, var(--stamp) 22%, transparent); stroke: none; }
+.middle.is-met .middle-mark { stroke: var(--stamp); }
+.middle.is-met .middle-mark .middle-lens { fill: var(--stamp); }
+.middle-h { margin: 0 64px 6px 0; font-family: var(--font-display); font-size: var(--step-1); font-weight: 600; line-height: 1.2; }
+.middle-p { margin: 0; font-size: var(--step--1); line-height: 1.5; color: var(--ink-soft); max-width: 46ch; }
+.middle-p strong { color: var(--ink); font-weight: 600; }
+.middle-ask { margin: 8px 0 0; font-size: var(--step--1); }
+.middle-ask a { color: var(--stamp); text-underline-offset: 3px; }
+.middle-form-wrap { margin-top: 10px; }
+.middle-toggle { display: inline-flex; align-items: center; min-height: 44px; cursor: pointer; font-weight: 600; color: var(--ink); text-decoration: underline; text-decoration-style: dashed; text-underline-offset: 4px; }
+.middle-toggle::-webkit-details-marker { display: none; }
+.middle-toggle { list-style: none; }
+.middle-form-wrap[open] .middle-toggle { color: var(--ink-soft); }
+.middle-q { margin: 10px 0 0; padding: 0; border: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.middle-q legend { width: 100%; margin-bottom: 4px; padding: 0; font-size: var(--step--1); font-weight: 600; color: var(--ink); }
+.middle-opt { font-weight: 400; color: var(--ink-soft); }
+.pill { position: relative; display: inline-flex; }
+.pill input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+.pill span {
+  display: inline-flex; align-items: center; min-height: 40px; padding: 0 12px;
+  border: 1px solid var(--rule); border-radius: 999px; font-size: var(--step--1); color: var(--ink);
+  background: var(--paper); transition: background var(--t-micro) var(--ease-out), border-color var(--t-micro) var(--ease-out);
+}
+.pill input:checked + span { background: var(--ink); border-color: var(--ink); color: var(--paper); font-weight: 600; }
+.pill input:focus-visible + span { outline: 2px solid var(--stamp); outline-offset: 2px; }
+.middle-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-top: 14px; }
+.middle-clear { min-height: 44px; padding: 0; border: 0; background: none; color: var(--ink-soft); font: inherit; font-size: var(--step--1); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.middle-fine { margin: 8px 0 0; font-size: .8rem; color: var(--ink-soft); }
+.middle-line { display: flex; align-items: center; gap: 6px; margin: 2px 0 4px; font-family: var(--font-hand); font-size: 1.2rem; color: var(--stamp); }
+.middle-line svg { width: 30px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.6; }
+@media (prefers-reduced-motion: reduce) { .pill span { transition: none; } }

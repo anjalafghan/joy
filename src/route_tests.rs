@@ -461,3 +461,47 @@ async fn a_year_whose_only_date_is_a_sealed_surprise_isnt_listed() {
     assert!(page.contains("/year/2026"), "the switcher lists the other visible year");
     assert!(near.is_empty(), "2024 holds only a sealed surprise: {near:?}");
 }
+
+#[tokio::test]
+async fn meet_in_the_middle_draws_from_the_overlap_and_never_shows_the_other_s_answers() {
+    let t = setup().await;
+    let (rohit, neha) = (t.as_person(0).await, t.as_person(1).await);
+
+    // Not both in yet: no middle draw, just a note.
+    let early = t.post("/pick", &rohit, "middle=1").await;
+    assert!(early.body.contains("Once you&#x27;ve both checked in") || early.body.contains("Once you've both checked in"), "{}", early.body);
+
+    let r = t.post("/middle", &rohit, "energy=high&budget=3000&max_duration=full_day&reach=far&vibe=adventurous").await;
+    assert_eq!(r.status, StatusCode::SEE_OTHER);
+    let neha_jar = t.get("/", &neha).await.body;
+    assert!(neha_jar.contains("Rohit has checked in for tonight"));
+    for answer in [r#"value="high" checked"#, r#"value="3000" checked"#, r#"value="full_day" checked"#, r#"value="adventurous" checked"#] {
+        assert!(!neha_jar.contains(answer), "Neha's page shows Rohit's answer {answer}");
+    }
+
+    t.post("/middle", &neha, "energy=low&budget=500&max_duration=short&reach=home&vibe=cozy").await;
+    assert!(t.get("/", &rohit).await.body.contains("Draw from the middle"));
+
+    let mut current = String::new();
+    for i in 0..12 {
+        let form = if i == 0 { "middle=1".to_string() } else { format!("middle=1&reroll=1&current={current}&used=0") };
+        let card = t.post("/pick", &rohit, &form).await.body;
+        assert!(card.contains("where you both meet tonight"), "{card}");
+        assert!(!card.contains(r#"name="budget""#) && !card.contains(r#"name="energy""#), "the card carries the merged answers");
+        assert!(!card.contains("Stretch to"), "a relax hint gives an answer away");
+        let Some(id) = card.split(r#"data-id=""#).nth(1).and_then(|r| r.split('"').next()) else { break };
+        current = id.to_string();
+        let (setting, energy, cost): (String, String, i64) =
+            sqlx::query_as(&format!("SELECT setting, energy, est_cost FROM activities WHERE id = {id}")).fetch_one(&t.db).await.unwrap();
+        assert_eq!(setting, "home", "Neha wants to stay in");
+        assert_eq!(energy, "low", "Neha is tired");
+        assert!(cost <= 500, "Neha's budget");
+    }
+
+    assert!(!current.is_empty(), "the middle draw found something cozy at home");
+
+    // Taking a check-in back ends the middle draw.
+    t.post("/middle", &neha, "energy=low&clear=1").await;
+    assert!(!t.get("/", &rohit).await.body.contains("Draw from the middle"));
+    assert_eq!(t.scalar("SELECT count(*) FROM checkins").await, 1);
+}

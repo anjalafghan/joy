@@ -102,6 +102,54 @@
 
 <div id="pick" aria-live="polite"></div>
 
+{% if middle.enabled %}
+<section class="middle grain{% if middle.both_in() %} is-met{% endif %}" id="middle" aria-labelledby="middle-h">
+  <svg class="middle-mark" viewBox="0 0 64 28" aria-hidden="true" focusable="false"><circle cx="22" cy="14" r="11"/><circle cx="42" cy="14" r="11"/><path class="middle-lens" d="M32 5.6a11 11 0 0 1 0 16.8 11 11 0 0 1 0-16.8z"/></svg>
+  <h2 class="middle-h" id="middle-h">Meet in the middle</h2>
+  {% if middle.both_in() %}
+  <p class="middle-p">You've both told the jar how tonight feels. It'll draw only from what fits you both. Neither of you sees the other's answers.</p>
+  {% else if middle.mine.is_some() %}
+  <p class="middle-p">You're checked in. Waiting for {{ middle.partner }}: when they open the jar, they'll see it's their turn. Your answers stay yours.</p>
+  <p class="middle-ask"><a href="{{ middle.wa_url }}" target="_blank" rel="noopener noreferrer">Ask {{ middle.partner }} to check in<span class="visually-hidden"> (opens WhatsApp)</span></a></p>
+  {% else if middle.partner_in %}
+  <p class="middle-p"><strong>{{ middle.partner }} has checked in for tonight.</strong> Add yours and the jar draws from where you meet. You won't see their answers, and they won't see yours.</p>
+  {% else %}
+  <p class="middle-p">Can't decide together? Each of you tells the jar how tonight feels, on your own phone. It draws from the overlap, and neither of you sees the other's answers.</p>
+  {% endif %}
+
+  <details class="middle-form-wrap"{% if middle.mine.is_none() && middle.partner_in %} open{% endif %}>
+    <summary class="middle-toggle">{% if middle.mine.is_some() %}Change my answers{% else %}Check in for tonight{% endif %}</summary>
+    <form class="middle-form" method="post" action="/middle">
+      <fieldset class="middle-q">
+        <legend>Energy</legend>
+        {% for o in middle.energies %}<label class="pill"><input type="radio" name="energy" value="{{ o.value }}"{% if o.selected %} checked{% endif %}><span>{{ o.label }}</span></label>{% endfor %}
+      </fieldset>
+      <fieldset class="middle-q">
+        <legend>Spend, for both of us</legend>
+        {% for o in middle.budgets %}<label class="pill"><input type="radio" name="budget" value="{{ o.value }}"{% if o.selected %} checked{% endif %}><span>{% if o.value.is_empty() || o.value == "0" %}{{ o.label }}{% else %}up to {{ o.label }}{% endif %}</span></label>{% endfor %}
+      </fieldset>
+      <fieldset class="middle-q">
+        <legend>Time</legend>
+        {% for o in middle.times %}<label class="pill"><input type="radio" name="max_duration" value="{{ o.value }}"{% if o.selected %} checked{% endif %}><span>{{ o.label }}</span></label>{% endfor %}
+      </fieldset>
+      <fieldset class="middle-q">
+        <legend>How far</legend>
+        {% for o in middle.reaches %}<label class="pill"><input type="radio" name="reach" value="{{ o.value }}"{% if o.selected %} checked{% endif %}><span>{{ o.label }}</span></label>{% endfor %}
+      </fieldset>
+      <fieldset class="middle-q">
+        <legend>In the mood for <span class="middle-opt">optional</span></legend>
+        <label class="pill"><input type="radio" name="vibe" value=""{% if middle.no_vibe() %} checked{% endif %}><span>anything</span></label>{% for o in middle.vibes %}<label class="pill"><input type="radio" name="vibe" value="{{ o.value }}"{% if o.selected %} checked{% endif %}><span>{{ o.label }}</span></label>{% endfor %}
+      </fieldset>
+      <div class="middle-actions">
+        <button class="btn btn-ink" type="submit">{% if middle.mine.is_some() %}Save my answers{% else %}Check in{% endif %}</button>
+        {% if middle.mine.is_some() %}<button class="middle-clear" type="submit" name="clear" value="1" formnovalidate>Take mine back</button>{% endif %}
+      </div>
+      <p class="middle-fine">Kept until tonight ends, then deleted.</p>
+    </form>
+  </details>
+</section>
+{% endif %}
+
 <form id="tonight" class="tonight" hx-post="/pick" hx-target="#pick" hx-swap="innerHTML swap:260ms" hx-sync="#pick:drop" hx-disabled-elt="find #draw">
   {% if let Some(p) = rain %}
   <p class="weather"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.2 15.4a4.3 4.3 0 0 1-.4-8.5 5.4 5.4 0 0 1 10.3 1.4 3.6 3.6 0 0 1 .3 7.1"/><path d="M9 18.2l-.9 2.2M13 17.6l-.9 2.6M16.6 18.2l-.8 2"/></svg><span>Rain likely tonight ({{ p }}%), so cozy ones float up.</span></p>
@@ -157,7 +205,8 @@
   </p>
 
   <div class="draw-row">
-    <button id="draw" class="btn btn-stamp btn-draw" type="submit">Draw a slip</button>
+    {% if middle.both_in() %}<button class="btn btn-stamp btn-draw btn-middle" type="submit" name="middle" value="1">Draw from the middle</button>{% endif %}
+    <button id="draw" class="btn {% if middle.both_in() %}btn-ink{% else %}btn-stamp btn-draw{% endif %}" type="submit">{% if middle.both_in() %}Draw with this sentence{% else %}Draw a slip{% endif %}</button>
     <button id="shake" class="shake-opt" type="button" hidden aria-pressed="false">or shake your phone</button>
   </div>
   {% if !turn_name.is_empty() %}

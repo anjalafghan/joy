@@ -18,6 +18,7 @@ use super::{
 use crate::{
     db,
     auth,
+    routes::middle::Middle,
     picker::{self, Candidate, Duration, Filters, Hint, PickResult, Today, ENERGIES, MAX_REROLLS, SETTINGS},
     weather, AppState,
 };
@@ -64,6 +65,8 @@ struct DecideTpl {
     nudge: String,
     /// The nudge is about a date coming up (vs. a gap since the last one).
     nudge_soon: bool,
+    /// "Meet in the middle": tonight's private check-ins, from this viewer's side.
+    middle: super::middle::MiddleView,
 }
 
 /// Weeks without a date before the jar says so.
@@ -140,6 +143,7 @@ pub async fn page(State(s): State<AppState>, jar: SignedCookieJar) -> HtmlResult
         .find(|r| !sealed_for(r, who))
         .map(|r| Memory { title: s.cfg.personalize(&r.title), when: format!("{} {}", r.day_label(), r.day.get(..4).unwrap_or("")) });
     let nudge = nudge(&s, who).await?;
+    let middle = super::middle::view(&s, who, &me.partner).await?;
     let jar = jar_data(&s).await?;
     let acts = &jar.acts;
     let mut tags: Vec<String> = acts.iter().flat_map(|a| a.tag_list()).collect();
@@ -180,6 +184,7 @@ pub async fn page(State(s): State<AppState>, jar: SignedCookieJar) -> HtmlResult
         budget: budget_view(&s).await?,
         nudge: nudge.0,
         nudge_soon: nudge.1,
+        middle,
     })
 }
 
@@ -205,6 +210,8 @@ pub struct PickForm {
     reroll: String,
     /// "1": whoever's holding the phone passes on the current slip for good ("Not for me").
     veto: String,
+    /// "1": draw from tonight's check-ins ("Meet in the middle") instead of these filters.
+    middle: String,
 }
 
 impl PickForm {
@@ -222,6 +229,24 @@ impl PickForm {
         }
     }
 
+    fn is_middle(&self) -> bool {
+        self.middle == "1"
+    }
+
+    /// These filters replaced by where tonight's two check-ins meet.
+    fn met(&self, m: &Middle) -> PickForm {
+        PickForm {
+            budget: m.budget.map(|b| b.to_string()).unwrap_or_default(),
+            max_duration: m.max_duration.map(|d| d.key().to_string()).unwrap_or_default(),
+            settings: if m.stay_in { vec!["home".into()] } else { vec![] },
+            tag: String::new(),
+            energy: String::new(),
+            max_km: m.max_km.map(|k| k.to_string()).unwrap_or_default(),
+            from: String::new(),
+            ..self.clone()
+        }
+    }
+
     fn from(&self) -> Option<usize> {
         self.from.parse().ok().filter(|i| *i < 2)
     }
@@ -230,8 +255,13 @@ impl PickForm {
         self.excluded.split(',').filter_map(|s| s.trim().parse().ok()).collect()
     }
 
-    /// The filter fields only, as hidden inputs.
+    /// The filter fields only, as hidden inputs. Drawing from the middle round-trips just
+    /// that flag: the server works the filters out again each time, so neither of us can
+    /// read the other's answers out of the page.
     fn filter_fields(&self) -> Vec<(String, String)> {
+        if self.is_middle() {
+            return vec![("middle".into(), "1".into())];
+        }
         let mut h: Vec<(String, String)> = vec![
             ("budget".into(), self.budget.clone()),
             ("max_duration".into(), self.max_duration.clone()),
@@ -349,6 +379,8 @@ struct CardTpl {
     /// WhatsApp share: the message, and a ready wa.me link.
     share_text: String,
     wa_url: String,
+    /// Drawn from tonight's check-ins.
+    middle: bool,
 }
 
 impl CardTpl {
@@ -363,6 +395,7 @@ impl CardTpl {
             rerolls_left: 0,
             max_rerolls: MAX_REROLLS,
             free_putback: false,
+            middle: false,
             pairs: vec![],
             paired: None,
             hidden: vec![],
@@ -392,6 +425,17 @@ async fn drawer(s: &AppState, jar: &SignedCookieJar) -> Result<Drawer, AppError>
 
 pub async fn pick(State(s): State<AppState>, jar: SignedCookieJar, Form(f): Form<PickForm>) -> HtmlResult {
     let d = drawer(&s, &jar).await?;
+    let middle = if f.is_middle() { super::middle::tonight(&s.db).await? } else { None };
+    if f.is_middle() && middle.is_none() {
+        return render(CardTpl {
+            message: "Once you've both checked in for tonight, the jar draws from the middle.".into(),
+            ..CardTpl::blank()
+        });
+    }
+    let f = match &middle {
+        Some(m) => f.met(m),
+        None => f,
+    };
     let mut excluded = f.excluded();
     let mut used: u32 = f.used.parse().unwrap_or(0);
 
@@ -422,7 +466,10 @@ pub async fn pick(State(s): State<AppState>, jar: SignedCookieJar, Form(f): Form
     }
 
     let jar = jar_data(&s).await?;
-    let cands = jar.candidates(&s, &f);
+    let mut cands = jar.candidates(&s, &f);
+    if let Some(m) = &middle {
+        cands.retain(|c| m.allows(&c.energy, &c.tags));
+    }
     let filters = jar.filters(&f, rain(&s).await.is_some());
     let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs() as i64;
     let result = picker::pick(&cands, &filters, &excluded, now, &mut rand::thread_rng());
@@ -431,6 +478,14 @@ pub async fn pick(State(s): State<AppState>, jar: SignedCookieJar, Form(f): Form
         PickResult::Pick(id) => {
             card(&s, &d, &f, jar.acts.iter().find(|a| a.id == id), &excluded, used, &jar.learned).await
         }
+        // Saying which filter to loosen would give away one of our answers.
+        PickResult::NoMatch(h) if middle.is_some() => render(CardTpl {
+            message: match h {
+                Hint::Exhausted => "You've peeked at every slip that fits you both. One of you could change your check-in.".into(),
+                _ => "Nothing in the jar fits you both tonight. One of you could change your check-in, or draw on your own.".into(),
+            },
+            ..CardTpl::blank()
+        }),
         PickResult::NoMatch(h) => {
             let (relax_label, relax) = relax(&s, &f, &h);
             render(CardTpl {
@@ -468,6 +523,7 @@ async fn card(
         can_veto: d.me.who.is_some(),
         partner: d.me.partner.clone(),
         wa_url: format!("https://wa.me/?text={}", url_encode(&share)),
+        middle: f.is_middle(),
         share_text: share,
         activity: view,
         pairs,

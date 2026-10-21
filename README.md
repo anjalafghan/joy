@@ -26,6 +26,13 @@ The first run creates `data/joy.db` and seeds it with your wishlist (`migrations
 
 The logic lives in `src/picker.rs` and is unit tested with `cargo test`.
 
+## Meet in the middle
+
+When neither of you wants to be the one who decides, each of you checks in on your own phone: energy, spend, time, how far, and optionally a vibe. Once you both have, **Draw from the middle** picks only from slips that fit both of you. That means the lower budget, the shorter time, the lower energy and the nearer distance, and a slip that matches either vibe.
+
+- **Answers stay private.** Neither of you is shown the other's answers. The pick card carries only a `middle=1` flag, since the server works out the filters again for each draw. A draw with nothing to pick says so without naming whose answer was the limit.
+- **Answers are short-lived.** They last for the local day and are deleted on the next check-in after that. "Take mine back" removes yours at once.
+
 ## Design
 
 Joy is a **date jar**: every idea is a slip, you draw one, you can put it back three times, and the one you keep gets stamped *IT'S A DATE* and goes into the keepsake box. [DESIGN.md](DESIGN.md) is the brief. It covers the feeling for each moment, colour and type tokens, motion rules, and the invariants (reduced motion, contrast, double-tap safety).

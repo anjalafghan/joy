@@ -4,6 +4,7 @@
   <p class="slip-meta"><span class="slip-setting">{{ a.setting }}</span><span aria-hidden="true"> · </span>{{ a.duration }}<span aria-hidden="true"> · </span><strong>{{ a.cost }}</strong></p>
   {% if !a.cost_note.is_empty() %}<p class="cost-note">{{ a.cost_note }}</p>{% endif %}
   {% if !a.closed_label.is_empty() %}<p class="closed-note"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.6" y="5.2" width="16.8" height="15" rx="2"/><path d="M3.8 9.8h16.4M8 3.4v3.6M16 3.4v3.6"/></svg><span>{{ a.closed_label }}</span></p>{% endif %}
+  {% if middle && !done %}<p class="middle-line"><svg viewBox="0 0 64 28" aria-hidden="true" focusable="false"><circle cx="22" cy="14" r="11"/><circle cx="42" cy="14" r="11"/></svg>where you both meet tonight</p>{% endif %}
   <h2 id="slip-title" class="slip-title" tabindex="-1">{{ a.title }}</h2>
   {% if done %}{% if let Some(p) = paired %}<p class="paired-line"><span aria-hidden="true">+ </span><span class="visually-hidden">paired with </span>{{ p.title }}</p>{% endif %}{% endif %}
   {% if a.generated %}<p class="gen-tag"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.2l1.5 4.3 4.3 1.5-4.3 1.5L8 12.8 6.5 8.5 2.2 7l4.3-1.5z"/></svg>generated for you</p>{% endif %}
