@@ -90,9 +90,12 @@ impl T {
         self.send(Method::POST, uri, cookie, Some(form), true).await
     }
 
-    /// The cookie a device gets after saying who's holding it (0 or 1).
+    /// The cookie a device gets after saying who's holding it (0 or 1), with that person's own
+    /// passcode (set on first use).
     pub async fn as_person(&self, who: usize) -> String {
-        let r = self.send(Method::POST, "/who", "", Some(&format!("who={who}")), false).await;
+        let pin = format!("pin-of-{who}");
+        let r = self.send(Method::POST, "/who", "", Some(&format!("who={who}&pin={pin}&pin2={pin}")), false).await;
+        assert_eq!(r.status, StatusCode::SEE_OTHER, "{}", r.body);
         cookies(&r.headers)
     }
 
@@ -439,7 +442,7 @@ async fn pages_are_never_left_in_the_browser_cache_and_carry_privacy_headers() {
 #[tokio::test]
 async fn logout_forgets_who_is_holding_the_phone_and_switching_clears_the_cache() {
     let t = setup().await;
-    let switch = t.send(Method::POST, "/who", "", Some("who=1"), false).await;
+    let switch = t.send(Method::POST, "/who", "", Some("who=1&pin=pin-of-1&pin2=pin-of-1"), false).await;
     assert_eq!(switch.headers.get("clear-site-data").unwrap(), "\"cache\"");
     let out = t.send(Method::POST, "/logout", &cookies(&switch.headers), Some(""), false).await;
     assert_eq!(out.headers.get("clear-site-data").unwrap(), "\"cache\", \"storage\"");
@@ -504,4 +507,39 @@ async fn meet_in_the_middle_draws_from_the_overlap_and_never_shows_the_other_s_a
     t.post("/middle", &neha, "energy=low&clear=1").await;
     assert!(!t.get("/", &rohit).await.body.contains("Draw from the middle"));
     assert_eq!(t.scalar("SELECT count(*) FROM checkins").await, 1);
+}
+
+#[tokio::test]
+async fn switching_to_the_other_person_takes_their_own_passcode() {
+    let t = setup().await;
+    surprise_from_rohit(&t).await;
+    let rohit = t.as_person(0).await;
+    let neha = t.as_person(1).await;
+
+    // Neha tries to become Rohit on her phone: wrong passcode, no switch, still sealed.
+    let tries = t.send(Method::POST, "/who", &neha, Some("who=0&pin=guess"), false).await;
+    assert_eq!(tries.status, StatusCode::OK);
+    assert!(tries.body.contains("That&#x27;s not it") || tries.body.contains("That's not it"), "{}", tries.body);
+    assert!(!cookies(&tries.headers).contains("joy_who"), "a wrong passcode doesn't switch");
+    assert!(!t.get("/history", &neha).await.body.contains("Prithvi"));
+    // Nor can she set one for him: his already exists, so "pin2" is ignored.
+    let claim = t.send(Method::POST, "/who", &neha, Some("who=0&pin=mine&pin2=mine"), false).await;
+    assert!(!cookies(&claim.headers).contains("joy_who"));
+
+    // First time, the two passcodes have to match and be long enough.
+    let t2 = setup().await;
+    let short = t2.send(Method::POST, "/who", "", Some("who=1&pin=12&pin2=12"), false).await;
+    assert!(short.body.contains("at least 4"));
+    let typo = t2.send(Method::POST, "/who", "", Some("who=1&pin=1234&pin2=1243"), false).await;
+    assert!(typo.body.contains("match"));
+
+    // Rohit changes his passcode on another phone: the old cookie stops being Rohit.
+    assert!(t.get("/history", &rohit).await.body.contains("Prithvi"));
+    let changed = t.send(Method::POST, "/who", "", Some("who=0&pin=pin-of-0&new_pin=fresh-one&new_pin2=fresh-one"), false).await;
+    assert_eq!(changed.status, StatusCode::SEE_OTHER, "{}", changed.body);
+    let stale = t.get("/history", &rohit).await;
+    assert!(!stale.body.contains("Prithvi"), "a cookie from before the change still sees the surprise");
+    let gone: Vec<String> = stale.headers.get_all(header::SET_COOKIE).iter().map(|v| v.to_str().unwrap().to_string()).collect();
+    assert!(gone.iter().any(|c| c.starts_with("joy_who=") && c.contains("Max-Age=0")), "{gone:?}");
+    assert!(t.get("/history", &cookies(&changed.headers)).await.body.contains("Prithvi"));
 }

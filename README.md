@@ -42,6 +42,10 @@ Joy is a **date jar**: every idea is a slip, you draw one, you can put it back t
 - `design/alternates/` holds two other designs for the jar page that didn't ship, with screenshots.
 - For design work without the passcode, run with `JOY_DEV_NO_LOGIN=1` and a throwaway `DATABASE_URL`. **Never set it on a real deploy.**
 
+## Your own passcode
+
+The shared passcode gets you into the app. Saying who's holding the phone takes **that person's own passcode**, so one of you can't switch to the other and open their sealed surprises. Each of you sets yours the first time you pick your name (whoever sets it first owns the name). It's stored only as an Argon2 hash. Changing it signs your name out on every other device. Forgot yours? On the server, run `joy forget-passcode 0` (or `1`), e.g. `fly ssh console -C "joy forget-passcode 0"`, and set a new one.
+
 ## Offline, caching and privacy
 
 A small service worker (`static/sw.js`, served at `/sw.js`) keeps fonts, styles and scripts on the phone, and saves a read-only copy of the jar, Kept, Slips and year pages for up to 7 days, plus up to 25 MB of photos. Offline, those copies show with a note, and buttons are disabled; nothing is queued. The full design is in [docs/year-in-review-and-offline.md](docs/year-in-review-and-offline.md).

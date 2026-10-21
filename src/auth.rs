@@ -11,7 +11,7 @@ use argon2::{
 };
 use axum::{
     extract::{Request, State},
-    http::HeaderMap,
+    http::{header, HeaderMap, HeaderValue},
     middleware::Next,
     response::{IntoResponse, Redirect, Response},
 };
@@ -20,16 +20,22 @@ use axum_extra::extract::{cookie::Cookie, SignedCookieJar};
 use crate::AppState;
 
 pub const COOKIE: &str = "joy_auth";
-/// Which of us is holding this device: "0" (PERSON_A) or "1" (PERSON_B). Convenience, not auth:
-/// we share one passcode, so either of us can switch.
+/// Which of us is holding this device, as "<0|1>.<token>". Getting it takes that person's own
+/// passcode (on top of the shared one), so one of us can't switch to the other and read their
+/// surprises. The token changes whenever that person sets a new passcode, which signs their
+/// name out everywhere else. `check_who` drops a cookie whose token no longer matches.
 pub const WHO_COOKIE: &str = "joy_who";
+/// At least this many characters in a personal passcode.
+pub const MIN_PERSONAL: usize = 4;
 
 pub fn who(jar: &SignedCookieJar) -> Option<usize> {
-    jar.get(WHO_COOKIE)?.value().parse().ok().filter(|i| *i < 2)
+    let c = jar.get(WHO_COOKIE)?;
+    let (i, token) = c.value().split_once('.')?;
+    i.parse().ok().filter(|i| *i < 2 && !token.is_empty())
 }
 
-pub fn who_cookie(i: usize, secure: bool) -> Cookie<'static> {
-    Cookie::build((WHO_COOKIE, i.to_string()))
+pub fn who_cookie(i: usize, token: &str, secure: bool) -> Cookie<'static> {
+    Cookie::build((WHO_COOKIE, format!("{i}.{token}")))
         .path("/")
         .http_only(true)
         .secure(secure)
@@ -37,6 +43,60 @@ pub fn who_cookie(i: usize, secure: bool) -> Cookie<'static> {
         .max_age(time::Duration::days(365))
         .build()
 }
+
+pub fn pin_key(i: usize) -> String {
+    format!("person_pin_{i}")
+}
+
+pub fn token_key(i: usize) -> String {
+    format!("person_token_{i}")
+}
+
+pub fn new_token() -> String {
+    use rand::Rng;
+    let bytes: [u8; 16] = rand::thread_rng().gen();
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+/// Forgets a who cookie that isn't (or is no longer) backed by that person's passcode: old
+/// "0"/"1" cookies from before personal passcodes, and cookies from before a passcode change.
+/// Handlers then see nobody, so surprises stay sealed (fail closed).
+pub async fn check_who(State(s): State<AppState>, jar: SignedCookieJar, mut req: Request, next: Next) -> Response {
+    let Some(c) = jar.get(WHO_COOKIE) else { return next.run(req).await };
+    let valid = match c.value().split_once('.') {
+        Some((i, token)) => match i.parse::<usize>() {
+            Ok(i) if i < 2 && !token.is_empty() => {
+                crate::db::setting(&s.db, &token_key(i)).await.ok().flatten().is_some_and(|t| t == token)
+            }
+            _ => false,
+        },
+        None => false,
+    };
+    if valid {
+        return next.run(req).await;
+    }
+    let kept: Vec<String> = req
+        .headers()
+        .get_all(header::COOKIE)
+        .iter()
+        .filter_map(|v| v.to_str().ok())
+        .flat_map(|v| v.split(';'))
+        .map(str::trim)
+        .filter(|p| !p.is_empty() && !p.starts_with(&format!("{WHO_COOKIE}=")))
+        .map(String::from)
+        .collect();
+    req.headers_mut().remove(header::COOKIE);
+    if let Ok(v) = HeaderValue::from_str(&kept.join("; ")) {
+        req.headers_mut().insert(header::COOKIE, v);
+    }
+    let mut res = next.run(req).await;
+    let sets_new = res.headers().get_all(header::SET_COOKIE).iter().any(|v| v.to_str().is_ok_and(|v| v.starts_with(&format!("{WHO_COOKIE}="))));
+    if !sets_new {
+        res.headers_mut().append(header::SET_COOKIE, HeaderValue::from_static("joy_who=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax"));
+    }
+    res
+}
+
 const MAX_FAILURES: u32 = 10;
 const WINDOW: Duration = Duration::from_secs(15 * 60);
 

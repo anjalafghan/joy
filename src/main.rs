@@ -68,6 +68,16 @@ async fn main() -> anyhow::Result<()> {
     let db = SqlitePoolOptions::new().connect(&cfg.database_url).await.context("opening database")?;
     sqlx::migrate!().run(&db).await.context("running migrations")?;
 
+    // `joy forget-passcode 0|1`: for when one of us forgets their own passcode. Run it on the
+    // server (fly ssh console -C "joy forget-passcode 0"); that person sets a new one next time.
+    if std::env::args().nth(1).as_deref() == Some("forget-passcode") {
+        let i: usize = std::env::args().nth(2).and_then(|a| a.parse().ok()).filter(|i| *i < 2).context("usage: joy forget-passcode 0|1")?;
+        db::set_setting(&db, &auth::pin_key(i), None).await?;
+        db::set_setting(&db, &auth::token_key(i), None).await?;
+        println!("{} can set a new passcode now (and is signed out everywhere).", cfg.people[i].0);
+        return Ok(());
+    }
+
     let addr = SocketAddr::from((cfg.host, cfg.port));
     std::fs::create_dir_all(&cfg.photos_dir).context("creating photos directory")?;
     let fake_rain = std::env::var("WEATHER_FAKE_PERCENT").ok().and_then(|v| v.parse().ok());
@@ -125,6 +135,8 @@ pub fn build_app(state: AppState) -> Router {
             tower::ServiceBuilder::new().layer(middleware::from_fn(web::static_cache)).service(ServeDir::new("static")),
         )
         .layer(middleware::from_fn_with_state(state.clone(), web::page_headers))
+        // Outermost, so everything inside sees only a who cookie backed by that person's passcode.
+        .layer(middleware::from_fn_with_state(state.clone(), auth::check_who))
         .layer(TraceLayer::new_for_http())
         .with_state(state)
 }

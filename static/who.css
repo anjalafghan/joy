@@ -22,3 +22,14 @@
 }
 .who-back { margin-top: 22px; }
 .who-back a { display: inline-flex; min-height: 44px; align-items: center; font-weight: 600; }
+a.who-slip { text-decoration: none; }
+.who-lock { display: inline-flex; align-items: center; gap: 4px; margin-top: 6px; font-size: .8rem; color: var(--ink-soft); }
+.who-lock svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.5; }
+.who-form { display: grid; gap: 8px; max-width: 22rem; }
+.who-label { margin-top: 6px; font-weight: 600; font-size: var(--step--1); }
+.who-field { min-height: 48px; padding: 0 12px; border: 1px solid var(--rule); border-radius: var(--radius-slip); background: var(--slip); color: var(--ink); font: inherit; font-size: 1.1rem; }
+.who-field:focus-visible { outline: 2px solid var(--stamp); outline-offset: 1px; }
+.who-form .btn { margin-top: 12px; justify-self: start; }
+.who-error { margin: 0; padding: 8px 12px; border-left: 3px solid var(--stamp); background: color-mix(in srgb, var(--stamp) 8%, transparent); font-size: var(--step--1); }
+.who-warn { margin: -14px 0 18px; font-size: var(--step--1); color: var(--ink); }
+.who-warn a { color: var(--stamp); }

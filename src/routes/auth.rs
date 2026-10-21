@@ -2,7 +2,7 @@ use std::net::SocketAddr;
 
 use askama::Template;
 use axum::{
-    extract::{ConnectInfo, State},
+    extract::{ConnectInfo, Query, State},
     http::HeaderMap,
     response::{IntoResponse, Redirect, Response},
 };
@@ -10,7 +10,7 @@ use axum_extra::extract::{cookie::Cookie, Form, SignedCookieJar};
 use serde::Deserialize;
 
 use super::{render, AppError, HtmlResult};
-use crate::{auth, AppState};
+use crate::{auth, db, AppState};
 
 #[derive(Template)]
 #[template(path = "login.html")]
@@ -43,8 +43,7 @@ pub async fn login(
     jar: SignedCookieJar,
     Form(f): Form<LoginForm>,
 ) -> Result<Response, AppError> {
-    let fly_ip = || headers.get("fly-client-ip")?.to_str().ok()?.parse().ok();
-    let ip = if s.cfg.trust_fly_client_ip { fly_ip().unwrap_or(addr.ip()) } else { addr.ip() };
+    let ip = client_ip(&s, &addr, &headers);
     if s.limiter.blocked(ip) {
         return Ok(render(LoginTpl::new(&s, "Too many tries. Wait 15 minutes."))?.into_response());
     }
@@ -61,32 +60,142 @@ pub async fn login(
 #[derive(Template)]
 #[template(path = "who.html")]
 struct WhoTpl {
-    /// (value, name, is the current choice)
-    people: Vec<(usize, String, bool)>,
+    /// (value, name, is the current choice, has a personal passcode)
+    people: Vec<(usize, String, bool, bool)>,
     /// Whether this device has chosen before (switching vs first time).
     switching: bool,
+    /// "choose" | "unlock" (enter your passcode) | "set" (first time: make one) | "change".
+    mode: &'static str,
+    /// The person being unlocked, set up or changed.
+    target: usize,
+    target_name: String,
+    partner_name: String,
+    error: String,
 }
 
-pub async fn who_page(State(s): State<AppState>, jar: SignedCookieJar) -> HtmlResult {
-    let who = auth::who(&jar);
-    render(WhoTpl {
-        people: s.cfg.people.iter().enumerate().map(|(i, (n, _))| (i, n.clone(), who == Some(i))).collect(),
+#[derive(Deserialize, Default)]
+#[serde(default)]
+pub struct WhoQuery {
+    #[serde(rename = "as")]
+    as_: Option<usize>,
+    change: Option<String>,
+}
+
+async fn has_pin(s: &AppState, i: usize) -> Result<bool, AppError> {
+    Ok(db::setting(&s.db, &auth::pin_key(i)).await?.is_some())
+}
+
+async fn who_tpl(s: &AppState, jar: &SignedCookieJar, target: Option<usize>, change: bool, error: &str) -> Result<WhoTpl, AppError> {
+    let who = auth::who(jar);
+    let mut people = vec![];
+    for (i, (n, _)) in s.cfg.people.iter().enumerate() {
+        people.push((i, n.clone(), who == Some(i), has_pin(s, i).await?));
+    }
+    let target = target.filter(|t| *t < 2);
+    let mode = match target {
+        None => "choose",
+        Some(t) if change && who == Some(t) && people[t].3 => "change",
+        Some(t) if people[t].3 => "unlock",
+        Some(_) => "set",
+    };
+    let t = target.unwrap_or(0);
+    Ok(WhoTpl {
         switching: who.is_some(),
+        mode,
+        target: t,
+        target_name: s.cfg.people[t].0.clone(),
+        partner_name: s.cfg.people[1 - t].0.clone(),
+        error: error.into(),
+        people,
     })
+}
+
+pub async fn who_page(State(s): State<AppState>, jar: SignedCookieJar, Query(q): Query<WhoQuery>) -> HtmlResult {
+    render(who_tpl(&s, &jar, q.as_, q.change.is_some(), "").await?)
 }
 
 #[derive(Deserialize)]
 pub struct WhoForm {
     who: usize,
+    #[serde(default)]
+    pin: String,
+    /// Typed again, when setting a passcode for the first time.
+    #[serde(default)]
+    pin2: String,
+    /// Changing it: the new one, twice.
+    #[serde(default)]
+    new_pin: String,
+    #[serde(default)]
+    new_pin2: String,
 }
 
-pub async fn set_who(State(s): State<AppState>, jar: SignedCookieJar, Form(f): Form<WhoForm>) -> Response {
+/// "I'm Rohit": with Rohit's own passcode, or setting it if he hasn't yet. Changing it also
+/// gives him a new token, so his name is signed out on every other device.
+pub async fn set_who(
+    State(s): State<AppState>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    jar: SignedCookieJar,
+    Form(f): Form<WhoForm>,
+) -> Result<Response, AppError> {
     if f.who > 1 {
-        return Redirect::to("/who").into_response();
+        return Ok(Redirect::to("/who").into_response());
     }
+    let ip = client_ip(&s, &addr, &headers);
+    let again = |msg: &'static str, change: bool| {
+        let (s, jar) = (s.clone(), jar.clone());
+        async move { Ok::<Response, AppError>(render(who_tpl(&s, &jar, Some(f.who), change, msg).await?)?.into_response()) }
+    };
+    if s.limiter.blocked(ip) {
+        return again("Too many tries. Wait 15 minutes.", false).await;
+    }
+    let stored = db::setting(&s.db, &auth::pin_key(f.who)).await?;
+    let token = match stored {
+        Some(hash) => {
+            if !auth::verify(f.pin.trim(), &hash) {
+                s.limiter.fail(ip);
+                return again(if f.new_pin.is_empty() { "That's not it." } else { "Your current passcode isn't right." }, !f.new_pin.is_empty()).await;
+            }
+            s.limiter.clear(ip);
+            if f.new_pin.is_empty() {
+                db::setting(&s.db, &auth::token_key(f.who)).await?.unwrap_or_else(auth::new_token)
+            } else {
+                let new = f.new_pin.trim();
+                if new.chars().count() < auth::MIN_PERSONAL {
+                    return again("Use at least 4 characters.", true).await;
+                }
+                if new != f.new_pin2.trim() {
+                    return again("The new passcodes don't match.", true).await;
+                }
+                save_pin(&s, f.who, new).await?
+            }
+        }
+        None => {
+            let pin = f.pin.trim();
+            if pin.chars().count() < auth::MIN_PERSONAL {
+                return again("Use at least 4 characters.", false).await;
+            }
+            if pin != f.pin2.trim() {
+                return again("Those don't match. Type the same passcode twice.", false).await;
+            }
+            save_pin(&s, f.who, pin).await?
+        }
+    };
     // A different person may now be holding the phone: no cached page from before may show.
-    (jar.add(auth::who_cookie(f.who, s.cfg.cookie_secure)), [("clear-site-data", r#""cache""#)], Redirect::to("/"))
-        .into_response()
+    Ok((jar.add(auth::who_cookie(f.who, &token, s.cfg.cookie_secure)), [("clear-site-data", r#""cache""#)], Redirect::to("/"))
+        .into_response())
+}
+
+async fn save_pin(s: &AppState, who: usize, pin: &str) -> Result<String, AppError> {
+    let token = auth::new_token();
+    db::set_setting(&s.db, &auth::pin_key(who), Some(&auth::hash(pin))).await?;
+    db::set_setting(&s.db, &auth::token_key(who), Some(&token)).await?;
+    Ok(token)
+}
+
+fn client_ip(s: &AppState, addr: &SocketAddr, headers: &HeaderMap) -> std::net::IpAddr {
+    let fly_ip = || headers.get("fly-client-ip")?.to_str().ok()?.parse().ok();
+    if s.cfg.trust_fly_client_ip { fly_ip().unwrap_or(addr.ip()) } else { addr.ip() }
 }
 
 /// Logging out also forgets who was holding the phone, and asks the browser to drop joy's

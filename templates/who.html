@@ -5,21 +5,61 @@
 {% block head %}<link rel="stylesheet" href="/static/who.css?v={{ crate::BUILD }}">{% endblock %}
 {% block content %}
 <section class="who" aria-labelledby="who-h">
+  {% if mode == "choose" %}
   <p class="who-eyebrow">{% if switching %}switching phones?{% else %}one quick thing{% endif %}</p>
   <h1 id="who-h">Who’s holding this phone?</h1>
-  <p class="soft who-why">So the jar knows whose turn it is, and keeps surprises sealed for the other one. You can switch any time from the top bar.</p>
-  <form method="post" action="/who" class="who-choices">
-    {% for (i, name, current) in people %}
-    <button class="who-slip grain{% if current %} is-current{% endif %}" type="submit" name="who" value="{{ i }}"{% if current %} aria-current="true"{% endif %}>
+  <p class="soft who-why">So the jar knows whose turn it is, and keeps surprises sealed for the other one. Each of you has your own passcode for this, so nobody can switch to the other and peek.</p>
+  <div class="who-choices">
+    {% for (i, name, current, locked) in people %}
+    <a class="who-slip grain{% if current %} is-current{% endif %}" href="/who?as={{ i }}"{% if current %} aria-current="true"{% endif %}>
       <span class="who-hand" aria-hidden="true">it’s me,</span>
       <span class="who-name">{{ name }}</span>
-    </button>
+      <span class="who-lock">{% if current %}holding it now{% else if locked %}<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3.2" y="7" width="9.6" height="7" rx="1.4"/><path d="M5.4 7V5.2a2.6 2.6 0 0 1 5.2 0V7"/></svg>own passcode{% else %}no passcode yet{% endif %}</span>
+    </a>
     {% endfor %}
-  </form>
+  </div>
+  {% for (i, name, current, locked) in people %}{% if current %}{% if locked %}<p class="who-back"><a href="/who?as={{ i }}&amp;change=1">Change my passcode</a></p>{% endif %}{% endif %}{% endfor %}
   {% if switching %}<p class="who-back"><a href="/">Back to the jar</a></p>{% endif %}
   <div class="who-offline">
     <label><input type="checkbox" id="offline-copies" checked> Keep offline copies on this phone</label>
     <p class="soft" id="offline-copies-note">Saved pages stay on this phone for up to a week, readable without signal. They’re cleared whenever you switch who’s holding it or log out.</p>
   </div>
+  {% else %}
+  <p class="who-eyebrow">{% if mode == "set" %}first time, {{ target_name }}{% else if mode == "change" %}new passcode{% else %}just checking{% endif %}</p>
+  <h1 id="who-h">{% if mode == "set" %}Make your own passcode{% else if mode == "change" %}Change your passcode{% else %}Hi, {{ target_name }}{% endif %}</h1>
+  {% if mode == "set" %}
+  <p class="soft who-why">Only you will know it. It keeps your surprises sealed from {{ partner_name }}, even on a phone you share. Pick something {{ partner_name }} can’t guess.</p>
+  <p class="who-warn">Not {{ target_name }}? <a href="/who">Go back</a>. Whoever sets this first owns the name.</p>
+  {% else if mode == "change" %}
+  <p class="soft who-why">Your name will be signed out on every other phone, until you enter the new one there.</p>
+  {% else %}
+  <p class="soft who-why">Your own passcode, not the shared one.</p>
+  {% endif %}
+  <form method="post" action="/who" class="who-form">
+    <input type="hidden" name="who" value="{{ target }}">
+    <input type="text" name="username" value="joy · {{ target_name }}" autocomplete="username" hidden>
+    {% if !error.is_empty() %}<p class="who-error" role="alert">{{ error }}</p>{% endif %}
+    {% if mode == "set" %}
+    <label class="who-label" for="pin">Your passcode</label>
+    <input class="who-field" id="pin" name="pin" type="password" autocomplete="new-password" minlength="4" required autofocus>
+    <label class="who-label" for="pin2">Type it again</label>
+    <input class="who-field" id="pin2" name="pin2" type="password" autocomplete="new-password" minlength="4" required>
+    <button class="btn btn-stamp" type="submit">Set it and go in</button>
+    {% else if mode == "change" %}
+    <label class="who-label" for="pin">Current passcode</label>
+    <input class="who-field" id="pin" name="pin" type="password" autocomplete="current-password" required autofocus>
+    <label class="who-label" for="new_pin">New passcode</label>
+    <input class="who-field" id="new_pin" name="new_pin" type="password" autocomplete="new-password" minlength="4" required>
+    <label class="who-label" for="new_pin2">New passcode again</label>
+    <input class="who-field" id="new_pin2" name="new_pin2" type="password" autocomplete="new-password" minlength="4" required>
+    <button class="btn btn-stamp" type="submit">Change it</button>
+    {% else %}
+    <label class="who-label" for="pin">{{ target_name }}’s passcode</label>
+    <input class="who-field" id="pin" name="pin" type="password" autocomplete="current-password" required autofocus>
+    <button class="btn btn-stamp" type="submit">That’s me</button>
+    {% endif %}
+  </form>
+  {% if mode != "set" %}<p class="who-back"><a href="/who">{% if mode == "change" %}Cancel{% else %}Not {{ target_name }}? Go back{% endif %}</a></p>{% endif %}
+  {% endif %}
 </section>
 {% endblock %}
