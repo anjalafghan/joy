@@ -6,6 +6,10 @@
   const KEY = 'joy.offline-copies';
   const wantOffline = () => { try { return localStorage.getItem(KEY) !== 'off'; } catch (_) { return true; } };
 
+  // A page restored by Back from the back/forward cache may be from before someone switched
+  // who's holding the phone: always fetch it again.
+  addEventListener('pageshow', (e) => { if (e.persisted) location.reload(); });
+
   addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').catch(() => {});
   });

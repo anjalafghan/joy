@@ -443,9 +443,9 @@ async fn pages_are_never_left_in_the_browser_cache_and_carry_privacy_headers() {
 async fn logout_forgets_who_is_holding_the_phone_and_switching_clears_the_cache() {
     let t = setup().await;
     let switch = t.send(Method::POST, "/who", "", Some("who=1&pin=pin-of-1&pin2=pin-of-1"), false).await;
-    assert_eq!(switch.headers.get("clear-site-data").unwrap(), "\"cache\"");
+    assert!(switch.headers.get("clear-site-data").is_none(), "Clear-Site-Data: cache can stall the redirect");
     let out = t.send(Method::POST, "/logout", &cookies(&switch.headers), Some(""), false).await;
-    assert_eq!(out.headers.get("clear-site-data").unwrap(), "\"cache\", \"storage\"");
+    assert_eq!(out.headers.get("clear-site-data").unwrap(), "\"storage\"");
     let cleared: Vec<String> = out.headers.get_all(header::SET_COOKIE).iter().map(|v| v.to_str().unwrap().to_string()).collect();
     assert!(cleared.iter().any(|c| c.starts_with("joy_who=") && c.contains("Max-Age=0")), "{cleared:?}");
 }

@@ -92,7 +92,8 @@ pub async fn check_who(State(s): State<AppState>, jar: SignedCookieJar, mut req:
     let mut res = next.run(req).await;
     let sets_new = res.headers().get_all(header::SET_COOKIE).iter().any(|v| v.to_str().is_ok_and(|v| v.starts_with(&format!("{WHO_COOKIE}="))));
     if !sets_new {
-        res.headers_mut().append(header::SET_COOKIE, HeaderValue::from_static("joy_who=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax"));
+        let gone = if s.cfg.cookie_secure { "joy_who=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax" } else { "joy_who=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax" };
+        res.headers_mut().append(header::SET_COOKIE, HeaderValue::from_static(gone));
     }
     res
 }

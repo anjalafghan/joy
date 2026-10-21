@@ -154,6 +154,7 @@ pub async fn set_who(
         Some(hash) => {
             if !auth::verify(f.pin.trim(), &hash) {
                 s.limiter.fail(ip);
+                tracing::info!(who = f.who, "who's holding the phone: wrong personal passcode");
                 return again(if f.new_pin.is_empty() { "That's not it." } else { "Your current passcode isn't right." }, !f.new_pin.is_empty()).await;
             }
             s.limiter.clear(ip);
@@ -181,9 +182,11 @@ pub async fn set_who(
             save_pin(&s, f.who, pin).await?
         }
     };
-    // A different person may now be holding the phone: no cached page from before may show.
-    Ok((jar.add(auth::who_cookie(f.who, &token, s.cfg.cookie_secure)), [("clear-site-data", r#""cache""#)], Redirect::to("/"))
-        .into_response())
+    tracing::info!(who = f.who, "who's holding the phone: switched");
+    // No Clear-Site-Data here: browsers can stall the redirect for a long time while they clear
+    // their cache. Nothing personal is in it anyway (pages are no-store), and the service
+    // worker deletes its saved copies itself on this POST.
+    Ok((jar.add(auth::who_cookie(f.who, &token, s.cfg.cookie_secure)), Redirect::to("/")).into_response())
 }
 
 async fn save_pin(s: &AppState, who: usize, pin: &str) -> Result<String, AppError> {
@@ -202,5 +205,6 @@ fn client_ip(s: &AppState, addr: &SocketAddr, headers: &HeaderMap) -> std::net::
 /// cached pages and storage (the service worker purges its own copies too).
 pub async fn logout(jar: SignedCookieJar) -> impl IntoResponse {
     let jar = jar.remove(Cookie::build(auth::COOKIE).path("/")).remove(Cookie::build(auth::WHO_COOKIE).path("/"));
-    (jar, [("clear-site-data", r#""cache", "storage""#)], Redirect::to("/login"))
+    // "storage" drops the service worker and its saved copies; not "cache", which can stall.
+    (jar, [("clear-site-data", r#""storage""#)], Redirect::to("/login"))
 }

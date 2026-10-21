@@ -325,7 +325,7 @@ Add them once, in one `tower_http::set_header::SetResponseHeaderLayer` (or a sma
 | `Cache-Control` on HTML | `no-store` | Section 4.5: one cache to purge, and the shared HTTP cache never stores personal pages |
 | `Cache-Control` on `/photos/{id}?v=` | **today:** `private, max-age=86400` → **recommend** `private, max-age=31536000, immutable` when `v` matches the file's mtime, else `private, no-cache` | The URL is already versioned by mtime, so a long lifetime is safe and saves revalidation requests (which wake Fly). `private` stays, so no CDN/proxy stores them. A sealed photo is never even linked for the partner, and returns 404 for them. On logout/switch the HTTP cache is cleared by `Clear-Site-Data: "cache"` (section 4.5) |
 | `Cache-Control` on `/static/*?v=<build>` | `public, max-age=31536000, immutable` | Today `ServeDir` sends none, which means about 6–9 conditional revalidation requests per page view |
-| `Clear-Site-Data` | `/logout`: `"cache", "storage"`. `/who` POST: `"cache"` | Section 4.5. Supported in Safari 17+ per caniuse. Not relied on for Cache Storage |
+| `Clear-Site-Data` | `/logout`: `"storage"` only. `/who` POST: none | **Changed after launch:** `"cache"` made browsers stall the redirect while clearing (switching looked stuck on phones). The worker purge and `no-store` already cover it; a `pageshow` reload handles bfcache |
 
 **Proposed CSP**, enforced only after a week in `Content-Security-Policy-Report-Only` with no violations. joy has no report endpoint; just check Safari's Web Inspector console on each page.
 
@@ -398,7 +398,7 @@ object-src 'none'
 
 **Route tests** (the working tree now has `src/route_tests.rs` with `build_app`, so use `tower::ServiceExt::oneshot`):
 - `/year/2026` returns 200 for both viewers, with identical bodies apart from the planner-only "+1 sealed" line.
-- HTML responses carry `X-Joy-Viewer`, `Cache-Control: no-store`, and the security headers. `/sw.js` is reachable **without** the login cookie and has `no-cache`. `POST /logout` has `Clear-Site-Data` and removes both cookies. `POST /who` has `Clear-Site-Data: "cache"`.
+- HTML responses carry `X-Joy-Viewer`, `Cache-Control: no-store`, and the security headers. `/sw.js` is reachable **without** the login cookie and has `no-cache`. `POST /logout` has `Clear-Site-Data` and removes both cookies. `POST /who` has no `Clear-Site-Data` (it stalled redirects); bfcache restores reload via `pageshow`.
 - Versioned static URL → `immutable`. Unversioned → `no-cache`.
 
 **Browser (desktop Chrome/Safari first, DevTools → Application):**
