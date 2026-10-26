@@ -83,6 +83,7 @@ body[data-page="kept"] main { max-width: 1080px; padding-bottom: 120px; }
 }
 .k-slip:nth-child(even) { margin-left: 18px; margin-right: 2px; }
 .k-slip[data-setting="home"] { --tint: var(--tint-home); }
+.k-slip[data-setting="apart"] { --tint: var(--tint-apart); }
 .k-slip[data-setting="local"] { --tint: var(--tint-local); }
 .k-slip[data-setting="day_trip"] { --tint: var(--tint-day_trip); }
 .k-slip[data-setting="travel"] { --tint: var(--tint-travel); }

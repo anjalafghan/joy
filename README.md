@@ -21,6 +21,7 @@ The first run creates `data/joy.db` and seeds it with your wishlist (`migrations
 ## How picking works
 
 - **Hard filters:** cost ≤ budget, duration ≤ time you have, setting, distance (from either home, or whoever of you is farther), vibe and energy. At-home ideas always pass the distance filter.
+- **Two kinds of home:** *At home, together* (`home`) is for when you're in the same room. *Long distance* (`apart`) is for when you're in different cities: on a video call, or sending things to each other. Pick either chip in the jar's sentence, or answer "We're apart" in Meet in the middle.
 - **Weighting:** ideas you've never done are about 3× as likely to come up. Something you just did starts at 1× and climbs back over about two months. Anything you rerolled in the last 3 days is halved.
 - **Nothing fits:** the app tells you which single filter to loosen, e.g. *"Nothing fits under ₹500. Closest: Cat café at ₹900."*
 
@@ -28,7 +29,7 @@ The logic lives in `src/picker.rs` and is unit tested with `cargo test`.
 
 ## Meet in the middle
 
-When neither of you wants to be the one who decides, each of you checks in on your own phone: energy, spend, time, how far, and optionally a vibe. Once you both have, **Draw from the middle** picks only from slips that fit both of you. That means the lower budget, the shorter time, the lower energy and the nearer distance, and a slip that matches either vibe.
+When neither of you wants to be the one who decides, each of you checks in on your own phone: energy, spend, time, how far, and optionally a vibe. Once you both have, **Draw from the middle** picks only from slips that fit both of you. That means the lower budget, the shorter time, the lower energy and the nearer distance, and a slip that matches either vibe. If either of you answers "We're apart", only long-distance slips are drawn. Otherwise long-distance slips are left out.
 
 - **Answers stay private.** Neither of you is shown the other's answers. The pick card carries only a `middle=1` flag, since the server works out the filters again for each draw. A draw with nothing to pick says so without naming whose answer was the limit.
 - **Answers are short-lived.** They last for the local day and are deleted on the next check-in after that. "Take mine back" removes yours at once.

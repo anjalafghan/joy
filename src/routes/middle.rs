@@ -11,9 +11,15 @@ use sqlx::SqlitePool;
 use super::{AppError, Opt};
 use crate::{auth, db, picker::Duration, AppState};
 
-/// How far we'll go tonight, nearest first.
-pub const REACHES: [(&str, &str); 4] =
-    [("home", "Stay in"), ("near", "Nearby"), ("town", "Anywhere in town"), ("far", "Anywhere at all")];
+/// How far we'll go tonight, nearest first. "apart" comes first because it's a fact, not a
+/// mood: if either of us is in another city, only long-distance slips make sense.
+pub const REACHES: [(&str, &str); 5] = [
+    ("apart", "We're apart"),
+    ("home", "Stay in together"),
+    ("near", "Nearby"),
+    ("town", "Anywhere in town"),
+    ("far", "Anywhere at all"),
+];
 /// Spend for both of us. None = any amount.
 pub const BUDGETS: [Option<i64>; 5] = [Some(0), Some(500), Some(1500), Some(3000), None];
 pub const ENERGY_WORDS: [(&str, &str); 3] = [("low", "Low"), ("med", "Some"), ("high", "Lots")];
@@ -49,8 +55,10 @@ fn reach_rank(r: &str) -> usize {
 pub struct Middle {
     pub budget: Option<i64>,
     pub max_duration: Option<Duration>,
-    /// Only at-home slips.
+    /// Only at-home-together slips.
     pub stay_in: bool,
+    /// We're in different cities: only long-distance slips.
+    pub apart: bool,
     pub max_km: Option<f64>,
     /// Highest energy either of us is up for ("low" if one of us is tired).
     pub max_energy: u8,
@@ -75,6 +83,7 @@ pub fn meet(a: &Checkin, b: &Checkin) -> Middle {
         budget,
         max_duration,
         stay_in: reach == "home",
+        apart: reach == "apart",
         max_km: match reach {
             "near" => Some(15.0),
             "town" => Some(45.0),
@@ -163,7 +172,8 @@ pub async fn view(s: &AppState, who: Option<usize>, partner: &str) -> Result<Mid
             })
             .collect(),
         times: pick(&TIMES, m.map_or("short", |c| c.max_duration.as_str())),
-        reaches: pick(&REACHES, m.map_or("town", |c| c.reach.as_str())),
+        // Most nights we're in different cities, so that's the starting answer.
+        reaches: pick(&REACHES, m.map_or("apart", |c| c.reach.as_str())),
         vibes: VIBES
             .iter()
             .map(|v| Opt { value: (*v).into(), label: (*v).into(), selected: m.is_some_and(|c| c.vibe == *v) })
@@ -246,5 +256,14 @@ mod tests {
         assert!(m.allows("low", &["cozy".into()]));
         assert!(!m.allows("high", &["cozy".into()]));
         assert!(!m.allows("low", &["foodie".into()]));
+    }
+
+    #[test]
+    fn being_apart_wins_over_everything() {
+        let m = meet(&c("high", None, "", "apart", ""), &c("med", None, "", "home", ""));
+        assert!(m.apart && !m.stay_in);
+        assert_eq!(m.max_km, None);
+        let m = meet(&c("high", None, "", "far", ""), &c("med", None, "", "apart", ""));
+        assert!(m.apart);
     }
 }

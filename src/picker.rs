@@ -40,8 +40,11 @@ impl Duration {
     }
 }
 
-pub const SETTINGS: [(&str, &str); 4] = [
-    ("home", "At home"),
+/// "home" is at home together, in the same room; "apart" is long distance, each at our own
+/// place (on a call, or sending things to each other).
+pub const SETTINGS: [(&str, &str); 5] = [
+    ("home", "At home, together"),
+    ("apart", "Long distance"),
     ("local", "Around town"),
     ("day_trip", "Day trip"),
     ("travel", "Travel"),

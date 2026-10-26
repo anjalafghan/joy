@@ -148,6 +148,7 @@ body[data-page="year"] main { max-width: 1080px; padding-bottom: 120px; }
   transform: rotate(-.6deg);
 }
 .y-vibe[data-vibe="home"] { --tint: var(--tint-home); }
+.y-vibe[data-vibe="apart"] { --tint: var(--tint-apart); }
 .y-vibe[data-vibe="day_trip"] { --tint: var(--tint-day_trip); }
 .y-vibe[data-vibe="travel"] { --tint: var(--tint-travel); }
 .y-vibe::after {

@@ -18,6 +18,7 @@
   --stamp-ink: #fffaf2;
   --glow: rgba(255, 190, 110, 0);
   --tint-home: #f3e2b3;
+  --tint-apart: #ddd3ee;
   --tint-local: #f2cfc6;
   --tint-day_trip: #d3e1c6;
   --tint-travel: #cbdbea;
@@ -60,6 +61,7 @@
     --stamp-ink: #1a0f0c;
     --glow: rgba(255, 190, 110, .35);
     --tint-home: #4a3f22;
+    --tint-apart: #3a3150;
     --tint-local: #4d2f2b;
     --tint-day_trip: #2f4030;
     --tint-travel: #283a4d;

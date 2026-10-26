@@ -63,7 +63,7 @@ pub struct ActivityView {
     pub cost: String,
     pub duration: String,
     pub setting: String,
-    /// home | local | day_trip | travel — for per-setting colour.
+    /// home | apart | local | day_trip | travel — for per-setting colour.
     pub setting_key: String,
     pub tags: Vec<String>,
     pub distances: Vec<String>,

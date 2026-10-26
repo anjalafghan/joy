@@ -543,3 +543,36 @@ async fn switching_to_the_other_person_takes_their_own_passcode() {
     assert!(gone.iter().any(|c| c.starts_with("joy_who=") && c.contains("Max-Age=0")), "{gone:?}");
     assert!(t.get("/history", &cookies(&changed.headers)).await.body.contains("Prithvi"));
 }
+
+#[tokio::test]
+async fn together_and_apart_are_two_kinds_of_home() {
+    let t = setup().await;
+    let apart: i64 = t.scalar("SELECT count(*) FROM activities WHERE setting = 'apart'").await;
+    assert!(apart >= 60, "the long-distance slips moved to their own setting");
+    assert_eq!(t.scalar("SELECT count(*) FROM activities WHERE tags LIKE '%long-distance%'").await, 0);
+    let setting_of = |card: &str| card.split(r#"data-setting=""#).nth(1).and_then(|r| r.split('"').next()).map(String::from);
+
+    for _ in 0..8 {
+        let card = t.post("/pick", "", "settings=apart").await.body;
+        assert_eq!(setting_of(&card).as_deref(), Some("apart"), "{card}");
+    }
+    for _ in 0..8 {
+        let card = t.post("/pick", "", "settings=home").await.body;
+        assert_eq!(setting_of(&card).as_deref(), Some("home"));
+    }
+
+    // Meet in the middle: one of us is away, so only long-distance slips; together, never them.
+    let (rohit, neha) = (t.as_person(0).await, t.as_person(1).await);
+    t.post("/middle", &rohit, "energy=high&reach=far").await;
+    t.post("/middle", &neha, "energy=high&reach=apart").await;
+    for _ in 0..8 {
+        let card = t.post("/pick", &rohit, "middle=1").await.body;
+        assert_eq!(setting_of(&card).as_deref(), Some("apart"), "{card}");
+    }
+    t.post("/middle", &neha, "energy=high&reach=far").await;
+    for _ in 0..12 {
+        let card = t.post("/pick", &rohit, "middle=1").await.body;
+        assert_ne!(setting_of(&card).as_deref(), Some("apart"), "together tonight, but drew a long-distance slip");
+    }
+    assert!(t.get("/", &rohit).await.body.contains("long distance"), "the jar sentence offers it");
+}

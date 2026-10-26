@@ -3,6 +3,7 @@
    never sit behind --ink-soft text (contrast), and --stamp text never sits on --paper-2. */
 
 .tint-home     { --tint: var(--tint-home); }
+.tint-apart    { --tint: var(--tint-apart); }
 .tint-local    { --tint: var(--tint-local); }
 .tint-day_trip { --tint: var(--tint-day_trip); }
 .tint-travel   { --tint: var(--tint-travel); }

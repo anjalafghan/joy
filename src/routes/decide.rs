@@ -238,7 +238,14 @@ impl PickForm {
         PickForm {
             budget: m.budget.map(|b| b.to_string()).unwrap_or_default(),
             max_duration: m.max_duration.map(|d| d.key().to_string()).unwrap_or_default(),
-            settings: if m.stay_in { vec!["home".into()] } else { vec![] },
+            settings: if m.apart {
+                vec!["apart".into()]
+            } else if m.stay_in {
+                vec!["home".into()]
+            } else {
+                // Together tonight: anything but the long-distance ones.
+                SETTINGS.iter().map(|(k, _)| k.to_string()).filter(|k| k != "apart").collect()
+            },
             tag: String::new(),
             energy: String::new(),
             max_km: m.max_km.map(|k| k.to_string()).unwrap_or_default(),

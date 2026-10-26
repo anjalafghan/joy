@@ -130,7 +130,7 @@
     paper: "#f5eee3", paper2: "#ebe2d3", slip: "#fffaf2", ink: "#2b2433", soft: "#675d6e",
     rule: "#d8cab8", stamp: "#b9301b", tape: "rgba(242,207,198,.85)",
   };
-  const TINT = { "At home": "#f3e2b3", "Around town": "#f2cfc6", "Day trip": "#d3e1c6", "Travel": "#cbdbea" };
+  const TINT = { "At home, together": "#f3e2b3", "Long distance": "#ddd3ee", "Around town": "#f2cfc6", "Day trip": "#d3e1c6", "Travel": "#cbdbea" };
   const STAR = "M12.3 2.4c.9 2 1.7 4 2.6 6.1 2.1.1 4.3.3 6.4.6-1.6 1.4-3.3 2.8-4.9 4.1.5 2.1 1 4.2 1.4 6.3-1.8-1.1-3.7-2.3-5.6-3.4-1.8 1.2-3.6 2.4-5.5 3.5.5-2.2 1-4.3 1.5-6.4C6.6 11.8 5 10.4 3.3 9c2.2-.2 4.4-.4 6.5-.5.8-2 1.6-4 2.5-6.1z";
   const MONTHS = "JFMAMJJASOND";
   const HEART = "M16.2 27.4C11.6 24.1 3.4 18.3 3.1 10.9 2.9 6.6 6 3.3 9.8 3.4c2.9.1 5 2.2 6.2 4.6 1.3-2.6 3.5-4.8 6.6-4.7 3.9.2 6.5 3.6 6.2 7.7-.5 7.2-8.4 12.6-12.6 16.4z";

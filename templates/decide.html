@@ -170,7 +170,7 @@
     </label>,
     <span class="where" role="group" aria-labelledby="where-l">
       <span id="where-l" class="where-l">anywhere:</span>
-      {% for o in settings %}<label class="chip" style="--tint: var(--tint-{{ o.value }})"><input type="checkbox" name="settings" value="{{ o.value }}"><span>{% if o.value == "day_trip" %}a day trip{% else if o.value == "travel" %}travelling{% else %}{{ o.label|lower }}{% endif %}</span></label>{% if !loop.last %} {% endif %}{% endfor %}</span>,
+      {% for o in settings %}<label class="chip" style="--tint: var(--tint-{{ o.value }})"><input type="checkbox" name="settings" value="{{ o.value }}"><span>{% if o.value == "day_trip" %}a day trip{% else if o.value == "travel" %}travelling{% else if o.value == "home" %}at home together{% else if o.value == "apart" %}long distance{% else %}{{ o.label|lower }}{% endif %}</span></label>{% if !loop.last %} {% endif %}{% endfor %}</span>,
     <label class="blank">
       <span class="visually-hidden">How far we'll go</span>
       <select name="max_km">

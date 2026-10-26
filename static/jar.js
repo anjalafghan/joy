@@ -41,7 +41,7 @@
     C = {
       dark: DARK.matches,
       paper: g('--paper'), paper2: g('--paper-2'), slip: g('--slip'), ink: g('--ink'), glow: g('--glow'),
-      tint: { home: g('--tint-home'), local: g('--tint-local'), day_trip: g('--tint-day_trip'), travel: g('--tint-travel') },
+      tint: { home: g('--tint-home'), apart: g('--tint-apart'), local: g('--tint-local'), day_trip: g('--tint-day_trip'), travel: g('--tint-travel') },
     };
   }
   readColors();
@@ -98,7 +98,7 @@
     const inJar = parts.filter((p) => !p.out);
     const fits = (p) => !matchSet || matchSet.has(p.id) || (p.subFor != null && matchSet.has(p.subFor));
     // rain likely tonight: cozy (at home) slips float up, outdoor ones sink
-    const cozy = (p) => (!RAINY ? 0 : p.setting === 'home' ? 1 : p.outdoor ? -1 : 0);
+    const cozy = (p) => (!RAINY ? 0 : (p.setting === 'home' || p.setting === 'apart') ? 1 : p.outdoor ? -1 : 0);
     inJar.sort((a, b) => (fits(a) - fits(b)) || (cozy(a) - cozy(b)) || (a.rank - b.rank));
     inJar.forEach((p, i) => {
       const s = slots[i];

@@ -146,6 +146,7 @@ fn hints(r: &HistoryRow, planned: &str, rain: bool) -> Vec<String> {
     h.push(
         match r.setting.as_str() {
             "home" => "We're staying in",
+            "apart" => "From your own place, on a call",
             "day_trip" => "We're heading out of town",
             "travel" => "Pack a bag",
             _ => "We're going out",

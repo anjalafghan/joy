@@ -59,7 +59,8 @@ Texture comes from real things, used deliberately: paper grain (an SVG `feTurbul
 | `--stamp` | `#b9301b` | `#ff7a63` | **the one accent**: stamp, primary action, focus |
 | `--stamp-ink` | `#fffaf2` | `#1a0f0c` | text on `--stamp` |
 | `--glow` | `rgba(255,190,110,.0)` | `rgba(255,190,110,.35)` | jar lantern glow (dark only) |
-| `--tint-home` | `#f3e2b3` | `#4a3f22` | slip tint by setting |
+| `--tint-home` | `#f3e2b3` | `#4a3f22` | slip tint by setting (at home, together) |
+| `--tint-apart` | `#ddd3ee` | `#3a3150` | long distance |
 | `--tint-local` | `#f2cfc6` | `#4d2f2b` | |
 | `--tint-day_trip` | `#d3e1c6` | `#2f4030` | |
 | `--tint-travel` | `#cbdbea` | `#283a4d` | |
