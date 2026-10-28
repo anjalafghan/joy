@@ -7,8 +7,11 @@ Too many plans, one pick. A tiny shared web app for two: keep one wishlist of th
 ```bash
 cp .env.example .env
 cargo run -- hash-passcode     # type your shared passcode; paste the 2 printed lines into .env
+(cd web && bun install && bun run build)   # the animations: builds static/motion.js
 cargo run                      # http://localhost:3000
 ```
+
+While working on the animations, `cd web && bun run dev` rebuilds `static/motion.js` on every save. Without it the app still works, it just doesn't move.
 
 In `.env`, set `PERSON_A`/`PERSON_B` and `HOME_A`/`HOME_B` (`"lat, lng"`; in Google Maps, long-press your home and copy the coordinates). The app uses them to show how far each plan is for each of you, and for the "How far" filter. They stay in `.env` and are never written to the database.
 
@@ -39,6 +42,7 @@ When neither of you wants to be the one who decides, each of you checks in on yo
 Joy is a **date jar**: every idea is a slip, you draw one, you can put it back three times, and the one you keep gets stamped *IT'S A DATE* and goes into the keepsake box. [DESIGN.md](DESIGN.md) is the brief. It covers the feeling for each moment, colour and type tokens, motion rules, and the invariants (reduced motion, contrast, double-tap safety).
 
 - Pages: `templates/` (Askama, compiled into the binary). Each page has its own `static/<page>.css` and `.js`, on top of the shared `static/tokens.css`.
+- Animation: `web/` is a small TypeScript bundle using [react-spring](https://github.com/pmndrs/react-spring), built by Bun into `static/motion.js` (React's API comes from `preact/compat`, which keeps it to about 30 KB gzipped). It only adds movement on top of the server-rendered pages. The Docker image builds it, so deploys need nothing extra.
 - Fonts are self-hosted in `static/fonts/` (Fraunces, Instrument Sans, Caveat, all under the OFL), so nothing loads from a CDN.
 - `design/alternates/` holds two other designs for the jar page that didn't ship, with screenshots.
 - For design work without the passcode, run with `JOY_DEV_NO_LOGIN=1` and a throwaway `DATABASE_URL`. **Never set it on a real deploy.**

@@ -1,0 +1,54 @@
+/* joy: what motion.js (react-spring) needs from CSS. Everything here is either set up for an
+   element it moves, or switches off a CSS animation it replaces. */
+
+/* Set before first paint by base.html, lifted by motion.js once the page is ready to arrive.
+   If motion.js never runs, the page shows anyway after a moment. */
+.m-in body:not([data-page="login"]) main { opacity: 0; animation: m-failsafe 0s linear 1.2s forwards; }
+@keyframes m-failsafe { to { opacity: 1; } }
+
+/* entrances motion.js now does with springs */
+.m-reveal .stack > .slip, .m-reveal .k-slip { animation: none; }
+.m-nav a::after { display: none; }
+
+/* month spreads turn like pages */
+body[data-page="month"] main { perspective: 1800px; }
+
+/* the nav's ink line */
+.m-nav { position: relative; }
+.m-ink-host { position: absolute; inset: 0; pointer-events: none; }
+.m-ink { position: absolute; bottom: 8px; height: 6px; overflow: visible; }
+.m-ink path { fill: none; stroke: var(--stamp); stroke-width: 2; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+
+/* springs do the press now */
+.m-on .btn:active, .m-on .k-btn:active, .m-on .group-index a:active { transform: none; }
+
+/* things you can swipe sideways: the page still scrolls up and down, but never sideways */
+.m-on body { overflow-x: clip; }
+#pick > .slip[data-kind="card"], .stack > .slip, #jar { touch-action: pan-y; }
+#jar { cursor: grab; }
+.m-dragging, .m-dragging * { -webkit-user-select: none; user-select: none; cursor: grabbing !important; }
+.m-piece, .y-photos > .y-polaroid, .y-sway { -webkit-touch-callout: none; }
+.m-lifted { position: relative; z-index: 30; filter: drop-shadow(0 18px 22px rgba(30, 20, 10, .28)); }
+
+/* the drawn slip's two hint stamps */
+.m-hints { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
+.m-hint {
+  position: absolute; top: -14px; padding: 6px 12px;
+  font: 800 var(--step--1)/1 var(--font-ui); letter-spacing: .12em; text-transform: uppercase;
+  border: 3px solid currentColor; border-radius: 8px; opacity: 0;
+  background: color-mix(in srgb, var(--slip) 82%, transparent);
+}
+.m-hint-yes { left: 16px; color: var(--stamp); rotate: -10deg; }
+.m-hint-back { right: 16px; color: var(--ink); rotate: 9deg; }
+
+/* the layer things fly on */
+.m-layer { position: fixed; inset: 0; pointer-events: none; z-index: 80; overflow: hidden; contain: strict; }
+.m-bit { position: absolute; display: block; will-change: transform, opacity; }
+.m-bit svg { display: block; width: 100%; height: 100%; fill: currentColor; }
+.m-bit-confetti { background: currentColor; border-radius: 2px; box-shadow: 0 1px 0 rgba(0, 0, 0, .12); }
+.m-bit-ink { background: currentColor; border-radius: 50%; }
+
+@media (prefers-reduced-motion: reduce) {
+  .m-layer { display: none; }
+  #jar { cursor: auto; }
+}

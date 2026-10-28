@@ -19,6 +19,9 @@
   <script src="/static/htmx.min.js?v={{ crate::BUILD }}" defer></script>
   <script src="/static/app.js?v={{ crate::BUILD }}" defer></script>
   {% block head %}{% endblock %}
+  <link rel="stylesheet" href="/static/motion.css?v={{ crate::BUILD }}">
+  <script>if (!matchMedia('(prefers-reduced-motion: reduce)').matches) document.documentElement.classList.add('m-in');</script>
+  <script type="module" src="/static/motion.js?v={{ crate::BUILD }}"></script>
 </head>
 <body data-page="{% block page %}{% endblock %}">
   {% block nav %}

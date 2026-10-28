@@ -88,11 +88,27 @@ Scale: `--step--1` .875rem · `--step-0` 1rem · `--step-1` 1.25rem · `--step-2
 | `--ease-in-out` | `cubic-bezier(.65,0,.35,1)` | shakes, travel |
 
 Rules:
-1. Only three hero animations exist: **draw**, **stamp** and **lid**. Everything else is small or medium.
+1. The three hero animations are **draw**, **stamp** and **lid**. Everything else is small or medium, but it can be physical (see the motion layer below).
 2. **A tap or keypress skips any hero animation** to its end state. Nothing ever blocks reading or acting for more than about 1.2s.
 3. `prefers-reduced-motion: reduce`: no shake, no physics and no flying. Use crossfades of 150ms or less. All content and results still appear.
 4. Any `requestAnimationFrame` or canvas loop **stops when the tab is hidden** (`visibilitychange`) and when nothing is moving.
 5. No scroll-jacking, no parallax and no autoplay sound.
+6. Every gesture has a plain button or link that does the same thing. Swipes and drags are extras.
+
+### The motion layer (react-spring)
+
+`web/src/` is bundled into `static/motion.js` (react-spring, React API from `preact/compat`) and loaded on every page as a module. It moves server-rendered elements by springing their `translate` / `rotate` / `scale` / `opacity`, so it stacks on top of each page's own CSS transforms and keyframes. React renders only what it adds: the nav ink line, the swipe hints on a drawn slip and the layer things fly on. Pages work without it.
+
+| Where | What moves |
+|---|---|
+| Every page | The page lifts away when you leave and settles in piece by piece when you arrive. The ink line under the nav runs to whatever you point at, with its leading end ahead of its tail, and slides over from the previous page. Buttons, chips and pills squash when pressed and bounce back. |
+| Jar | Swipe the drawn slip right for **It's a date**, left to **put it back** (stamped hints fade in as you pull; the first two slips show the swipe once). Grab the jar and shake it side to side three times to draw. The stamp throws hearts and paper confetti in the setting tints and the page takes the thump. A slip unfolding shakes off a little paper dust. |
+| Slips | Slips are dealt onto the page as they scroll into view. Swipe one left to take it out (same undo toast). |
+| Kept | Keepsakes are dealt in as they scroll into view. Rating throws hearts, more for more stars. |
+| Year | The count runs up, a slip per date drops into the jar through its mouth, and the photos can be picked up and tossed (they spring back). |
+| Month | The letter stickers press on one by one, the prints, tickets and receipts are dealt in, can be picked up (on touch, press and hold first), and spring back when let go. Page turns rotate the sheet like a page. |
+
+`jar.js` still runs the draw, put back and stamp. It announces `joy:card` (a slip has arrived) and `joy:stamp` (with where the stamp landed) and exposes `window.joyJar.jostle` so shaking the jar moves the slips inside. Under reduced motion every spring jumps to its end, nothing flies, and no gesture starts.
 
 ## Hard invariants (do not break these)
 

@@ -19,7 +19,7 @@ const OFFLINE_PAGES = (p) => p === '/' || p === '/history' || p === '/wishlist' 
 
 const VERSIONED = [
   'tokens.css', 'jar.css', 'jar.js', 'kept.css', 'kept.js', 'slips.css', 'slips.js', 'who.css',
-  'year.css', 'year.js', 'month.css', 'app.js', 'htmx.min.js', 'manifest.webmanifest', 'icons/icon-180.png',
+  'year.css', 'year.js', 'month.css', 'motion.css', 'motion.js', 'app.js', 'htmx.min.js', 'manifest.webmanifest', 'icons/icon-180.png',
 ].map((f) => `/static/${f}?v=${V}`);
 const UNVERSIONED = [
   '/offline',

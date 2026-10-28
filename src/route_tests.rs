@@ -632,6 +632,22 @@ async fn pages_are_never_left_in_the_browser_cache_and_carry_privacy_headers() {
 }
 
 #[tokio::test]
+async fn every_page_brings_its_motion_and_keeps_it_offline() {
+    let t = setup().await;
+    let neha = t.as_person(1).await;
+    let script = format!("<script type=\"module\" src=\"/static/motion.js?v={}\">", crate::BUILD);
+    let style = format!("/static/motion.css?v={}", crate::BUILD);
+    for path in ["/", "/wishlist", "/history", "/who"] {
+        let page = t.get(path, &neha).await;
+        assert!(page.body.contains(&script) && page.body.contains(&style), "{path} loads motion");
+    }
+    // The page waits for motion.js before showing, but never under reduced motion.
+    assert!(t.get("/", &neha).await.body.contains("matchMedia('(prefers-reduced-motion: reduce)').matches) document.documentElement.classList.add('m-in')"));
+    let sw = t.get("/sw.js", "").await.body;
+    assert!(sw.contains("'motion.css', 'motion.js'"), "motion is precached for offline");
+}
+
+#[tokio::test]
 async fn logout_forgets_who_is_holding_the_phone_and_switching_clears_the_cache() {
     let t = setup().await;
     let switch = t.send(Method::POST, "/who", "", Some("who=1&pin=pin-of-1&pin2=pin-of-1"), false).await;

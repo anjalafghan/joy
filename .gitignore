@@ -12,3 +12,7 @@ design/**/shots/
 /demo
 
 .DS_Store
+
+# Built from web/ by `bun run build` (and in the Docker image)
+/static/motion.js
+/web/node_modules

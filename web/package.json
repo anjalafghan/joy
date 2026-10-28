@@ -1,0 +1,21 @@
+{
+  "name": "joy-motion",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "bun build.ts",
+    "dev": "bun --watch build.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@react-spring/web": "^10.1.2",
+    "preact": "^11.1.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "typescript": "^7.0.2"
+  }
+}

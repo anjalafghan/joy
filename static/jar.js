@@ -160,6 +160,9 @@
     assign(true);
   }
 
+  // motion.js shakes the jar when you grab it and shake it
+  window.joyJar = { jostle };
+
   /* ── loop: runs only while something moves and the tab is visible ── */
   let raf = 0, last = 0, scale = 1;
   function kick() {
@@ -435,6 +438,7 @@
       openLid(false);
       unlock();
       if (title) title.focus({ preventScroll: true });
+      document.dispatchEvent(new CustomEvent('joy:card', { detail: el }));
     };
     if (reduced()) {
       takeOut(+el.dataset.id, el.dataset.setting);
@@ -506,6 +510,8 @@
     ], { duration: 640, easing: 'cubic-bezier(.6,0,.9,.45)' }));
     later(() => {
       buzz();
+      const sr = stamp.getBoundingClientRect();
+      document.dispatchEvent(new CustomEvent('joy:stamp', { detail: { x: sr.left + sr.width / 2, y: sr.top + sr.height / 2 } }));
       track(el.animate([
         { transform: 'rotate(-.8deg)' },
         { transform: 'translateY(4px) rotate(-.15deg) scale(.994)', offset: .22 },
@@ -585,7 +591,7 @@
     const el = pick.firstElementChild;
     const kind = el && el.dataset.kind;
     if (kind === 'card' && mode === 'draw') arrive(el);
-    else if (kind === 'card') unlock();
+    else if (kind === 'card') { unlock(); document.dispatchEvent(new CustomEvent('joy:card', { detail: el })); }
     else if (kind === 'done') stampIt(el);
     else if (kind === 'note') noteArrives(el);
     else unlock();

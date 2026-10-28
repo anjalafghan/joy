@@ -2,3 +2,5 @@ target
 data
 .env
 .claude
+web/node_modules
+static/motion.js
