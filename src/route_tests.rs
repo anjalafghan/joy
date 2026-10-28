@@ -406,6 +406,127 @@ async fn the_year_page_counts_spending_outside_a_slip_but_never_a_sealed_surpris
 }
 
 #[tokio::test]
+async fn a_month_spread_shows_its_dates_and_receipts_but_never_a_sealed_surprise() {
+    let t = setup().await;
+    let neha = t.as_person(1).await;
+    let cook = t.id_of("Cook together").await;
+    let play = t.id_of(PLAY).await;
+    t.exec(&format!(
+        "INSERT INTO history (activity_id, outcome, est_cost, actual_cost, planned_at, rating, note)
+         VALUES ({cook}, 'did_it', 900, 1300, unixepoch() - 3600, 5, 'Burnt the rice, worth it')"
+    ))
+    .await;
+    t.exec(&format!(
+        "INSERT INTO history (activity_id, outcome, est_cost, actual_cost, planned_at, surprise, revealed, drawn_by)
+         VALUES ({play}, 'did_it', 900, 5000, unixepoch() - 3600, 1, 0, 0)"
+    ))
+    .await;
+    t.exec("INSERT INTO other_spending (amount, note, spent_on) VALUES (1800, 'Dinner at Bastian', date('now', 'localtime', '-1 hour'))").await;
+    let (y, m): (i64, i64) = sqlx::query_as(
+        "SELECT CAST(strftime('%Y', unixepoch() - 3600, 'unixepoch', 'localtime') AS INTEGER),
+                CAST(strftime('%m', unixepoch() - 3600, 'unixepoch', 'localtime') AS INTEGER)",
+    )
+    .fetch_one(&t.db)
+    .await
+    .unwrap();
+
+    let page = t.get(&format!("/year/{y}/{m}"), &neha).await;
+    assert_eq!(page.status, StatusCode::OK);
+    let body = page.body;
+    assert!(body.contains("Cook together") && body.contains("₹1,300") && body.contains("₹400 over our guess"), "{body}");
+    assert!(body.contains("Burnt the rice, worth it") && body.contains("Dinner at Bastian"));
+    assert!(!body.contains("Prithvi") && !body.contains("₹5,000"), "the sealed surprise stays out");
+
+    // Both ways in link here, and nonsense months go back to the year.
+    let href = format!("/year/{y}/{m}\"");
+    assert!(t.get(&format!("/year/{y}"), &neha).await.body.contains(&href));
+    assert!(t.get("/history", &neha).await.body.contains(&href));
+    assert_eq!(t.get(&format!("/year/{y}/13"), &neha).await.status, StatusCode::SEE_OTHER);
+    let empty = t.get(&format!("/year/{y}/{}", if m == 1 { 2 } else { m - 1 }), &neha).await;
+    assert_eq!(empty.status, StatusCode::OK);
+}
+
+#[tokio::test]
+async fn month_spreads_keep_sealed_surprises_out_of_totals_stickers_and_page_turns() {
+    let t = setup().await;
+    let neha = t.as_person(1).await;
+    let (cook, play) = (t.id_of("Cook together").await, t.id_of(PLAY).await);
+    let at = |d: &str| format!("unixepoch('{d} 12:00:00')");
+    // March and May are ours to see; April holds only a sealed surprise; December rolls into January.
+    for (a, day, actual, rating, sealed) in [
+        (cook, "2025-03-10", 1300, 3, 0),
+        (play, "2025-03-20", 5000, 5, 1),
+        (play, "2025-04-10", 2000, 5, 1),
+        (cook, "2025-05-10", 700, 4, 0),
+        (cook, "2025-12-10", 900, 4, 0),
+        (cook, "2026-01-05", 600, 4, 0),
+    ] {
+        t.exec(&format!(
+            "INSERT INTO history (activity_id, outcome, est_cost, actual_cost, rating, planned_at, picked_at, surprise, revealed, drawn_by)
+             VALUES ({a}, 'did_it', 900, {actual}, {rating}, {}, {}, {sealed}, 0, 0)",
+            at(day),
+            at(day)
+        ))
+        .await;
+    }
+
+    let march = t.get("/year/2025/3", &neha).await.body;
+    assert!(march.contains("₹1,300 spent"), "the sealed ₹5,000 isn't in the total: {march}");
+    assert!(!march.contains("Prithvi") && !march.contains("₹5,000"));
+    assert!(!march.contains("/year/2025/4\""), "a month holding only a sealed surprise isn't a page to turn to");
+    assert!(march.contains("/year/2025/5\""));
+    assert!(t.get("/year/2025/5", &neha).await.body.contains("/year/2025/3\""));
+    let april = t.get("/year/2025/4", &neha).await.body;
+    assert!(april.contains("nothing kept in April") && !april.contains("Prithvi"));
+
+    // Turning the page across new year, both ways.
+    assert!(t.get("/year/2025/12", &neha).await.body.contains("/year/2026/1\""));
+    assert!(t.get("/year/2026/1", &neha).await.body.contains("/year/2025/12\""));
+
+    // Kept links each month heading without zero padding.
+    let kept = t.get("/history", &neha).await.body;
+    assert!(kept.contains("/year/2025/3\"") && !kept.contains("/year/2025/03"));
+}
+
+#[tokio::test]
+async fn nonsense_months_go_back_to_the_year() {
+    let t = setup().await;
+    let neha = t.as_person(1).await;
+    for (path, to) in [
+        ("/year/2026/0", "/year/2026"),
+        ("/year/2026/13", "/year/2026"),
+        ("/year/2026/abc", "/year/2026"),
+        ("/year/1999/5", "/year"),
+        ("/year/2101/5", "/year"),
+        ("/year/soon/5", "/year"),
+    ] {
+        let r = t.get(path, &neha).await;
+        assert_eq!(r.status, StatusCode::SEE_OTHER, "{path}");
+        assert_eq!(r.location(), to, "{path}");
+    }
+}
+
+#[tokio::test]
+async fn the_year_jar_holds_at_most_fourteen_slips_and_two_rows_of_stars() {
+    let t = setup().await;
+    let neha = t.as_person(1).await;
+    let cook = t.id_of("Cook together").await;
+    let year: i64 = t.scalar("SELECT CAST(strftime('%Y', 'now', 'localtime') AS INTEGER)").await;
+    // Twenty dates in the last day (all this year unless it's the small hours of 1 January).
+    for n in 1..=20 {
+        let rating = match n { 1 | 2 => "5", 3 => "4", 4 => "3", 5 => "1", _ => "NULL" };
+        t.exec(&format!(
+            "INSERT INTO history (activity_id, outcome, rating, picked_at) VALUES ({cook}, 'did_it', {rating}, unixepoch('now', '-{n} minutes'))"
+        ))
+        .await;
+    }
+    let page = t.get(&format!("/year/{year}"), &neha).await.body;
+    assert_eq!(page.matches("class=\"y-jar-slip\"").count(), 14);
+    assert_eq!(page.matches("class=\"y-gave-row\"").count(), 2, "only the two most-given ratings");
+    assert!(page.contains("× 2") && page.contains("× 1"));
+}
+
+#[tokio::test]
 async fn cab_estimates_calibrate_from_real_fares() {
     let t = setup().await;
     let sassoon = t.id_of("Sunrise at Sassoon Docks").await;

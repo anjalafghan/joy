@@ -172,8 +172,8 @@
     {% for m in months %}
     <li class="y-mo{% if m.pct == 100 && m.n > 0 %} is-busiest{% endif %}">
       <span class="y-mo-dots" aria-hidden="true">{% for _ in 0..m.n.min(9) %}<svg><use href="#y-heart"/></svg>{% endfor %}</span>
-      <span class="y-mo-l" aria-hidden="true">{{ m.letter }}{% if m.pct == 100 && m.n > 0 %}<svg class="y-circle" viewBox="0 0 40 36"><path class="y-ink" d="M30,6 C20,1 5,6 4,18 C3,30 20,34 30,29 C38,25 39,12 26,5"/></svg>{% endif %}</span>
-      <span class="visually-hidden">{{ m.name }}: {% if m.n == 0 %}no dates{% else %}{{ m.n }} {% if m.n == 1 %}date{% else %}dates{% endif %}{% endif %}</span>
+      {% if m.n > 0 %}<a class="y-mo-l y-mo-a" href="/year/{{ year }}/{{ loop.index }}"><span aria-hidden="true">{{ m.letter }}</span>{% if m.pct == 100 %}<svg class="y-circle" viewBox="0 0 40 36" aria-hidden="true"><path class="y-ink" d="M30,6 C20,1 5,6 4,18 C3,30 20,34 30,29 C38,25 39,12 26,5"/></svg>{% endif %}<span class="visually-hidden">{{ m.name }}: {{ m.n }} {% if m.n == 1 %}date{% else %}dates{% endif %}</span></a>
+      {% else %}<span class="y-mo-l" aria-hidden="true">{{ m.letter }}</span><span class="visually-hidden">{{ m.name }}: no dates</span>{% endif %}
     </li>
     {% endfor %}
   </ol>

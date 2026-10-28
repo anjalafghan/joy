@@ -137,7 +137,7 @@
 <div class="k-book" id="k-book">
   {% for m in months %}
   <section class="k-month" aria-labelledby="k-m{{ loop.index }}" style="--m: {{ loop.index0 }}">
-    <h2 class="k-month-h" id="k-m{{ loop.index }}">{{ m.label }}<span class="k-month-n hand" aria-hidden="true">{{ m.items.len() }} {% if m.items.len() == 1 %}date{% else %}dates{% endif %}</span></h2>
+    <h2 class="k-month-h" id="k-m{{ loop.index }}"><a class="k-month-a" href="{{ m.href }}">{{ m.label }}</a><span class="k-month-n hand" aria-hidden="true">{{ m.items.len() }} {% if m.items.len() == 1 %}date{% else %}dates{% endif %}</span></h2>
     <ol class="k-spread" role="list">
       {% for h in m.items %}
       {% if h.sealed %}

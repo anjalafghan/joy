@@ -169,6 +169,8 @@ fn hints(r: &HistoryRow, planned: &str, rain: bool) -> Vec<String> {
 
 pub struct Month {
     pub label: String,
+    /// "/year/2026/10": that month's spread.
+    pub href: String,
     pub items: Vec<KeptView>,
 }
 
@@ -231,7 +233,10 @@ pub async fn page(State(s): State<AppState>, jar: SignedCookieJar, Query(q): Que
         let v = view(&s, row, who, rain, pair_ids(row, &done, &pairs));
         match months.last_mut() {
             Some(m) if m.label == label => m.items.push(v),
-            _ => months.push(Month { label, items: vec![v] }),
+            _ => {
+                let href = format!("/year/{}/{}", row.day.get(..4).unwrap_or(""), row.day.get(5..7).unwrap_or("").trim_start_matches('0'));
+                months.push(Month { label, href, items: vec![v] })
+            }
         }
     }
     render(HistoryTpl {

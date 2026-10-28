@@ -571,6 +571,16 @@ pub async fn other_spending_this_month(db: &SqlitePool) -> sqlx::Result<Vec<(i64
     .await
 }
 
+/// Non-slip spending in a "YYYY-MM", oldest first: (amount, note, spent_on).
+pub async fn other_spending_in_month(db: &SqlitePool, month: &str) -> sqlx::Result<Vec<(i64, String, String)>> {
+    sqlx::query_as(
+        "SELECT amount, note, spent_on FROM other_spending WHERE strftime('%Y-%m', spent_on) = ? ORDER BY spent_on, id",
+    )
+    .bind(month)
+    .fetch_all(db)
+    .await
+}
+
 pub async fn setting(db: &SqlitePool, key: &str) -> sqlx::Result<Option<String>> {
     sqlx::query_scalar("SELECT value FROM settings WHERE key = ?").bind(key).fetch_optional(db).await
 }

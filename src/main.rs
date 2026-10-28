@@ -110,6 +110,7 @@ pub fn build_app(state: AppState) -> Router {
         .route("/history", get(routes::history::page))
         .route("/year", get(routes::year::current))
         .route("/year/{year}", get(routes::year::page))
+        .route("/year/{year}/{month}", get(routes::month::page))
         .route("/history/when", post(routes::history::when))
         .route("/history/{id}/invite.ics", get(routes::history::invite))
         .route("/history/{id}/reveal", post(routes::history::reveal))

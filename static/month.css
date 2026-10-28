@@ -1,0 +1,177 @@
+/* One month: a page from a travel journal. Dot-grid paper with prints, ticket stubs and torn
+   receipts stuck on at angles, the month spelled in round letter stickers on handmade paper.
+   Page chrome uses tokens (see DESIGN.md); paper, tickets, receipts and stickers are physical
+   things and keep their own colours in light and dark. */
+
+body[data-page="month"] { overflow-x: clip; }
+body[data-page="month"] main { max-width: 1120px; padding-bottom: 120px; }
+.m-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
+
+.m-top { display: flex; padding-top: 8px; }
+.m-back {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 4px;
+  font: 600 var(--step--1)/1 var(--font-ui); letter-spacing: .04em; color: var(--ink-soft); text-decoration: none;
+}
+.m-back:hover { color: var(--ink); }
+
+/* ── the title: letter stickers on a scrap of handmade paper ─ */
+.m-head { display: grid; justify-items: start; gap: 10px; padding: 18px 0 8px; }
+.m-patch {
+  position: relative; display: grid; gap: 8px; max-width: 100%; padding: 26px clamp(20px, 5vw, 34px) 30px clamp(16px, 4vw, 26px); rotate: -1.5deg;
+  background-color: #ece3d1;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.55' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .45 0 0 0 0 .36 0 0 0 0 .24 0 0 0 -2.4 1.25'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23f)' opacity='.6'/%3E%3C/svg%3E");
+  clip-path: polygon(2% 8%, 9% 2%, 22% 5%, 37% 0, 52% 4%, 66% 1%, 81% 5%, 94% 1%, 100% 12%, 97% 30%, 100% 52%, 96% 74%, 99% 92%, 88% 99%, 71% 95%, 55% 100%, 38% 96%, 21% 100%, 6% 95%, 0 82%, 3% 60%, 0 38%, 3% 20%);
+}
+/* clip-path cuts off an element's own drop-shadow, so torn shapes cast it from a wrapper */
+.m-shadow { filter: drop-shadow(0 6px 6px rgba(0, 0, 0, .16)); }
+.m-patch-wrap { max-width: 100%; filter: drop-shadow(0 3px 4px rgba(40, 25, 10, .18)); }
+.m-receipt-wrap { position: relative; z-index: 1; width: min(250px, 92%); margin: -8px 0 0 auto; }
+.m-entry > .m-shadow:first-child { width: min(320px, 100%); }
+.m-other .m-receipt-wrap { margin: 0; }
+.m-other:nth-child(even) .m-receipt-wrap { margin-left: auto; }
+.m-stickers { display: flex; gap: 4px; margin: 0; }
+.m-stickers span {
+  display: inline-grid; place-items: center; width: clamp(24px, calc((100vw - 104px) / var(--n, 9)), 46px); aspect-ratio: 1; border-radius: 50%;
+  background: #1f4b57; color: #f6f1e7; box-shadow: 0 1px 1px rgba(0, 0, 0, .25), inset 0 -2px 0 rgba(0, 0, 0, .18);
+  font: 500 clamp(.95rem, calc((100vw - 104px) / var(--n, 9) * .55), 1.5rem)/1 var(--font-display); font-variation-settings: "SOFT" 100, "opsz" 24;
+}
+.m-stickers span:nth-child(3n+1) { translate: 0 2px; rotate: -4deg; }
+.m-stickers span:nth-child(3n+2) { translate: 0 -2px; rotate: 3deg; }
+.m-stickers span:nth-child(3n) { rotate: -1deg; }
+.m-stickers-year { padding-left: clamp(40px, 14vw, 90px); }
+.m-star-s { color: var(--stamp); font-size: .8em; }
+.m-summary { margin: 6px 0 0; font: 400 1.625rem/1.2 var(--font-hand); color: var(--ink); rotate: -1deg; }
+.m-soon { margin: 0; font: italic 400 var(--step-0)/1.4 var(--font-display); color: var(--ink-soft); }
+
+/* ── the sheet: dot-grid paper, a gutter down the middle on wide screens ── */
+.m-sheet {
+  --pen: #24303a; --pen-soft: #4b5560; --red: #a3271c;
+  position: relative; margin: 26px 0 0; padding: 40px 20px 36px; color: var(--pen);
+  background-color: #f6f5f2;
+  background-image: radial-gradient(circle, rgba(60, 64, 80, .3) 1px, transparent 1.4px);
+  background-size: 20px 20px; background-position: 10px 10px;
+  border-radius: 6px;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, .5) inset, 0 30px 40px -20px rgba(0, 0, 0, .4), 0 2px 6px rgba(0, 0, 0, .12);
+}
+.m-collage { columns: 1; column-gap: 96px; }
+.m-piece { break-inside: avoid; margin: 0 0 44px; }
+
+/* a polaroid with the date written on its top border */
+.m-entry { position: relative; display: grid; justify-items: start; }
+.m-print {
+  position: relative; width: min(300px, 100%); margin: 0; padding: 30px 14px 16px; background: #fff;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, .12), 0 12px 20px -8px rgba(0, 0, 0, .35);
+  rotate: calc(var(--t, 0) * 1.3deg);
+}
+.m-print-stamp { position: absolute; top: 4px; left: 0; right: 0; text-align: center; font: 600 1.375rem/1 var(--font-hand); color: var(--pen); letter-spacing: .04em; }
+.m-print-photo { display: block; aspect-ratio: 4 / 5; overflow: hidden; background: #e6e2da; }
+.m-print-photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.m-print figcaption { padding: 10px 2px 0; font: 600 1.5rem/1.1 var(--font-hand); overflow-wrap: anywhere; }
+.m-print-stars { color: var(--red); letter-spacing: 1px; font-size: 1.25rem; }
+.m-tape {
+  position: absolute; top: -12px; right: 18px; z-index: 1; width: 76px; height: 22px; rotate: 8deg; pointer-events: none;
+  background: rgba(214, 222, 224, .75);
+  clip-path: polygon(0% 0%, 100% 0%, 97% 25%, 100% 50%, 97% 75%, 100% 100%, 0% 100%, 3% 75%, 0% 50%, 3% 25%);
+}
+.m-entry:nth-child(even) .m-tape { right: auto; left: 18px; rotate: -6deg; }
+
+/* a ticket stub: a coloured band by kind of night, torn at the bottom */
+.m-ticket {
+  --band: #a84a3a;
+  width: 100%; background: #fbf9f4; color: var(--pen);
+  rotate: calc(var(--t, 0) * 1.1deg);
+  clip-path: polygon(0 0, 100% 0, 100% 94%, 96% 99%, 91% 95%, 85% 100%, 78% 96%, 71% 100%, 63% 95%, 55% 99%, 47% 95%, 39% 100%, 31% 96%, 23% 100%, 15% 95%, 8% 99%, 0 95%);
+}
+.m-ticket[data-kind="home"] { --band: #8c6d1c; }
+.m-ticket[data-kind="apart"] { --band: #6e5a9c; }
+.m-ticket[data-kind="day_trip"] { --band: #4f7d42; }
+.m-ticket[data-kind="travel"] { --band: #2f6a8a; }
+.m-ticket-brand {
+  display: flex; align-items: center; justify-content: center; gap: 8px; margin: 0; padding: 12px 16px;
+  background: var(--band); color: #fff;
+  font: 700 .8125rem/1 var(--font-ui); letter-spacing: .2em; text-transform: uppercase;
+}
+.m-ticket-brand svg { width: 22px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.m-ticket-body { display: flex; align-items: flex-end; gap: 14px; padding: 16px 18px 30px; }
+.m-ticket-text { flex: 1 1 auto; min-width: 0; display: grid; gap: 10px; }
+.m-ticket-title { margin: 0; font: 600 var(--step-1)/1.2 var(--font-display); font-variation-settings: "SOFT" 100, "opsz" 24; overflow-wrap: anywhere; }
+.m-ticket-meta { margin: 0; display: grid; gap: 3px; font: 400 .8125rem/1.35 "Courier New", ui-monospace, monospace; }
+.m-ticket-meta div { display: flex; flex-wrap: wrap; gap: 0 6px; }
+.m-ticket-meta dt { color: var(--pen-soft); }
+.m-ticket-meta dd { margin: 0; font-weight: 700; overflow-wrap: anywhere; }
+.m-qr { flex: none; width: 58px; height: 58px; fill: var(--pen); }
+
+/* a till receipt, torn at both ends, overlapping what it paid for */
+.m-receipt {
+  padding: 22px 18px 24px;
+  background: #fdfdfb; color: #2c2c2c; rotate: calc(var(--t, 0) * -1.6deg + 2deg);
+  font: 400 .8125rem/1.45 "Courier New", ui-monospace, monospace;
+  clip-path: polygon(0 3%, 5% 0, 11% 3%, 17% 0, 24% 3%, 31% 0, 38% 3%, 45% 0, 52% 3%, 59% 0, 66% 3%, 73% 0, 80% 3%, 87% 0, 94% 3%, 100% 0, 100% 97%, 94% 100%, 87% 97%, 80% 100%, 73% 97%, 66% 100%, 59% 97%, 52% 100%, 45% 97%, 38% 100%, 31% 97%, 24% 100%, 17% 97%, 11% 100%, 5% 97%, 0 100%);
+}
+.m-r-head { margin: 0; font-weight: 700; text-align: center; text-transform: uppercase; letter-spacing: .08em; overflow-wrap: anywhere; }
+.m-r-sub { margin: 0 0 8px; padding-bottom: 8px; text-align: center; color: #555; border-bottom: 1.5px dashed #9a9a9a; }
+.m-r-line, .m-r-total { display: flex; justify-content: space-between; gap: 12px; margin: 0; }
+.m-r-total { margin-top: 8px; padding-top: 8px; border-top: 1.5px dashed #9a9a9a; font-size: 1rem; font-weight: 700; text-transform: uppercase; }
+.m-r-foot { margin: 8px 0 0; text-align: center; color: #555; }
+.m-r-foot.is-over { color: #9b2419; }
+.m-other .m-receipt { rotate: -2deg; }
+.m-other:nth-child(even) .m-receipt { rotate: 2.5deg; }
+
+/* handwriting in the margin, with a loopy arrow */
+.m-scribble { position: relative; max-width: 30ch; margin: 18px 0 0 34px; font: 400 1.5rem/1.15 var(--font-hand); color: var(--pen); rotate: -2deg; overflow-wrap: anywhere; }
+/* a note is read, not glanced at: Fraunces italic, never Caveat (DESIGN.md) */
+.m-note { font: italic 400 var(--step-0)/1.45 var(--font-display); font-variation-settings: "SOFT" 100, "opsz" 14; rotate: -1deg; }
+.m-arrow { position: absolute; left: -36px; top: -26px; width: 30px; height: 33px; fill: none; stroke: var(--pen); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+
+/* the month's best night: a die-cut sticker */
+.m-sticker-wrap { display: flex; justify-content: center; }
+.m-sticker {
+  display: grid; justify-items: center; gap: 6px; width: min(320px, 100%); padding: 10px 22px 22px;
+  background: #fff; color: #161616; border-radius: 18px; rotate: -3deg;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, .06), 0 10px 18px -8px rgba(0, 0, 0, .35);
+}
+.m-sticker-arc { width: 100%; height: auto; max-width: 260px; overflow: visible; }
+.m-sticker-arc text { font: 800 15px var(--font-ui); letter-spacing: .14em; fill: #161616; }
+.m-sticker-title {
+  margin: -8px 0 0; text-align: center; overflow-wrap: anywhere;
+  font: 800 clamp(1.9rem, 8vw, 2.4rem)/.95 var(--font-display); letter-spacing: -.03em; text-transform: uppercase;
+  font-variation-settings: "SOFT" 0, "WONK" 1, "opsz" 144;
+}
+.m-sticker-stars { display: flex; gap: 3px; margin: 4px 0 0; }
+.m-sticker-stars svg { width: 22px; height: 22px; fill: #ddd; }
+.m-sticker-stars svg.is-on { fill: var(--red); }
+.m-sticker-day { margin: 0; font: 400 1.375rem/1 var(--font-hand); color: #444; }
+
+/* an empty month */
+.m-empty { display: grid; gap: 10px; padding: 24px 4px 36px; }
+.m-empty .m-scribble { margin: 0; font-size: 2rem; }
+.m-empty-p { margin: 0; max-width: 46ch; color: var(--pen-soft); }
+
+/* turning the page */
+.m-pages { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; margin-top: 12px; padding-top: 16px; border-top: 1.5px dashed rgba(36, 48, 58, .3); }
+.m-page-a { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 6px; font: 400 1.5rem/1 var(--font-hand); color: var(--pen); text-decoration: none; }
+.m-page-a:hover { color: var(--red); }
+.m-next { margin-left: auto; }
+.m-page-a:focus-visible, .m-back:focus-visible { outline: 2px solid var(--stamp); outline-offset: 2px; border-radius: 4px; }
+
+@media (min-width: 600px) {
+  .m-sheet { padding: 48px 44px 40px; }
+}
+/* desktop: an open journal, the two columns are the two pages */
+@media (min-width: 1000px) {
+  .m-head { grid-template-columns: auto 1fr; align-items: end; column-gap: 40px; }
+  .m-head .m-summary, .m-head .m-soon { grid-column: 2; }
+  .m-head .m-patch-wrap { grid-row: 1 / span 2; }
+  .m-sheet {
+    padding: 56px 60px 44px;
+    background-image:
+      linear-gradient(90deg, transparent calc(50% - 40px), rgba(0, 0, 0, .07) calc(50% - 2px), rgba(0, 0, 0, .12) 50%, rgba(0, 0, 0, .07) calc(50% + 2px), transparent calc(50% + 40px)),
+      radial-gradient(circle, rgba(60, 64, 80, .3) 1px, transparent 1.4px);
+    background-size: 100% 100%, 20px 20px;
+    background-position: 0 0, 10px 10px;
+  }
+  .m-collage { columns: 2; }
+}
+@media (prefers-color-scheme: dark) {
+  .m-sheet { box-shadow: 0 30px 50px -20px rgba(0, 0, 0, .7), 0 0 0 1px rgba(255, 255, 255, .04); }
+}

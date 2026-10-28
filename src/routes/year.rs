@@ -37,9 +37,11 @@ pub struct YearRow {
     pub jd: i64,
     /// "16 Oct"
     pub day_label: String,
+    /// "16·10·26", the date stamp on a print.
+    pub stamp: String,
 }
 
-async fn rows(db: &sqlx::SqlitePool, year: i32) -> sqlx::Result<Vec<YearRow>> {
+pub(crate) async fn rows(db: &sqlx::SqlitePool, year: i32) -> sqlx::Result<Vec<YearRow>> {
     sqlx::query_as(
         "SELECT h.id, a.title, a.setting, a.tags,
                 CASE WHEN a.venue != '' THEN a.venue ELSE a.area END AS place,
@@ -49,7 +51,8 @@ async fn rows(db: &sqlx::SqlitePool, year: i32) -> sqlx::Result<Vec<YearRow>> {
                 CAST(julianday(date(COALESCE(h.planned_at, h.picked_at), 'unixepoch', 'localtime')) AS INTEGER) AS jd,
                 CAST(strftime('%d', COALESCE(h.planned_at, h.picked_at), 'unixepoch', 'localtime') AS INTEGER) || ' ' ||
                   substr('JanFebMarAprMayJunJulAugSepOctNovDec',
-                         1 + 3 * (CAST(strftime('%m', COALESCE(h.planned_at, h.picked_at), 'unixepoch', 'localtime') AS INTEGER) - 1), 3) AS day_label
+                         1 + 3 * (CAST(strftime('%m', COALESCE(h.planned_at, h.picked_at), 'unixepoch', 'localtime') AS INTEGER) - 1), 3) AS day_label,
+                strftime('%d·%m·%y', COALESCE(h.planned_at, h.picked_at), 'unixepoch', 'localtime') AS stamp
          FROM history h JOIN activities a ON a.id = h.activity_id
          WHERE h.outcome = 'did_it'
            AND (h.surprise = 0 OR h.revealed = 1)
@@ -121,7 +124,6 @@ pub struct Kind {
 /// A month's blot on the money line.
 pub struct MonthBlot {
     pub letter: String,
-    pub name: String,
     /// Radius in px, 0 when nothing was spent.
     pub r: String,
     pub over: bool,
@@ -199,7 +201,6 @@ struct YearTpl {
     months: Vec<MonthBar>,
     busiest: String,
     vibe_label: String,
-    vibe_key: String,
     tags: Vec<String>,
     best: Option<BestNight>,
     avg_rating: String,
@@ -233,7 +234,7 @@ struct YearTpl {
     share_json: String,
 }
 
-const MONTHS: [&str; 12] =
+pub(crate) const MONTHS: [&str; 12] =
     ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 /// `/year` → this year (or last year, in January when this one has barely started).
@@ -376,7 +377,6 @@ pub async fn page(State(s): State<AppState>, jar: SignedCookieJar, Path(year): P
         };
         month_blots.push(MonthBlot {
             letter: MONTHS[i][..1].into(),
-            name: MONTHS[i].into(),
             r: format!("{r_px:.1}"),
             over: budget.is_some_and(|b| sp > b),
             text: match (sp, budget) {
@@ -413,7 +413,6 @@ pub async fn page(State(s): State<AppState>, jar: SignedCookieJar, Path(year): P
             .collect(),
         busiest: busiest.unwrap_or_default(),
         vibe_label: r.vibe.as_deref().map(|v| picker::setting_label(v).to_string()).unwrap_or_default(),
-        vibe_key: r.vibe.unwrap_or_default(),
         tags: r.tags,
         best,
         avg_rating: r.avg_rating,
@@ -427,7 +426,7 @@ pub async fn page(State(s): State<AppState>, jar: SignedCookieJar, Path(year): P
     .into_response())
 }
 
-fn photo_url(s: &AppState, id: i64) -> String {
+pub(crate) fn photo_url(s: &AppState, id: i64) -> String {
     let v = std::fs::metadata(photos::path(&s.cfg.photos_dir, id))
         .and_then(|m| m.modified())
         .ok()
@@ -599,6 +598,7 @@ mod tests {
             month,
             jd,
             day_label: String::new(),
+            stamp: String::new(),
         }
     }
 

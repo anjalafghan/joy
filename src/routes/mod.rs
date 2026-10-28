@@ -2,6 +2,7 @@ pub mod auth;
 pub mod decide;
 pub mod history;
 pub mod middle;
+pub mod month;
 pub mod wishlist;
 pub mod year;
 

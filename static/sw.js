@@ -15,11 +15,11 @@ const PHOTO_MAX_COUNT = 80;
 const NETWORK_TIMEOUT_MS = 2000;
 
 // Pages kept for offline reading (path only; pages with a query string are never stored).
-const OFFLINE_PAGES = (p) => p === '/' || p === '/history' || p === '/wishlist' || p === '/year' || /^\/year\/\d{4}$/.test(p);
+const OFFLINE_PAGES = (p) => p === '/' || p === '/history' || p === '/wishlist' || p === '/year' || /^\/year\/\d{4}(\/\d{1,2})?$/.test(p);
 
 const VERSIONED = [
   'tokens.css', 'jar.css', 'jar.js', 'kept.css', 'kept.js', 'slips.css', 'slips.js', 'who.css',
-  'year.css', 'year.js', 'app.js', 'htmx.min.js', 'manifest.webmanifest', 'icons/icon-180.png',
+  'year.css', 'year.js', 'month.css', 'app.js', 'htmx.min.js', 'manifest.webmanifest', 'icons/icon-180.png',
 ].map((f) => `/static/${f}?v=${V}`);
 const UNVERSIONED = [
   '/offline',

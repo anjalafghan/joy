@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block title %}Our {{ month_name }} {{ year }} · joy{% endblock %}
+{% block page %}month{% endblock %}
+{% block me %}{% if me_name.is_empty() %}who?{% else %}{{ me_name }}{% endif %}{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="/static/month.css?v={{ crate::BUILD }}">
+{% endblock %}
+{% block content %}
+<svg class="m-defs" width="0" height="0" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="m-star" viewBox="0 0 24 24"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3 6.1 20.6l1.3-6.6L2.5 9.4l6.6-.8z"/></symbol>
+    <symbol id="m-arrow" viewBox="0 0 40 44"><path d="M33 41C34 28 26 16 9 9M9 9l9-1M9 9l3 8"/></symbol>
+  </defs>
+</svg>
+
+<nav class="m-top" aria-label="Back to the year">
+  <a class="m-back" href="/year/{{ year }}"><span aria-hidden="true">←</span> Our {{ year }}</a>
+</nav>
+
+<header class="m-head">
+  <div class="m-shadow m-patch-wrap"><div class="m-patch" style="--n: {{ month_letters.len() }}">
+    <h1 class="visually-hidden">Our {{ month_name }} {{ year }}</h1>
+    <p class="m-stickers" aria-hidden="true">{% for c in month_letters %}<span>{{ c }}</span>{% endfor %}</p>
+    <p class="m-stickers m-stickers-year" aria-hidden="true">{% for c in year_letters %}<span>{{ c }}</span>{% endfor %}</p>
+  </div></div>
+  {% if !entries.is_empty() %}
+  <p class="m-summary">{{ entries.len() }} {% if entries.len() == 1 %}date{% else %}dates{% endif %}{% if !spent.is_empty() %} · {{ spent }} spent{% endif %}{% if !avg_rating.is_empty() %} · {{ avg_rating }} <span class="m-star-s" aria-hidden="true">★</span><span class="visually-hidden">stars</span> on average{% endif %}</p>
+  {% endif %}
+  {% if to_come > 0 %}<p class="m-soon">…and {{ to_come }} more still to come this month</p>{% endif %}
+</header>
+
+<div class="m-sheet">
+  {% if entries.is_empty() && others.is_empty() %}
+  <div class="m-empty">
+    <p class="m-scribble">nothing kept in {{ month_name }} {% if to_come > 0 %}yet{% endif %} ♡</p>
+    <p class="m-empty-p">This page fills up with every date we keep in {{ month_name }}: a print or a ticket for each, and the receipts.</p>
+  </div>
+  {% else %}
+  <div class="m-collage">
+
+    {% if let Some(b) = best %}
+    {% if entries.len() > 1 %}
+    <div class="m-piece m-sticker-wrap">
+      <div class="m-sticker">
+        <svg class="m-sticker-arc" viewBox="0 0 240 60" aria-hidden="true"><defs><path id="m-arc" d="M20,56 Q120,-6 220,56"/></defs><text><textPath href="#m-arc" startOffset="50%" text-anchor="middle">★ OUR BEST NIGHT ★</textPath></text></svg>
+        <p class="m-sticker-title">{{ b.title }}</p>
+        <p class="m-sticker-stars" role="img" aria-label="Our best night: {{ b.rating }} out of 5 stars">{% for n in 1..=5 %}<svg class="{% if n <= b.rating %}is-on{% endif %}" aria-hidden="true"><use href="#m-star"/></svg>{% endfor %}</p>
+        <p class="m-sticker-day">{{ b.day }} {{ year }}</p>
+      </div>
+    </div>
+    {% endif %}
+    {% endif %}
+
+    {% for e in entries %}
+    <article class="m-piece m-entry" style="--t: {{ e.tilt }}" aria-label="{{ e.title }}, {{ e.day }}">
+      {% if !e.photo.is_empty() %}
+      <figure class="m-print">
+        <span class="m-tape" aria-hidden="true"></span>
+        <span class="m-print-stamp" aria-hidden="true">{{ e.stamp }}</span>
+        <span class="m-print-photo"><img src="{{ e.photo }}" alt="Photo from {{ e.title }}" loading="lazy" decoding="async" width="480" height="600"></span>
+        <figcaption>{{ e.title }}{% if e.rating > 0 %} <span class="m-print-stars" role="img" aria-label="{{ e.rating }} out of 5 stars">{% for _ in 0..e.rating %}★{% endfor %}</span>{% endif %}</figcaption>
+      </figure>
+      {% else %}
+      <div class="m-shadow"><div class="m-ticket" data-kind="{{ e.kind }}">
+        <p class="m-ticket-brand"><svg viewBox="0 0 24 14" aria-hidden="true"><path d="M2 13a10 10 0 0 1 20 0M12 1v3M4.5 4.5l2 2M19.5 4.5l-2 2"/></svg><span>{{ e.kind_label }}</span></p>
+        <div class="m-ticket-body">
+          <div class="m-ticket-text">
+            <p class="m-ticket-title">{{ e.title }}</p>
+            <dl class="m-ticket-meta">
+              {% if !e.place.is_empty() %}<div><dt>Ticket issued at:</dt><dd>{{ e.place }}</dd></div>{% endif %}
+              <div><dt>Date:</dt><dd>{{ e.day }}</dd></div>
+              {% if e.rating > 0 %}<div><dt>Stars:</dt><dd><span aria-hidden="true">{% for _ in 0..e.rating %}★{% endfor %}</span><span class="visually-hidden">{{ e.rating }} out of 5</span></dd></div>{% endif %}
+            </dl>
+          </div>
+          <svg class="m-qr" viewBox="0 0 21 21" aria-hidden="true"><path d="M0 0h7v7H0zM1 1v5h5V1zM2 2h3v3H2zM14 0h7v7h-7zM15 1v5h5V1zM16 2h3v3h-3zM0 14h7v7H0zM1 15v5h5v-5zM2 16h3v3H2zM8 0h2v2H8zM11 1h2v3h-2zM8 3h2v2H8zM9 6h3v2H9zM8 9h4v2H8zM0 8h2v2H0zM3 9h3v2H3zM13 8h3v2h-3zM17 9h4v2h-4zM14 12h2v3h-2zM17 12h2v2h-2zM8 13h3v2H8zM12 15h2v2h-2zM16 16h3v2h-3zM9 17h2v4H9zM12 19h3v2h-3zM19 19h2v2h-2zM18 14h3v1h-3z"/></svg>
+        </div>
+      </div></div>
+      {% endif %}
+
+      {% if !e.actual.is_empty() %}
+      <div class="m-shadow m-receipt-wrap"><div class="m-receipt">
+        <p class="m-r-head">{% if e.place.is_empty() %}{{ e.title }}{% else %}{{ e.place }}{% endif %}</p>
+        <p class="m-r-sub">{{ e.day }} {{ year }} · no. {{ loop.index }}</p>
+        <p class="m-r-line"><span>Our guess</span><span>{{ e.est }}</span></p>
+        {% if !e.cabs.is_empty() %}<p class="m-r-line"><span>Cabs</span><span>{{ e.cabs }}</span></p>{% endif %}
+        <p class="m-r-total"><span>Amount</span><span>{{ e.actual }}</span></p>
+        {% if !e.diff.is_empty() %}<p class="m-r-foot{% if e.over %} is-over{% endif %}">{{ e.diff }}</p>{% endif %}
+      </div></div>
+      {% endif %}
+
+      {% if !e.note.is_empty() %}
+      <p class="m-scribble m-note"><svg class="m-arrow" aria-hidden="true"><use href="#m-arrow"/></svg>{{ e.note }}</p>
+      {% endif %}
+    </article>
+    {% endfor %}
+
+    {% for o in others %}
+    <div class="m-piece m-other">
+      <div class="m-shadow m-receipt-wrap"><div class="m-receipt">
+        <p class="m-r-head">{% if o.note.is_empty() %}Somewhere we went anyway{% else %}{{ o.note }}{% endif %}</p>
+        <p class="m-r-sub">{{ o.day }} {{ year }} · not a slip</p>
+        <p class="m-r-total"><span>Amount</span><span>{{ o.amount }}</span></p>
+      </div></div>
+    </div>
+    {% endfor %}
+
+  </div>
+  {% endif %}
+
+  {% if prev.is_some() || next.is_some() %}
+  <nav class="m-pages" aria-label="Other months">
+    {% if let Some(p) = prev %}<a class="m-page-a m-prev" href="{{ p.href }}"><span aria-hidden="true">←</span> {{ p.label }}</a>{% endif %}
+    {% if let Some(n) = next %}<a class="m-page-a m-next" href="{{ n.href }}">{{ n.label }} <span aria-hidden="true">→</span></a>{% endif %}
+  </nav>
+  {% endif %}
+</div>
+{% endblock %}
