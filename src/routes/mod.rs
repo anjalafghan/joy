@@ -301,16 +301,32 @@ pub async fn past_months(s: &AppState) -> Result<Vec<PastMonth>, AppError> {
     Ok(out)
 }
 
-/// Roll last month's leftover over (or start fresh) for this month. Does nothing if already decided.
-pub async fn settle_month(s: &AppState, roll: bool) -> Result<(), AppError> {
+/// What to do with last month's leftover.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Leftover {
+    /// Add it to this month's budget.
+    Roll,
+    /// Put it in the savings jar.
+    Save,
+    /// Let it go.
+    Fresh,
+}
+
+/// Settle this month's start with last month's leftover. Does nothing if already decided.
+pub async fn settle_month(s: &AppState, choice: Leftover) -> Result<(), AppError> {
     let standing = standing_budget(crate::db::setting(&s.db, "monthly_budget").await?);
     let Some(base) = standing else { return Ok(()) };
     let this = crate::db::month_offset(&s.db, 0).await?;
-    let carry = match pending_rollover(s, standing).await? {
-        Some((_, _, _, left)) if roll => left,
+    let pending = pending_rollover(s, standing).await?;
+    let carry = match pending {
+        Some((_, _, _, left)) if choice == Leftover::Roll => left,
         _ => 0,
     };
-    crate::db::decide_month(&s.db, &this, base, carry).await?;
+    let settled = crate::db::decide_month(&s.db, &this, base, carry).await?;
+    if let (true, Leftover::Save, Some((prev, _, _, left))) = (settled, choice, pending) {
+        let year = this.get(..4).unwrap_or_default();
+        crate::db::add_saving(&s.db, left, "leftover", &format!("{}'s leftover", month_name(&prev, year))).await?;
+    }
     Ok(())
 }
 

@@ -681,3 +681,20 @@ html:not(.k-js) .k-photo-form .k-tool { order: -1; flex-basis: 100%; cursor: def
 
 .k-year { margin: 10px 0 0; }
 .k-year a { display: inline-flex; align-items: center; min-height: 44px; font: 600 1.3rem/1 var(--font-hand); color: var(--stamp); text-decoration: none; }
+
+/* ── the savings jar ─────────────────────────────────────── */
+.k-savings { margin-top: 18px; padding-top: 14px; border-top: 1px dashed var(--rule); scroll-margin-top: 84px; }
+.k-savings-h { margin: 0 0 8px; font: 600 var(--step-0)/1.3 var(--font-display); color: var(--ink); }
+.k-savings .budget-line { font-size: var(--step-0); }
+.k-savings .budget-line.is-ready strong { color: var(--stamp); }
+.k-budget-form .k-goal { width: 100%; max-width: 18rem; }
+
+/* ── two lines: one from each of us ──────────────────────── */
+.k-lines { margin-top: 14px; }
+.k-lines-h { margin: 0 0 2px; font-size: 1.15rem; font-weight: 400; color: var(--ink-soft); }
+.k-line { margin: 0 0 6px; padding: 0; }
+.k-line p { margin: 0; font: italic 400 1.08rem/1.6 var(--font-display); color: var(--ink); }
+.k-line footer { font-size: var(--step--1); color: var(--ink-soft); }
+.k-line footer::before { content: "— "; }
+.k-line-form .k-inline { margin-top: 6px; }
+.k-line-form .k-hint { margin: 0; }

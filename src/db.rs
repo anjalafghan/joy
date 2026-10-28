@@ -397,12 +397,23 @@ pub async fn set_planned(db: &SqlitePool, ids: &[i64], local: Option<&str>) -> s
 
 /// Remove a kept date. The slip stays in the jar; its "done" count and last-done
 /// time are recalculated from what's left, so the picker's weighting stays right.
+/// Its two lines go with it, and anything the savings jar paid goes back in.
 pub async fn delete_history(db: &SqlitePool, id: i64) -> sqlx::Result<()> {
     let mut tx = db.begin().await?;
     let activity: Option<i64> = sqlx::query_scalar("SELECT activity_id FROM history WHERE id = ?")
         .bind(id)
         .fetch_optional(&mut *tx)
         .await?;
+    // Money the savings jar paid for this date goes back in the jar.
+    sqlx::query(
+        "INSERT INTO savings (amount, kind, note)
+         SELECT h.from_savings, 'back', a.title FROM history h JOIN activities a ON a.id = h.activity_id
+         WHERE h.id = ? AND h.from_savings > 0",
+    )
+    .bind(id)
+    .execute(&mut *tx)
+    .await?;
+    sqlx::query("DELETE FROM memories WHERE history_id = ?").bind(id).execute(&mut *tx).await?;
     sqlx::query("DELETE FROM history WHERE id = ?").bind(id).execute(&mut *tx).await?;
     if let Some(a) = activity {
         sqlx::query(
@@ -472,11 +483,12 @@ pub async fn month_offset(db: &SqlitePool, back: i64) -> sqlx::Result<String> {
         .await
 }
 
-/// Spent in the given "YYYY-MM" (see `spent_this_month`).
+/// Spent in the given "YYYY-MM" (see `spent_this_month`). What the savings jar paid for a date
+/// doesn't count: that money was set aside in an earlier month.
 pub async fn spent_in_month(db: &SqlitePool, month: &str) -> sqlx::Result<i64> {
     sqlx::query_scalar(
         "SELECT
-           (SELECT COALESCE(SUM(actual_cost), 0) FROM history
+           (SELECT COALESCE(SUM(MAX(actual_cost - COALESCE(from_savings, 0), 0)), 0) FROM history
              WHERE outcome = 'did_it' AND actual_cost IS NOT NULL
                AND strftime('%Y-%m', COALESCE(planned_at, picked_at), 'unixepoch', 'localtime') = ?1)
          + (SELECT COALESCE(SUM(amount), 0) FROM other_spending WHERE strftime('%Y-%m', spent_on) = ?1)",
@@ -492,7 +504,8 @@ pub async fn spent_in_month(db: &SqlitePool, month: &str) -> sqlx::Result<i64> {
 pub async fn spent_by_month(db: &SqlitePool, year: i32) -> sqlx::Result<[i64; 12]> {
     let rows: Vec<(i64, i64)> = sqlx::query_as(
         "SELECT m, SUM(a) FROM (
-           SELECT CAST(strftime('%m', COALESCE(planned_at, picked_at), 'unixepoch', 'localtime') AS INTEGER) AS m, actual_cost AS a
+           SELECT CAST(strftime('%m', COALESCE(planned_at, picked_at), 'unixepoch', 'localtime') AS INTEGER) AS m,
+                  MAX(actual_cost - COALESCE(from_savings, 0), 0) AS a
              FROM history
             WHERE outcome = 'did_it' AND actual_cost IS NOT NULL AND (surprise = 0 OR revealed = 1)
               AND COALESCE(planned_at, picked_at) <= unixepoch()
@@ -520,21 +533,23 @@ pub async fn month_budget(db: &SqlitePool, month: &str) -> sqlx::Result<Option<(
 }
 
 /// Settle a month's start: rolling over `carry` (0 = start fresh). Pressing twice changes nothing.
-pub async fn decide_month(db: &SqlitePool, month: &str, base: i64, carry: i64) -> sqlx::Result<()> {
-    sqlx::query("INSERT OR IGNORE INTO month_budget (month, base, carry) VALUES (?, ?, ?)")
+/// True when this call was the one that settled it.
+pub async fn decide_month(db: &SqlitePool, month: &str, base: i64, carry: i64) -> sqlx::Result<bool> {
+    let done = sqlx::query("INSERT OR IGNORE INTO month_budget (month, base, carry) VALUES (?, ?, ?)")
         .bind(month)
         .bind(base)
         .bind(carry)
         .execute(db)
         .await?;
-    Ok(())
+    Ok(done.rows_affected() == 1)
 }
 
 /// Finished months with anything spent, newest first: (month "YYYY-MM", spent).
 pub async fn past_months(db: &SqlitePool) -> sqlx::Result<Vec<(String, i64)>> {
     sqlx::query_as(
         "SELECT m, SUM(a) FROM (
-           SELECT strftime('%Y-%m', COALESCE(planned_at, picked_at), 'unixepoch', 'localtime') AS m, actual_cost AS a
+           SELECT strftime('%Y-%m', COALESCE(planned_at, picked_at), 'unixepoch', 'localtime') AS m,
+                  MAX(actual_cost - COALESCE(from_savings, 0), 0) AS a
              FROM history WHERE outcome = 'did_it' AND actual_cost IS NOT NULL
            UNION ALL
            SELECT strftime('%Y-%m', spent_on), amount FROM other_spending
@@ -714,4 +729,101 @@ pub async fn days_since_last_date(db: &SqlitePool) -> sqlx::Result<Option<i64>> 
     )
     .fetch_one(db)
     .await
+}
+
+// ── two lines ─────────────────────────────────────────────────────────────
+
+/// Every line written on a kept date: (history id, who, line).
+pub async fn memories(db: &SqlitePool) -> sqlx::Result<Vec<(i64, i64, String)>> {
+    sqlx::query_as("SELECT history_id, who, line FROM memories").fetch_all(db).await
+}
+
+/// Write (or rewrite) one person's line on a kept date; a blank line takes it back.
+pub async fn set_memory(db: &SqlitePool, history_id: i64, who: usize, line: &str) -> sqlx::Result<()> {
+    let line = line.split_whitespace().collect::<Vec<_>>().join(" ");
+    if line.is_empty() {
+        sqlx::query("DELETE FROM memories WHERE history_id = ? AND who = ?").bind(history_id).bind(who as i64).execute(db).await?;
+    } else {
+        sqlx::query(
+            "INSERT INTO memories (history_id, who, line) VALUES (?, ?, ?)
+             ON CONFLICT (history_id, who) DO UPDATE SET line = excluded.line, at = unixepoch()",
+        )
+        .bind(history_id)
+        .bind(who as i64)
+        .bind(line)
+        .execute(db)
+        .await?;
+    }
+    Ok(())
+}
+
+// ── the savings jar ───────────────────────────────────────────────────────
+
+/// What's in the savings jar now.
+pub async fn savings_balance(db: &SqlitePool) -> sqlx::Result<i64> {
+    sqlx::query_scalar("SELECT COALESCE(SUM(amount), 0) FROM savings").fetch_one(db).await
+}
+
+/// Put money in (or, negative, take it out). `kind` is add | leftover | kept | back.
+pub async fn add_saving(db: &SqlitePool, amount: i64, kind: &str, note: &str) -> sqlx::Result<()> {
+    if amount == 0 {
+        return Ok(());
+    }
+    sqlx::query("INSERT INTO savings (amount, kind, note) VALUES (?, ?, ?)")
+        .bind(amount)
+        .bind(kind)
+        .bind(note.trim())
+        .execute(db)
+        .await?;
+    Ok(())
+}
+
+/// The latest money in and out, newest first: (id, amount, kind, note, on_day).
+pub async fn savings_recent(db: &SqlitePool) -> sqlx::Result<Vec<(i64, i64, String, String, String)>> {
+    sqlx::query_as("SELECT id, amount, kind, note, on_day FROM savings ORDER BY id DESC LIMIT 6").fetch_all(db).await
+}
+
+/// Undo money put in by hand. Leftovers and paid dates stay, so the jar's sums stay true.
+pub async fn delete_saving(db: &SqlitePool, id: i64) -> sqlx::Result<()> {
+    sqlx::query("DELETE FROM savings WHERE id = ? AND kind = 'add'").bind(id).execute(db).await?;
+    Ok(())
+}
+
+/// Keep the slip we were saving for, paid from the jar: stamps it as a date, takes `cost`
+/// out of the jar and stops saving for it. None (and nothing changed) when we've stopped
+/// saving for `activity`, or there isn't enough in the jar yet. A double tap keeps it once.
+pub async fn keep_from_savings(db: &SqlitePool, activity: i64, cost: i64, drawn_by: Option<usize>) -> sqlx::Result<Option<i64>> {
+    let mut tx = db.begin().await?;
+    let stopped = sqlx::query("DELETE FROM settings WHERE key = 'saving_for' AND value = ?")
+        .bind(activity.to_string())
+        .execute(&mut *tx)
+        .await?
+        .rows_affected()
+        == 0;
+    let balance: i64 = sqlx::query_scalar("SELECT COALESCE(SUM(amount), 0) FROM savings").fetch_one(&mut *tx).await?;
+    if stopped || balance < cost {
+        tx.rollback().await?;
+        return Ok(None);
+    }
+    let row = sqlx::query(
+        "INSERT INTO history (activity_id, outcome, drawn_by, est_cost, from_savings)
+         SELECT id, 'did_it', ?, est_cost, ? FROM activities WHERE id = ?",
+    )
+    .bind(drawn_by.map(|w| w as i64))
+    .bind(cost)
+    .bind(activity)
+    .execute(&mut *tx)
+    .await?
+    .last_insert_rowid();
+    sqlx::query("UPDATE activities SET times_done = times_done + 1, last_done_at = unixepoch() WHERE id = ?")
+        .bind(activity)
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query("INSERT INTO savings (amount, kind, note) SELECT ?, 'kept', title FROM activities WHERE id = ?")
+        .bind(-cost)
+        .bind(activity)
+        .execute(&mut *tx)
+        .await?;
+    tx.commit().await?;
+    Ok(Some(row))
 }

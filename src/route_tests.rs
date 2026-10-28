@@ -784,3 +784,93 @@ async fn together_and_apart_are_two_kinds_of_home() {
     }
     assert!(t.get("/", &rohit).await.body.contains("long distance"), "the jar sentence offers it");
 }
+
+#[tokio::test]
+async fn each_line_stays_sealed_until_both_of_us_have_written_one() {
+    let t = setup().await;
+    let a = t.id_of("Cat café").await;
+    t.exec(&format!("INSERT INTO history (activity_id, outcome, est_cost) VALUES ({a}, 'did_it', 900)")).await;
+    let h = t.scalar("SELECT max(id) FROM history").await;
+    let (rohit, neha) = (t.as_person(0).await, t.as_person(1).await);
+
+    t.post(&format!("/history/{h}/line"), &rohit, "line=The+grey+one+chose+you").await;
+    let page = t.get("/history", &neha).await.body;
+    assert!(!page.contains("grey one"), "Neha reads Rohit's line before writing hers");
+    assert!(page.contains("Rohit wrote a line. Write yours to read it."));
+    assert!(!t.get("/history", "").await.body.contains("grey one"), "an unknown device reads it");
+    assert!(t.get("/history", &rohit).await.body.contains("Sealed until Neha writes one too."));
+
+    t.post(&format!("/history/{h}/line"), &neha, "line=Seven+cats+on+one+lap").await;
+    let (page_r, page_n) = (t.get("/history", &rohit).await.body, t.get("/history", &neha).await.body);
+    assert!(page_r.contains("Seven cats") && page_r.contains("grey one"));
+    assert!(page_n.contains("Seven cats") && page_n.contains("grey one"));
+
+    // Taking yours back seals theirs again; nobody can write without saying who they are.
+    t.post(&format!("/history/{h}/line"), &neha, "line=+").await;
+    assert!(!t.get("/history", &neha).await.body.contains("grey one"));
+    assert_eq!(t.post(&format!("/history/{h}/line"), "", "line=hi").await.status, StatusCode::FORBIDDEN);
+
+    t.post(&format!("/history/{h}/delete"), &rohit, "").await;
+    assert_eq!(t.scalar("SELECT count(*) FROM memories").await, 0, "lines go with the date");
+}
+
+#[tokio::test]
+async fn a_line_can_t_be_written_on_a_surprise_still_sealed_for_you() {
+    let t = setup().await;
+    let h = surprise_from_rohit(&t).await;
+    let neha = t.as_person(1).await;
+    assert_eq!(t.post(&format!("/history/{h}/line"), &neha, "line=hm").await.status, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn the_savings_jar_fills_from_leftovers_and_pays_for_its_date() {
+    let t = setup().await;
+    let goal = t.id_of("Cat café").await;
+    t.post("/budget", "", "amount=6000&back=%2Fhistory").await;
+    t.exec("INSERT INTO other_spending (amount, spent_on) VALUES (5000, date('now', 'localtime', 'start of month', '-1 day'))").await;
+    assert!(!t.get("/history", "").await.body.contains("value=\"save\""), "no goal: no savings choice");
+
+    t.post("/savings/goal", "", &format!("id={goal}")).await;
+    let page = t.get("/history", "").await.body;
+    assert!(page.contains("value=\"save\"") && page.contains("Saving for <strong>Cat café</strong>: ₹0 of ₹900"), "{page}");
+
+    t.post("/budget/rollover", "", "choice=save").await;
+    t.post("/budget/rollover", "", "choice=save").await; // a second press adds nothing
+    assert_eq!(crate::db::savings_balance(&t.db).await.unwrap(), 1000);
+    let page = t.get("/history", "").await.body;
+    assert!(page.contains("of ₹6,000") && !page.contains("rolled over"), "saving it doesn't roll it over");
+    assert!(page.contains("/savings/keep"), "₹1,000 covers ₹900");
+
+    let rohit = t.as_person(0).await;
+    let r = t.post("/savings/keep", &rohit, "").await;
+    let h = t.scalar("SELECT max(id) FROM history").await;
+    assert_eq!(r.location(), format!("/history#k{h}"));
+    t.post("/savings/keep", &rohit, "").await; // double tap
+    assert_eq!(t.scalar("SELECT count(*) FROM history WHERE outcome = 'did_it'").await, 1);
+    assert_eq!(crate::db::savings_balance(&t.db).await.unwrap(), 100);
+    assert!(crate::db::setting(&t.db, "saving_for").await.unwrap().is_none(), "the goal is done");
+
+    // What the jar paid doesn't count against this month; anything over it does.
+    t.post(&format!("/history/{h}/cost"), &rohit, "actual=1200").await;
+    assert_eq!(crate::db::spent_this_month(&t.db).await.unwrap(), 300);
+
+    // Deleting the date puts the money back.
+    t.post(&format!("/history/{h}/delete"), &rohit, "").await;
+    assert_eq!(crate::db::savings_balance(&t.db).await.unwrap(), 1000);
+}
+
+#[tokio::test]
+async fn money_put_in_by_hand_can_be_taken_back_and_isn_t_spending() {
+    let t = setup().await;
+    t.post("/savings/add", "", "amount=2%2C500&note=Diwali+bonus").await;
+    assert_eq!(crate::db::savings_balance(&t.db).await.unwrap(), 2500);
+    assert_eq!(crate::db::spent_this_month(&t.db).await.unwrap(), 0);
+    let goal = t.id_of("Cat café").await;
+    t.post("/savings/goal", "", &format!("id={goal}")).await;
+    t.post("/savings/goal", "", "id=").await; // stop saving for it: the money stays
+    assert_eq!(crate::db::savings_balance(&t.db).await.unwrap(), 2500);
+    assert_eq!(t.post("/savings/keep", "", "").await.location(), "/history#k-savings");
+    let id = t.scalar("SELECT max(id) FROM savings").await;
+    t.post(&format!("/savings/{id}/delete"), "", "").await;
+    assert_eq!(crate::db::savings_balance(&t.db).await.unwrap(), 0);
+}

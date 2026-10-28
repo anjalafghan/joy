@@ -42,6 +42,8 @@
     if (e.key === "Enter" && !e.shiftKey && e.target.matches(".k-note-in")) {
       e.preventDefault();
       e.target.blur();
+      // Your own line has no autosave: Enter seals it.
+      if (e.target.matches(".k-line-in")) e.target.form.requestSubmit();
     }
   });
 

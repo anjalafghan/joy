@@ -67,6 +67,7 @@
       <p>{{ r.month }} is over: {{ r.spent }} of {{ r.budget }}, so {{ r.left }} left.</p>
       <div class="k-inline">
         <button class="k-btn" type="submit" name="choice" value="roll">Roll {{ r.left }} over</button>
+        {% if savings.goal.is_some() %}<button class="k-btn" type="submit" name="choice" value="save">Put it in the savings jar</button>{% endif %}
         <button class="k-btn" type="submit" name="choice" value="fresh">Start fresh</button>
       </div>
     </form>
@@ -116,6 +117,65 @@
       </ul>
       {% endif %}
     </details>
+
+    <section class="k-savings" id="k-savings" aria-labelledby="k-savings-h">
+      <h2 class="k-savings-h" id="k-savings-h">The savings jar</h2>
+      {% match savings.goal %}{% when Some with (g) %}
+      <div class="budget-line{% if g.ready() %} is-ready{% endif %}">
+        <p>Saving for <strong>{{ g.title }}</strong>: {{ savings.saved }} of {{ g.cost }}</p>
+        <span class="budget-bar" style="--pct: {{ g.pct }}" aria-hidden="true"></span>
+      </div>
+      {% if g.ready() %}
+      <form class="k-budget-form" method="post" action="/savings/keep">
+        <p class="k-insight">It's saved up. Time to go.</p>
+        <button class="k-btn k-btn-stamp" type="submit">It's a date</button>
+        <p class="k-hint">Stamps it into Kept and pays {{ g.cost }} from the jar. That part won't count against the month it happens in.</p>
+      </form>
+      {% else %}
+      <p class="k-hint">{{ g.to_go }}. A month's leftover can go in here too.</p>
+      {% endif %}
+      {% when None %}
+      <p class="k-hint">{% if savings.saved_raw > 0 %}{{ savings.saved }} put aside. {% endif %}For a slip too big for one month, like a trip: put money aside until it's covered.</p>
+      {% endmatch %}
+      <details class="k-budget-edit">
+        <summary>{% if savings.goal.is_some() %}Save for something else{% else %}Choose what to save for{% endif %}</summary>
+        <form class="k-budget-form" method="post" action="/savings/goal">
+          <label class="k-label" for="goal">Saving for</label>
+          <div class="k-inline">
+            <select class="k-field k-goal" id="goal" name="id">
+              <option value="">Nothing for now</option>
+              {% for c in savings.choices %}
+              <option value="{{ c.value }}"{% if c.selected %} selected{% endif %}>{{ c.label }}</option>
+              {% endfor %}
+            </select>
+            <button class="k-btn" type="submit">Save</button>
+          </div>
+          <p class="k-hint">Changing it keeps what's in the jar.</p>
+        </form>
+      </details>
+      <details class="k-budget-edit">
+        <summary>Put money in</summary>
+        <form class="k-budget-form" method="post" action="/savings/add">
+          <label class="k-label" for="save-amount">How much</label>
+          <div class="k-inline">
+            <input class="k-field" id="save-amount" name="amount" type="text" inputmode="numeric" pattern="[0-9, ]*" autocomplete="off" required placeholder="e.g. 2000">
+            <input class="k-field" name="note" type="text" maxlength="80" autocomplete="off" placeholder="Note (optional)" aria-label="Note">
+            <button class="k-btn" type="submit">Add</button>
+          </div>
+          <p class="k-hint">It doesn't count as spending this month.</p>
+        </form>
+        {% if !savings.recent.is_empty() %}
+        <ul class="k-hint">
+          {% for m in savings.recent %}
+          <li>
+            {{ m.on }} · {{ m.amount }}{% if !m.note.is_empty() %} · {{ m.note }}{% endif %}
+            {% if m.removable %}<form method="post" action="/savings/{{ m.id }}/delete" style="display:inline"><button class="k-btn" type="submit" aria-label="Take back {{ m.amount }}">Take back</button></form>{% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+      </details>
+    </section>
   </div>
   {% endif %}
 </header>
@@ -237,6 +297,33 @@
               <span class="k-status hand" role="status" aria-live="polite"></span>
             </div>
           </form>
+
+          <section class="k-lines" aria-labelledby="kl{{ h.id }}">
+            <h4 class="k-lines-h hand" id="kl{{ h.id }}">two lines</h4>
+            {% if !h.lines.theirs.is_empty() %}
+            <blockquote class="k-line k-line-theirs">
+              <p>{{ h.lines.theirs }}</p>
+              <footer>{{ h.lines.partner }}</footer>
+            </blockquote>
+            {% endif %}
+            {% if h.lines.can_write %}
+            <form class="k-line-form" method="post" action="/history/{{ h.id }}/line">
+              <label class="visually-hidden" for="l{{ h.id }}">Your line about {{ h.title }}</label>
+              <textarea class="k-note-in k-line-in" id="l{{ h.id }}" name="line" rows="1" maxlength="280" placeholder="Your line, only yours…">{{ h.lines.mine }}</textarea>
+              <div class="k-inline">
+                <button class="k-btn" type="submit">{% if h.lines.mine.is_empty() %}Seal my line{% else %}Save my line{% endif %}</button>
+                <span class="k-hint">
+                  {% if h.lines.theirs_waiting %}{{ h.lines.partner }} wrote a line. Write yours to read it.
+                  {% else if h.lines.mine.is_empty() %}You'll each read the other's once you've both written one.
+                  {% else if h.lines.theirs.is_empty() %}Sealed until {{ h.lines.partner }} writes one too.
+                  {% endif %}
+                </span>
+              </div>
+            </form>
+            {% else %}
+            <p class="k-hint"><a href="/who">Say who's holding the phone</a> to write your line.</p>
+            {% endif %}
+          </section>
 
           <div class="k-tools">
             <form class="k-photo-form" method="post" action="/history/{{ h.id }}/photo" enctype="multipart/form-data" data-id="{{ h.id }}">

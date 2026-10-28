@@ -61,6 +61,20 @@ pub struct KeptView {
     /// Comma-separated history ids that share a time: this one, plus its pair if it was
     /// kept as a pair, so "change time" moves both.
     pub pair_ids: String,
+    pub lines: Lines,
+}
+
+/// The two lines on a kept date, as this viewer may see them.
+pub struct Lines {
+    /// Who's holding the phone is known, so they can write theirs.
+    pub can_write: bool,
+    pub mine: String,
+    /// The other one of us's line: only once both are written.
+    pub theirs: String,
+    /// The other one of us has written theirs (it shows once mine is in too).
+    pub theirs_waiting: bool,
+    /// The other one of us ("Neha").
+    pub partner: String,
 }
 
 impl KeptView {
@@ -83,7 +97,24 @@ fn pair_ids(r: &HistoryRow, done: &[HistoryRow], pairs: &[(i64, i64)]) -> String
         .join(",")
 }
 
-fn view(s: &AppState, r: &HistoryRow, who: Option<usize>, rain: bool, pair_ids: String) -> KeptView {
+/// Each line stays sealed from the other one of us until both lines are written.
+fn lines(s: &AppState, history_id: i64, who: Option<usize>, all: &[(i64, i64, String)]) -> Lines {
+    let line = |w: usize| all.iter().find(|(h, p, _)| *h == history_id && *p == w as i64).map(|(_, _, l)| l.clone());
+    let me = Me::new(&s.cfg, who);
+    let (mine, theirs) = match who {
+        Some(w) => (line(w), line(1 - w)),
+        None => (None, None),
+    };
+    Lines {
+        can_write: who.is_some(),
+        theirs_waiting: mine.is_none() && theirs.is_some(),
+        theirs: if mine.is_some() { theirs.unwrap_or_default() } else { String::new() },
+        mine: mine.unwrap_or_default(),
+        partner: me.partner,
+    }
+}
+
+fn view(s: &AppState, r: &HistoryRow, who: Option<usize>, rain: bool, pair_ids: String, memories: &[(i64, i64, String)]) -> KeptView {
     let sealed = sealed_for(r, who);
     let planned = r.planned_local.as_deref().map(planned_label).unwrap_or_default();
     let from_name = r.drawn_by.and_then(|d| s.cfg.people.get(d as usize)).map(|p| p.0.clone()).unwrap_or_default();
@@ -135,6 +166,7 @@ fn view(s: &AppState, r: &HistoryRow, who: Option<usize>, rain: bool, pair_ids: 
             .collect(),
         planned_label: planned,
         from_name,
+        lines: lines(s, r.id, who, if sealed { &[] } else { memories }),
     }
 }
 
@@ -194,6 +226,97 @@ struct HistoryTpl {
     past: Vec<super::PastMonth>,
     /// This month's spending that wasn't a slip.
     other_spend: Vec<OtherSpend>,
+    savings: SavingsView,
+}
+
+/// The savings jar: money put aside for one slip too big for a month.
+struct SavingsView {
+    /// "₹6,200".
+    saved: String,
+    saved_raw: i64,
+    goal: Option<Goal>,
+    /// Slips we could save for, priciest first ("Weekend in Lonavala · ₹18,000").
+    choices: Vec<super::Opt>,
+    recent: Vec<SavingLine>,
+}
+
+struct Goal {
+    title: String,
+    cost: String,
+    /// 0–100, for the bar.
+    pct: u8,
+    /// "₹11,800 to go", or empty once there's enough.
+    to_go: String,
+}
+
+impl Goal {
+    fn ready(&self) -> bool {
+        self.to_go.is_empty()
+    }
+}
+
+struct SavingLine {
+    id: i64,
+    /// "+₹2,000" or "−₹18,000".
+    amount: String,
+    note: String,
+    on: String,
+    /// Put in by hand, so it can be taken back.
+    removable: bool,
+}
+
+/// Slips listed as things to save for.
+const GOAL_CHOICES: usize = 20;
+
+async fn savings_view(s: &AppState) -> Result<SavingsView, AppError> {
+    let saved = db::savings_balance(&s.db).await?;
+    let learned = super::learned(s).await?;
+    let mut slips: Vec<_> = db::list(&s.db, false).await?.into_iter().filter(|a| a.est_cost > 0).collect();
+    slips.sort_by_key(|a| std::cmp::Reverse(a.effective_cost(learned.cost)));
+    let goal_id: Option<i64> = db::setting(&s.db, "saving_for").await?.and_then(|v| v.parse().ok());
+    let goal = match goal_id {
+        Some(id) => db::get(&s.db, id).await?.map(|a| {
+            let cost = a.effective_cost(learned.cost);
+            Goal {
+                title: s.cfg.personalize(&a.title),
+                cost: s.cfg.money(cost),
+                pct: if cost > 0 { ((saved * 100) / cost).clamp(0, 100) as u8 } else { 100 },
+                to_go: if saved >= cost { String::new() } else { format!("{} to go", s.cfg.money(cost - saved)) },
+            }
+        }),
+        None => None,
+    };
+    let day = |on: &str| planned_label(&format!("{on} 00:00 0")).split(',').next().unwrap_or_default().to_string();
+    Ok(SavingsView {
+        saved: if saved == 0 { format!("{}0", s.cfg.currency) } else { s.cfg.money(saved) },
+        saved_raw: saved,
+        goal,
+        choices: slips
+            .iter()
+            .enumerate()
+            .filter(|(i, a)| *i < GOAL_CHOICES || goal_id == Some(a.id))
+            .map(|(_, a)| super::Opt {
+                value: a.id.to_string(),
+                label: format!("{} · {}", s.cfg.personalize(&a.title), s.cfg.money(a.effective_cost(learned.cost))),
+                selected: goal_id == Some(a.id),
+            })
+            .collect(),
+        recent: db::savings_recent(&s.db)
+            .await?
+            .into_iter()
+            .map(|(id, amount, kind, note, on)| SavingLine {
+                id,
+                amount: if amount < 0 { format!("−{}", s.cfg.money(-amount)) } else { format!("+{}", s.cfg.money(amount)) },
+                note: match kind.as_str() {
+                    "kept" => format!("Kept: {}", s.cfg.personalize(&note)),
+                    "back" => format!("Back from {}", s.cfg.personalize(&note)),
+                    _ => note,
+                },
+                on: day(&on),
+                removable: kind == "add",
+            })
+            .collect(),
+    })
 }
 
 struct OtherSpend {
@@ -227,10 +350,11 @@ pub async fn page(State(s): State<AppState>, jar: SignedCookieJar, Query(q): Que
         .collect();
     let kept = done.len();
     let pairs = db::pairs(&s.db).await?;
+    let memories = db::memories(&s.db).await?;
     let mut months: Vec<Month> = vec![];
     for row in &done {
         let label = row.month_label();
-        let v = view(&s, row, who, rain, pair_ids(row, &done, &pairs));
+        let v = view(&s, row, who, rain, pair_ids(row, &done, &pairs), &memories);
         match months.last_mut() {
             Some(m) if m.label == label => m.items.push(v),
             _ => {
@@ -259,6 +383,7 @@ pub async fn page(State(s): State<AppState>, jar: SignedCookieJar, Query(q): Que
                 on: planned_label(&format!("{on} 00:00 0")).split(',').next().unwrap_or_default().into(),
             })
             .collect(),
+        savings: savings_view(&s).await?,
     })
 }
 
@@ -483,6 +608,34 @@ pub async fn set_cost(
     Ok(Redirect::to(&format!("/history#k{id}")).into_response())
 }
 
+#[derive(Deserialize)]
+pub struct LineForm {
+    #[serde(default)]
+    line: String,
+}
+
+/// Write your own line on a kept date. It needs to know who's holding the phone.
+pub async fn set_line(
+    State(s): State<AppState>,
+    jar: SignedCookieJar,
+    Path(id): Path<i64>,
+    Form(f): Form<LineForm>,
+) -> Result<Response, AppError> {
+    let who = auth::who(&jar);
+    let Some(row) = db::history_row(&s.db, id).await?.filter(|r| r.outcome == "did_it") else {
+        return Ok(StatusCode::NOT_FOUND.into_response());
+    };
+    let Some(w) = who.filter(|_| !sealed_for(&row, who)) else {
+        return Ok(StatusCode::FORBIDDEN.into_response());
+    };
+    let line: String = f.line.chars().take(MAX_LINE).collect();
+    db::set_memory(&s.db, id, w, &line).await?;
+    Ok(Redirect::to(&format!("/history#k{id}")).into_response())
+}
+
+/// Longest line, in characters.
+const MAX_LINE: usize = 280;
+
 pub async fn reveal(State(s): State<AppState>, Path(id): Path<i64>) -> Result<Redirect, AppError> {
     db::reveal(&s.db, id).await?;
     Ok(Redirect::to(&format!("/history#k{id}")))
@@ -621,13 +774,19 @@ pub async fn set_budget(State(s): State<AppState>, Form(f): Form<BudgetForm>) ->
 
 #[derive(Deserialize)]
 pub struct RolloverForm {
-    /// "roll" carries last month's leftover into this month; anything else starts fresh.
+    /// "roll" carries last month's leftover into this month, "save" puts it in the savings
+    /// jar; anything else starts fresh.
     #[serde(default)]
     choice: String,
 }
 
 pub async fn rollover(State(s): State<AppState>, Form(f): Form<RolloverForm>) -> Result<Redirect, AppError> {
-    super::settle_month(&s, f.choice == "roll").await?;
+    let choice = match f.choice.as_str() {
+        "roll" => super::Leftover::Roll,
+        "save" => super::Leftover::Save,
+        _ => super::Leftover::Fresh,
+    };
+    super::settle_month(&s, choice).await?;
     Ok(Redirect::to("/history"))
 }
 
@@ -653,6 +812,49 @@ pub async fn add_spend(State(s): State<AppState>, Form(f): Form<SpendForm>) -> R
 pub async fn delete_spend(State(s): State<AppState>, Path(id): Path<i64>) -> Result<Redirect, AppError> {
     db::delete_other_spending(&s.db, id).await?;
     Ok(Redirect::to("/history"))
+}
+
+// ── the savings jar ───────────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+pub struct GoalForm {
+    /// A slip's id; blank stops saving for anything (the money stays in the jar).
+    #[serde(default)]
+    id: String,
+}
+
+pub async fn set_goal(State(s): State<AppState>, Form(f): Form<GoalForm>) -> Result<Redirect, AppError> {
+    let id = match f.id.trim().parse::<i64>() {
+        Ok(id) => db::get(&s.db, id).await?.map(|a| a.id.to_string()),
+        Err(_) => None,
+    };
+    db::set_setting(&s.db, "saving_for", id.as_deref()).await?;
+    Ok(Redirect::to("/history#k-savings"))
+}
+
+pub async fn add_saving(State(s): State<AppState>, Form(f): Form<SpendForm>) -> Result<Redirect, AppError> {
+    if let Some(amount) = f.amount.trim().replace(',', "").parse::<i64>().ok().filter(|a| *a > 0) {
+        db::add_saving(&s.db, amount, "add", &f.note).await?;
+    }
+    Ok(Redirect::to("/history#k-savings"))
+}
+
+pub async fn delete_saving(State(s): State<AppState>, Path(id): Path<i64>) -> Result<Redirect, AppError> {
+    db::delete_saving(&s.db, id).await?;
+    Ok(Redirect::to("/history#k-savings"))
+}
+
+/// The jar has enough: keep the slip we were saving for, paid from the jar.
+pub async fn keep_goal(State(s): State<AppState>, jar: SignedCookieJar) -> Result<Redirect, AppError> {
+    let Some(a) = db::setting(&s.db, "saving_for").await?.and_then(|v| v.parse().ok()) else {
+        return Ok(Redirect::to("/history#k-savings"));
+    };
+    let Some(a) = db::get(&s.db, a).await? else { return Ok(Redirect::to("/history#k-savings")) };
+    let cost = a.effective_cost(super::learned(&s).await?.cost);
+    Ok(match db::keep_from_savings(&s.db, a.id, cost, auth::who(&jar)).await? {
+        Some(h) => Redirect::to(&format!("/history#k{h}")),
+        None => Redirect::to("/history#k-savings"),
+    })
 }
 
 #[cfg(test)]
