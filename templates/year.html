@@ -6,14 +6,66 @@
 <link rel="stylesheet" href="/static/year.css?v={{ crate::BUILD }}">
 <script src="/static/year.js?v={{ crate::BUILD }}" defer></script>
 {% endblock %}
+{# the kinds of night sit on whichever page has room (see the album below) #}
+{% macro kinds_sec() %}
+{% if !kinds.is_empty() %}
+<section class="y-sec y-kinds" aria-labelledby="y-kinds-h">
+  <h2 id="y-kinds-h" class="y-hand-h y-hand-h-s">{% if !vibe_label.is_empty() %}Mostly {{ vibe_label|lower }}{% else %}Our kind of night{% endif %}</h2>
+  <ul class="y-strip">
+    {% for k in kinds %}<li data-kind="{{ k.key }}" style="--w: {{ k.pct }}"><span class="y-washi" aria-hidden="true"></span><span>{{ k.label }} · {{ k.n }}</span></li>
+    {% endfor %}
+  </ul>
+  {% if !tags.is_empty() %}
+  <div class="y-mostly">
+    <p class="y-hand-label">mostly</p>
+    <ul class="y-tags" aria-label="Top tags">{% for t in tags %}<li>{{ t }}</li>{% endfor %}</ul>
+  </div>
+  {% endif %}
+  {% if !best_kind.is_empty() %}<p class="y-hand-sub">{{ best_kind }} ♡</p>{% endif %}
+</section>
+{% endif %}
+{% endmacro %}
 {% block content %}
 <svg class="y-defs" width="0" height="0" aria-hidden="true" focusable="false">
   <defs>
+    <symbol id="y-heart" viewBox="0 0 24 22">
+      <path d="M12 21s-8.5-5.4-10.6-10.3C-.2 6.4 2.7 1.5 7.2 1.5c2.2 0 3.8 1.1 4.8 2.7 1-1.6 2.6-2.7 4.8-2.7 4.5 0 7.4 4.9 5.8 9.2C20.5 15.6 12 21 12 21z"/>
+    </symbol>
     <symbol id="y-star" viewBox="0 0 24 24">
-      <path d="M12.3 2.4c.9 2 1.7 4 2.6 6.1 2.1.1 4.3.3 6.4.6-1.6 1.4-3.3 2.8-4.9 4.1.5 2.1 1 4.2 1.4 6.3-1.8-1.1-3.7-2.3-5.6-3.4-1.8 1.2-3.6 2.4-5.5 3.5.5-2.2 1-4.3 1.5-6.4C6.6 11.8 5 10.4 3.3 9c2.2-.2 4.4-.4 6.5-.5.8-2 1.6-4 2.5-6.1z"/>
+      <path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3 6.1 20.6l1.3-6.6L2.5 9.4l6.6-.8z"/>
+    </symbol>
+    <symbol id="y-sparkle" viewBox="0 0 24 24">
+      <path d="M12 2C13 9 15 11 22 12 15 13 13 15 12 22 11 15 9 13 2 12 9 11 11 9 12 2z"/>
     </symbol>
   </defs>
 </svg>
+
+<div class="y-stage">
+
+{# a string of fairy lights over the page, only after dark #}
+<div class="y-sky" aria-hidden="true">
+  <svg viewBox="0 0 1280 110" width="1280" height="110">
+    <defs><filter id="y-bulb-glow" x="-200%" y="-200%" width="500%" height="500%"><feGaussianBlur stdDeviation="5"/></filter></defs>
+    <path class="y-wire" d="M0,30 Q320,120 640,50 T1280,40"/>
+    <g class="y-bulbs">
+      <circle class="y-bulb" cx="80" cy="58" r="10" style="--d: .1s"/><circle cx="80" cy="58" r="3.5"/>
+      <circle class="y-bulb" cx="160" cy="73" r="10" style="--d: 1.2s"/><circle cx="160" cy="73" r="3.5"/>
+      <circle class="y-bulb" cx="240" cy="83" r="10" style="--d: .6s"/><circle cx="240" cy="83" r="3.5"/>
+      <circle class="y-bulb" cx="320" cy="88" r="10" style="--d: 2s"/><circle cx="320" cy="88" r="3.5"/>
+      <circle class="y-bulb" cx="400" cy="88" r="10" style="--d: .9s"/><circle cx="400" cy="88" r="3.5"/>
+      <circle class="y-bulb" cx="480" cy="83" r="10" style="--d: 1.6s"/><circle cx="480" cy="83" r="3.5"/>
+      <circle class="y-bulb" cx="560" cy="73" r="10" style="--d: .3s"/><circle cx="560" cy="73" r="3.5"/>
+      <circle class="y-bulb" cx="640" cy="58" r="10" style="--d: 2.3s"/><circle cx="640" cy="58" r="3.5"/>
+      <circle class="y-bulb" cx="720" cy="43" r="10" style="--d: 1s"/><circle cx="720" cy="43" r="3.5"/>
+      <circle class="y-bulb" cx="800" cy="31" r="10" style="--d: .5s"/><circle cx="800" cy="31" r="3.5"/>
+      <circle class="y-bulb" cx="880" cy="24" r="10" style="--d: 1.8s"/><circle cx="880" cy="24" r="3.5"/>
+      <circle class="y-bulb" cx="960" cy="21" r="10" style="--d: .2s"/><circle cx="960" cy="21" r="3.5"/>
+      <circle class="y-bulb" cx="1040" cy="22" r="10" style="--d: 1.4s"/><circle cx="1040" cy="22" r="3.5"/>
+      <circle class="y-bulb" cx="1120" cy="26" r="10" style="--d: 2.6s"/><circle cx="1120" cy="26" r="3.5"/>
+      <circle class="y-bulb" cx="1200" cy="35" r="10" style="--d: .8s"/><circle cx="1200" cy="35" r="3.5"/>
+    </g>
+  </svg>
+</div>
 
 {% if years.len() > 1 || (years.len() == 1 && years[0] - year != 0) %}
 <nav class="y-years" aria-label="Other years">
@@ -26,26 +78,57 @@
 {% endif %}
 
 <header class="y-head">
-  <div class="y-postmark" aria-hidden="true">
-    <svg viewBox="0 0 200 120" width="200" height="120">
-      <defs><path id="y-ring" d="M140 60m-42 0a42 42 0 1 1 84 0a42 42 0 1 1-84 0"/></defs>
-      <path class="y-pm-wave" d="M2 38c9-6 15-6 24 0s15 6 24 0 15-6 24 0M2 60c9-6 15-6 24 0s15 6 24 0 15-6 24 0M2 82c9-6 15-6 24 0s15 6 24 0 15-6 24 0"/>
-      <circle cx="140" cy="60" r="55" class="y-pm-ring"/>
-      <circle cx="140" cy="60" r="29" class="y-pm-ring y-pm-inner"/>
-      <text class="y-pm-arc"><textPath href="#y-ring" textLength="258" lengthAdjust="spacing">KEPT IN THE JAR · JUST US · </textPath></text>
-      <text x="140" y="68" text-anchor="middle" class="y-pm-year">{{ year }}</text>
-    </svg>
+  <div class="y-head-text">
+    <p class="y-eyebrow">Our year in the jar</p>
+    {% if dates > 0 %}
+    <h1 class="y-title">
+      <span class="y-count">{{ dates }}<svg class="y-count-ink" viewBox="0 0 150 34" aria-hidden="true"><path class="y-ink" d="M6,22 C44,34 100,32 144,8"/></svg></span>
+      <span class="y-count-word">{% if dates == 1 %}date{% else %}dates{% endif %} kept<br> in {{ year }}</span>
+    </h1>
+    {% if to_come > 0 %}<p class="y-sub">…and {{ to_come }} more on the calendar, still to come.</p>{% endif %}
+    {% else %}
+    <h1 class="y-title y-title-empty">Our {{ year }}</h1>
+    {% endif %}
+    {% if sealed_mine > 0 %}
+    <p class="y-sealed"><span class="y-wax" aria-hidden="true"></span>+{{ sealed_mine }} {% if sealed_mine == 1 %}surprise{% else %}surprises{% endif %} still sealed — {% if sealed_mine == 1 %}it'll join{% else %}they'll join{% endif %} once revealed</p>
+    {% endif %}
   </div>
-  <p class="y-eyebrow">Our year in the jar</p>
-  {% if dates > 0 %}
-  <h1 class="y-title"><span class="y-count">{{ dates }}</span> <span class="y-count-word">{% if dates == 1 %}date{% else %}dates{% endif %} kept <span class="y-in">in {{ year }}</span></span></h1>
-  {% if to_come > 0 %}<p class="y-sub">…and {{ to_come }} more on the calendar, still to come.</p>{% endif %}
-  {% else %}
-  <h1 class="y-title y-title-empty">Our {{ year }}</h1>
-  {% endif %}
-  {% if sealed_mine > 0 %}
-  <p class="y-sealed"><span class="y-wax" aria-hidden="true"></span>+{{ sealed_mine }} {% if sealed_mine == 1 %}surprise{% else %}surprises{% endif %} still sealed — {% if sealed_mine == 1 %}it'll join{% else %}they'll join{% endif %} once revealed</p>
-  {% endif %}
+
+  {# the jar itself: one folded slip per date, a few fireflies, a tag with the year #}
+  <svg class="y-jar" viewBox="0 0 260 300" role="img" aria-label="A glass jar holding {{ dates }} folded date {% if dates == 1 %}slip{% else %}slips{% endif %}">
+    <defs>
+      <radialGradient id="y-jar-glow" cx="50%" cy="58%" r="55%"><stop offset="0" stop-color="#ffcf8a" stop-opacity=".5"/><stop offset="1" stop-color="#ffcf8a" stop-opacity="0"/></radialGradient>
+      <filter id="y-fly-glow" x="-300%" y="-300%" width="700%" height="700%"><feGaussianBlur stdDeviation="3"/></filter>
+      <clipPath id="y-jar-clip"><path d="M84,62 L156,62 L156,82 C156,92 200,96 200,130 L200,250 C200,268 188,276 170,276 L70,276 C52,276 40,268 40,250 L40,130 C40,96 84,92 84,82 Z"/></clipPath>
+    </defs>
+    <ellipse class="y-jar-glow" cx="120" cy="180" rx="135" ry="130" fill="url(#y-jar-glow)"/>
+    <ellipse class="y-jar-shadow" cx="120" cy="284" rx="96" ry="9"/>
+    <g clip-path="url(#y-jar-clip)">
+      <rect class="y-jar-glass" width="260" height="300"/>
+      {% for sl in jar_slips %}<g class="y-jar-slip" data-kind="{{ sl.kind }}" transform="translate({{ sl.x }},{{ sl.y }}) rotate({{ sl.rot }})"><rect width="42" height="18" rx="2"/><line x1="21" y1="0" x2="21" y2="18"/></g>{% endfor %}
+      <g class="y-flies">
+        <circle class="y-fly" cx="88" cy="150" r="4" style="--d: .2s"/>
+        <circle class="y-fly" cx="146" cy="128" r="4" style="--d: 1.6s"/>
+        <circle class="y-fly" cx="118" cy="184" r="4" style="--d: .9s"/>
+        <circle class="y-fly" cx="168" cy="172" r="4" style="--d: 2.4s"/>
+        <circle class="y-fly" cx="70" cy="196" r="4" style="--d: 3.1s"/>
+        <circle class="y-fly" cx="128" cy="110" r="4" style="--d: 1.2s"/>
+      </g>
+    </g>
+    <path class="y-jar-line" d="M84,62 L156,62 L156,82 C156,92 200,96 200,130 L200,250 C200,268 188,276 170,276 L70,276 C52,276 40,268 40,250 L40,130 C40,96 84,92 84,82 Z"/>
+    <path class="y-jar-shine" d="M54,136 C51,176 51,216 56,250"/>
+    <path class="y-jar-shine y-jar-shine-s" d="M66,120 C64,128 63,134 63,140"/>
+    <rect x="74" y="36" width="92" height="28" rx="6" fill="#c9915f"/>
+    <path d="M78,44 H162 M78,50 H162 M78,56 H162" stroke="#8f5d36" stroke-opacity=".55" stroke-width="1.2"/>
+    <path d="M82,74 C110,82 130,82 158,74" fill="none" stroke="#d9c39a" stroke-width="3"/>
+    <path d="M82,79 C110,87 130,87 158,79" fill="none" stroke="#c4ab7f" stroke-width="2.5"/>
+    <path d="M158,76 C172,84 180,98 190,108" fill="none" stroke="#d9c39a" stroke-width="2"/>
+    <g transform="translate(186,100) rotate(16)">
+      <path d="M0,9 L9,0 L62,0 L62,38 L9,38 L0,29 Z" fill="#f4ead8"/>
+      <circle class="y-jar-hole" cx="9" cy="19" r="3.2"/>
+      <text x="37" y="27" class="y-jar-tag" text-anchor="middle">{{ year }}</text>
+    </g>
+  </svg>
 </header>
 
 {% if dates == 0 %}
@@ -64,92 +147,162 @@
 {% else %}
 
 <div class="y-spread">
+<div class="y-postmark" aria-hidden="true">
+  <svg viewBox="0 0 210 130" width="210" height="130">
+    <defs><path id="y-ring" d="M150,65 m-46,0 a46,46 0 1,1 92,0 a46,46 0 1,1 -92,0"/></defs>
+    <path class="y-pm-wave" d="M4,46 C18,36 30,56 44,46 S70,36 84,46 S98,52 106,46M4,64 C18,54 30,74 44,64 S70,54 84,64 S98,70 104,64M4,82 C18,72 30,92 44,82 S70,72 84,82 S98,88 106,82"/>
+    <circle cx="150" cy="65" r="56" class="y-pm-ring"/>
+    <circle cx="150" cy="65" r="34" class="y-pm-ring y-pm-inner"/>
+    <text class="y-pm-arc"><textPath href="#y-ring">KEPT IN THE JAR · JUST US · {{ year }} ·</textPath></text>
+    <text x="150" y="73" text-anchor="middle" class="y-pm-year">{{ year }}</text>
+  </svg>
+</div>
 
-<section class="y-sec y-months" aria-labelledby="y-months-h">
-  <div class="y-sec-h">
-    <h2 id="y-months-h">Month by month</h2>
-    {% if !busiest.is_empty() %}<p class="y-aside hand">busiest: {{ busiest }}</p>{% endif %}
+<div class="y-album">
+
+<article class="y-page y-page-l">
+
+<section class="y-sec y-rhythm" aria-labelledby="y-months-h">
+  <div class="y-sec-head">
+    <h2 id="y-months-h" class="y-hand-h">{% if busiest.is_empty() %}Month by month{% else %}Our {{ busiest }}{% endif %}</h2>
+    <svg class="y-dash" viewBox="0 0 400 10" preserveAspectRatio="none" aria-hidden="true"><path d="M2,5 Q50,1 100,5 T200,5 T300,5 T398,5"/></svg>
+    {% if !busiest.is_empty() %}<p class="y-busiest-note"><svg class="y-arrow" viewBox="0 0 40 30" aria-hidden="true"><path d="M4,4 C9,17 19,24 34,24M26,18 L34,24 L26,29"/></svg>({{ busiest_n }} {% if busiest_n == 1 %}date{% else %}dates{% endif %}, our busiest month)</p>{% endif %}
   </div>
-  <ol class="y-strip">
+  <ol class="y-dots">
     {% for m in months %}
-    <li class="y-bar{% if m.n == 0 %} is-zero{% endif %}{% if m.pct == 100 && m.n > 0 %} is-busiest{% endif %}" style="--pct: {{ m.pct }}; --i: {{ loop.index0 }}">
-      <span class="y-bar-n" aria-hidden="true">{% if m.n > 0 %}{{ m.n }}{% endif %}</span>
-      <span class="y-bar-col" aria-hidden="true"></span>
-      <span class="y-bar-l" aria-hidden="true">{{ m.letter }}</span>
+    <li class="y-mo{% if m.pct == 100 && m.n > 0 %} is-busiest{% endif %}">
+      <span class="y-mo-dots" aria-hidden="true">{% for _ in 0..m.n.min(9) %}<svg><use href="#y-heart"/></svg>{% endfor %}</span>
+      <span class="y-mo-l" aria-hidden="true">{{ m.letter }}{% if m.pct == 100 && m.n > 0 %}<svg class="y-circle" viewBox="0 0 40 36"><path class="y-ink" d="M30,6 C20,1 5,6 4,18 C3,30 20,34 30,29 C38,25 39,12 26,5"/></svg>{% endif %}</span>
       <span class="visually-hidden">{{ m.name }}: {% if m.n == 0 %}no dates{% else %}{{ m.n }} {% if m.n == 1 %}date{% else %}dates{% endif %}{% endif %}</span>
     </li>
     {% endfor %}
   </ol>
+  <div class="y-tally-row">
+    <div class="y-tally-col">
+      <p class="y-hand-label">our tally:</p>
+      <div class="y-tally" role="img" aria-label="{{ dates }} {% if dates == 1 %}date{% else %}dates{% endif %} kept in {{ year }}">
+        {% for g in tally.iter().copied() %}<svg viewBox="0 0 44 40" width="44" height="40" aria-hidden="true"><path d="{% if g >= 1 %}M6,4 L5,36{% endif %}{% if g >= 2 %}M14,5 L14,35{% endif %}{% if g >= 3 %}M22,4 L23,36{% endif %}{% if g >= 4 %}M30,5 L29,35{% endif %}{% if g >= 5 %}M1,28 L36,10{% endif %}"/></svg>{% endfor %}
+        {% if tally_more > 0 %}<span class="y-hand-label">+{{ tally_more }} more</span>{% endif %}
+      </div>
+      <p class="y-hand-big">{{ dates }} {% if dates == 1 %}date{% else %}dates{% endif %} in {{ year }}</p>
+      {% if to_come == 0 %}<p class="y-hand-label">(room for more ♡)</p>{% endif %}
+    </div>
+    {% if streak_weeks > 1 %}
+    <div class="y-note">
+      <span class="y-tape y-tape-dot" aria-hidden="true"></span>
+      <p class="y-note-card"><strong>{{ streak_weeks }} weeks</strong> in a row ♡</p>
+    </div>
+    {% endif %}
+  </div>
 </section>
 
-{% if !vibe_label.is_empty() %}
-<section class="y-sec y-vibe grain" data-vibe="{{ vibe_key }}" aria-labelledby="y-vibe-h">
-  <p class="y-kicker">Our kind of night</p>
-  <h2 id="y-vibe-h">{{ vibe_label }}</h2>
-  {% if !tags.is_empty() %}
-  <p class="y-tags-lead">mostly</p>
-  <ul class="y-tags" aria-label="Top tags">
-    {% for t in tags %}<li>{{ t }}</li>{% endfor %}
-  </ul>
+{# with no money page, the kinds of night go right so the spread stays balanced #}
+{% if !year_total.is_empty() || money.is_some() %}{% call kinds_sec() %}{% endif %}
+
+<div class="y-doodles" aria-hidden="true">
+  <svg class="y-doodle-sparkle"><use href="#y-sparkle"/></svg>
+  <svg class="y-doodle-heart y-beat"><use href="#y-heart"/></svg>
+</div>
+</article>
+
+<article class="y-page y-page-r">
+
+{% if !year_total.is_empty() || money.is_some() %}
+<section class="y-sec y-cost" aria-labelledby="y-cost-h">
+  <div class="y-sec-head">
+    <h2 id="y-cost-h" class="y-hand-h">What it cost us</h2>
+    <svg class="y-dash" viewBox="0 0 400 10" preserveAspectRatio="none" aria-hidden="true"><path d="M2,5 Q50,9 100,5 T200,5 T300,5 T398,5"/></svg>
+  </div>
+  <div class="y-ticket-wrap">
+    <span class="y-tape y-tape-stripe" aria-hidden="true"></span>
+    <div class="y-ticket">
+      <div class="y-ticket-stub" aria-hidden="true"><span>ADMIT TWO · {{ year }}</span></div>
+      <div class="y-ticket-body">
+        {% if !year_total.is_empty() %}
+        <p class="y-ticket-k">Spent in {{ year }}</p>
+        <p class="y-ticket-big">{{ year_total }}</p>
+        {% if !budget_note.is_empty() %}<p class="y-ticket-line">on a budget of {{ budget_note }}</p>{% endif %}
+        {% else if let Some(m) = money %}
+        <p class="y-ticket-k">Spent on our dates</p>
+        <p class="y-ticket-big">{{ m.spent }}</p>
+        {% endif %}
+        {% if let Some(m) = money %}<p class="y-ticket-line{% if m.over %} is-over{% endif %}">{{ m.diff }} <span>(on the {{ m.n }} {% if m.n == 1 %}date{% else %}dates{% endif %} we logged)</span></p>{% endif %}
+        {% if !cabs.is_empty() %}<p class="y-ticket-line"><span>plus {{ cabs }} getting there</span></p>{% endif %}
+      </div>
+    </div>
+  </div>
+  {% if !year_total.is_empty() %}
+  <div class="y-blot-chart">
+    <p class="y-hand-label">each blot is a month; bigger means we spent more{% if !budget_note.is_empty() %}, coral when over{% endif %}</p>
+    <ol class="y-blots">
+      {% for b in month_blots %}
+      <li class="{% if b.over %}is-over{% endif %}{% if b.r == "0.0" %} is-none{% endif %}" style="--r: {{ b.r }}">
+        <span class="y-blot" aria-hidden="true"></span>
+        <span class="y-mo-l" aria-hidden="true">{{ b.letter }}</span>
+        <span class="visually-hidden">{{ b.text }}</span>
+      </li>
+      {% endfor %}
+    </ol>
+    <p class="y-hand-label">dinners that weren’t a slip count too</p>
+  </div>
   {% endif %}
 </section>
 {% endif %}
 
 {% if let Some(b) = best %}
-<section class="y-sec y-best grain" aria-labelledby="y-best-h">
-  <div class="y-best-stamp" aria-hidden="true"><span>best</span><span>night</span></div>
-  <p class="y-kicker" id="y-best-h">Our best night</p>
-  <h2 class="y-best-title">{{ b.title }}</h2>
-  <p class="y-best-meta">
-    <span class="y-stars" role="img" aria-label="{{ b.rating }} out of 5 stars">{% for n in 1..=5 %}<svg class="y-star{% if n <= b.rating %} is-on{% endif %}" width="22" height="22" aria-hidden="true"><use href="#y-star"/></svg>{% endfor %}</span>
-    <span class="y-best-when">{{ b.when }}</span>
-  </p>
-  {% if !b.note.is_empty() %}<blockquote class="y-note"><p>{{ b.note }}</p></blockquote>{% endif %}
-  {% if b.more > 0 %}<p class="y-more">and {{ b.more }} more {% if b.rating == 5 %}five-star{% else %}{{ b.rating }}-star{% endif %} {% if b.more == 1 %}night{% else %}nights{% endif %}</p>{% endif %}
-  {% if rated > 0 && !avg_rating.is_empty() %}<p class="y-avg"><strong>{{ avg_rating }}</strong> stars on average, across {{ rated }} rated {% if rated == 1 %}night{% else %}nights{% endif %}</p>{% endif %}
+<section class="y-sec y-best" aria-labelledby="y-best-h">
+  <div class="y-print-wrap">
+    <div class="y-sway">
+      <span class="y-tape y-tape-stripe" aria-hidden="true"></span>
+      <figure class="y-print">
+        <span class="y-print-photo">{% if !b.photo.is_empty() %}<img src="{{ b.photo }}" alt="Photo from {{ b.title }}" loading="lazy" decoding="async" width="480" height="600">{% else %}<svg viewBox="0 0 192 196" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><defs><linearGradient id="y-dusk" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e9875a"/><stop offset="1" stop-color="#f4b371"/></linearGradient><radialGradient id="y-vig" cx="50%" cy="50%" r="70%"><stop offset=".55" stop-color="#3c190a" stop-opacity="0"/><stop offset="1" stop-color="#3c190a" stop-opacity=".28"/></radialGradient></defs><rect width="192" height="196" fill="#f0a35e"/><rect width="192" height="102" fill="url(#y-dusk)"/><circle cx="96" cy="109" r="31" fill="#fde7b0"/><rect y="102" width="192" height="24" fill="#f6c890"/><rect y="126" width="192" height="70" fill="#3c6b8f"/><g fill="#f8d9a0" opacity=".8"><rect x="73" y="137" width="46" height="3" rx="1.5"/><rect x="61" y="157" width="70" height="3" rx="1.5"/><rect x="79" y="177" width="34" height="3" rx="1.5"/></g><g fill="none" stroke="#7a3a2a" stroke-width="1.6" stroke-linecap="round"><path d="M24,32 Q28,27 32,32 Q36,27 40,32"/><path d="M52,38 Q55,34 58,38 Q61,34 64,38"/><path d="M66,28 Q69,24 72,28 Q75,24 78,28"/></g><rect width="192" height="196" fill="url(#y-vig)"/></svg>{% endif %}</span>
+        <figcaption><span id="y-best-h" class="y-cap-big">our best night ♡</span><span class="y-cap-small">{{ b.when }}</span></figcaption>
+      </figure>
+      <svg class="y-print-heart y-beat" aria-hidden="true"><use href="#y-heart"/></svg>
+    </div>
+  </div>
+  <div class="y-best-text">
+    <h3 class="y-hand-h y-hand-h-s">{{ b.title }}</h3>
+    <p class="y-stars-big" role="img" aria-label="{{ b.rating }} out of 5 stars">{% for n in 1..=5 %}<svg class="{% if n <= b.rating %}is-on{% endif %}" aria-hidden="true"><use href="#y-star"/></svg>{% endfor %}</p>
+    {% if !b.note.is_empty() %}<p class="y-hand-line">“{{ b.note }}”</p>{% endif %}
+    {% if b.more > 0 %}<p class="y-hand-line">and {{ b.more }} more {% if b.rating == 5 %}five-star{% else %}{{ b.rating }}-star{% endif %} {% if b.more == 1 %}night{% else %}nights{% endif %}</p>{% endif %}
+    {% if rated > 0 && !avg_rating.is_empty() %}
+    <div class="y-gave" role="group" aria-label="Stars we gave: {{ rating_line }}">
+      <p class="y-hand-label">stars we gave:</p>
+      {% for rr in rating_rows %}
+      <p class="y-gave-row" aria-hidden="true"><span class="y-stars-small">{% for _ in 0..rr.stars %}<svg><use href="#y-star"/></svg>{% endfor %}</span> × {{ rr.n }}</p>
+      {% endfor %}
+      <p class="y-hand-label">{{ avg_rating }} on average across {{ rated }} rated {% if rated == 1 %}night{% else %}nights{% endif %}</p>
+    </div>
+    {% endif %}
+  </div>
 </section>
 {% endif %}
 
-<section class="y-sec y-ledger" aria-labelledby="y-ledger-h">
-  <h2 id="y-ledger-h" class="visually-hidden">The numbers</h2>
-  <dl class="y-stub">
-    {% if streak_weeks > 1 %}
-    <div class="y-row">
-      <dt>Our longest run</dt>
-      <dd><strong>{{ streak_weeks }}</strong> weeks in a row</dd>
-    </div>
-    {% endif %}
-    {% if let Some(m) = money %}
-    <div class="y-row y-money{% if m.over %} is-over{% endif %}">
-      <dt>What it came to</dt>
-      <dd><strong>{{ m.spent }}</strong> spent, {{ m.diff }} <span class="y-quiet">(on the {{ m.n }} {% if m.n == 1 %}date{% else %}dates{% endif %} we logged)</span></dd>
-      {% if !cabs.is_empty() %}<dd class="y-cabs">plus {{ cabs }} getting there</dd>{% endif %}
-    </div>
-    {% else %}{% if !cabs.is_empty() %}
-    <div class="y-row">
-      <dt>Getting there</dt>
-      <dd class="y-cabs">{{ cabs }}</dd>
-    </div>
-    {% endif %}{% endif %}
-    {% if to_come == 0 %}
-    <div class="y-row">
-      <dt>Still to come</dt>
-      <dd>nothing planned yet. <a href="/">Draw a slip?</a></dd>
-    </div>
-    {% endif %}
-  </dl>
-</section>
+{% if year_total.is_empty() && money.is_none() %}{% call kinds_sec() %}{% endif %}
+
+<div class="y-doodles" aria-hidden="true">
+  <svg class="y-doodle-sparkle"><use href="#y-sparkle"/></svg>
+</div>
+</article>
+
+{# wire rings over the spine, wide screens only #}
+<div class="y-rings" aria-hidden="true">{% for _ in 0..24 %}<span></span>{% endfor %}</div>
+
+</div>
+</div>
 
 {% if !photos.is_empty() %}
-<section class="y-sec y-wall" aria-labelledby="y-wall-h">
-  <div class="y-sec-h">
-    <h2 id="y-wall-h">The photo wall</h2>
-    <p class="y-aside hand">{{ photos.len() }} {% if photos.len() == 1 %}photo{% else %}photos{% endif %}</p>
+<section class="y-wall y-page y-page-wall" aria-labelledby="y-wall-h">
+  <div class="y-sec-head">
+    <h2 id="y-wall-h" class="y-hand-h">The photo wall</h2>
+    <p class="y-hand-label">{{ photos.len() }} {% if photos.len() == 1 %}photo{% else %}photos{% endif %} ♡</p>
   </div>
   <ul class="y-photos">
     {% for p in photos %}
     <li class="y-polaroid" style="--r: {{ p.id % 5 }}">
       <figure>
+        <span class="y-tape" aria-hidden="true"></span>
         <span class="y-frame"><img src="{{ p.url }}" alt="Photo from {{ p.title }}, {{ p.when }}" loading="lazy" decoding="async" width="480" height="600"></span>
         <figcaption><span class="y-cap-title">{{ p.title }}</span> <span class="y-cap-when">{{ p.when }}</span></figcaption>
       </figure>
@@ -160,19 +313,26 @@
 </section>
 {% endif %}
 
-</div>
-
 <section class="y-share" id="y-share" aria-labelledby="y-share-h" hidden>
-  <h2 id="y-share-h">Make our picture</h2>
-  <p class="y-share-lead">A keepsake of our {{ year }} to share or keep. It says “us” and never our names, notes or homes. Places, money and photos only go in if you tick them.</p>
-  <fieldset class="y-opts">
-    <legend class="visually-hidden">What goes in the picture</legend>
-    <label class="y-opt" data-needs="places"><input type="checkbox" id="y-opt-places"> Show where we went</label>
-    <label class="y-opt" data-needs="spent"><input type="checkbox" id="y-opt-spent"> Show what we spent</label>
-    {% if !photos.is_empty() %}<p class="y-opt-note">Photos: tick “include in picture” on the wall above (up to 9).</p>{% endif %}
-  </fieldset>
-  <button type="button" class="btn btn-stamp y-make" id="y-make">Make our picture</button>
-  <p class="y-status" id="y-status" role="status" aria-live="polite"></p>
+  <div class="y-postcard">
+    <div class="y-postcard-msg">
+      <p class="y-postcard-k">Post card · a keepsake</p>
+      <h2 id="y-share-h">Make our picture</h2>
+      <p class="y-share-lead">A keepsake of our {{ year }} to share or keep. It says “us” and never our names, notes or homes. Places, money and photos only go in if you tick them.</p>
+    </div>
+    <div class="y-postcard-addr">
+      <fieldset class="y-opts">
+        <legend class="visually-hidden">What goes in the picture</legend>
+        <label class="y-opt" data-needs="places"><input type="checkbox" id="y-opt-places"> Show where we went</label>
+        <label class="y-opt" data-needs="spent"><input type="checkbox" id="y-opt-spent"> Show what we spent</label>
+        {% if !photos.is_empty() %}<p class="y-opt-note">Photos: tick “include in picture” on the wall above (up to 9).</p>{% endif %}
+      </fieldset>
+      <div class="y-make-row">
+        <button type="button" class="y-make" id="y-make">Make our picture</button>
+        <p class="y-status" id="y-status" role="status" aria-live="polite"></p>
+      </div>
+    </div>
+  </div>
 </section>
 
 <dialog class="y-sheet" id="y-sheet" aria-labelledby="y-sheet-h">
@@ -187,6 +347,8 @@
   </div>
 </dialog>
 {% endif %}
+
+</div>
 
 <script type="application/json" id="year-share">{{ share_json|safe }}</script>
 {% endblock %}

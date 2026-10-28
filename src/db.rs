@@ -459,13 +459,115 @@ pub async fn last_drawer(db: &SqlitePool) -> sqlx::Result<Option<i64>> {
 /// What we really spent on dates this calendar month (local time). Only dates with an
 /// actual cost filled in count: a kept slip that hasn't happened yet isn't money spent.
 /// A date counts in the month it happens (its planned time), else the month it was drawn.
+/// Spending logged outside a slip counts in the month of its date.
 pub async fn spent_this_month(db: &SqlitePool) -> sqlx::Result<i64> {
+    spent_in_month(db, &month_offset(db, 0).await?).await
+}
+
+/// "YYYY-MM" of this calendar month (local time), `back` months ago.
+pub async fn month_offset(db: &SqlitePool, back: i64) -> sqlx::Result<String> {
+    sqlx::query_scalar("SELECT strftime('%Y-%m', 'now', 'localtime', 'start of month', '-' || ? || ' months')")
+        .bind(back)
+        .fetch_one(db)
+        .await
+}
+
+/// Spent in the given "YYYY-MM" (see `spent_this_month`).
+pub async fn spent_in_month(db: &SqlitePool, month: &str) -> sqlx::Result<i64> {
     sqlx::query_scalar(
-        "SELECT COALESCE(SUM(actual_cost), 0) FROM history
-         WHERE outcome = 'did_it' AND actual_cost IS NOT NULL
-           AND strftime('%Y-%m', COALESCE(planned_at, picked_at), 'unixepoch', 'localtime') = strftime('%Y-%m', 'now', 'localtime')",
+        "SELECT
+           (SELECT COALESCE(SUM(actual_cost), 0) FROM history
+             WHERE outcome = 'did_it' AND actual_cost IS NOT NULL
+               AND strftime('%Y-%m', COALESCE(planned_at, picked_at), 'unixepoch', 'localtime') = ?1)
+         + (SELECT COALESCE(SUM(amount), 0) FROM other_spending WHERE strftime('%Y-%m', spent_on) = ?1)",
     )
+    .bind(month)
     .fetch_one(db)
+    .await
+}
+
+/// What we spent in each month of `year` (index 0 = January), for the year in review: real costs of
+/// dates both of us may see (no unrevealed surprises, nothing still to come) plus spending that
+/// wasn't a slip.
+pub async fn spent_by_month(db: &SqlitePool, year: i32) -> sqlx::Result<[i64; 12]> {
+    let rows: Vec<(i64, i64)> = sqlx::query_as(
+        "SELECT m, SUM(a) FROM (
+           SELECT CAST(strftime('%m', COALESCE(planned_at, picked_at), 'unixepoch', 'localtime') AS INTEGER) AS m, actual_cost AS a
+             FROM history
+            WHERE outcome = 'did_it' AND actual_cost IS NOT NULL AND (surprise = 0 OR revealed = 1)
+              AND COALESCE(planned_at, picked_at) <= unixepoch()
+              AND CAST(strftime('%Y', COALESCE(planned_at, picked_at), 'unixepoch', 'localtime') AS INTEGER) = ?1
+           UNION ALL
+           SELECT CAST(strftime('%m', spent_on) AS INTEGER), amount FROM other_spending
+            WHERE CAST(strftime('%Y', spent_on) AS INTEGER) = ?1
+         ) GROUP BY m",
+    )
+    .bind(year)
+    .fetch_all(db)
+    .await?;
+    let mut out = [0; 12];
+    for (m, total) in rows {
+        if let Some(slot) = usize::try_from(m - 1).ok().and_then(|i| out.get_mut(i)) {
+            *slot = total;
+        }
+    }
+    Ok(out)
+}
+
+/// What we decided at the start of a month: the budget then, and money rolled over into it.
+pub async fn month_budget(db: &SqlitePool, month: &str) -> sqlx::Result<Option<(i64, i64)>> {
+    sqlx::query_as("SELECT base, carry FROM month_budget WHERE month = ?").bind(month).fetch_optional(db).await
+}
+
+/// Settle a month's start: rolling over `carry` (0 = start fresh). Pressing twice changes nothing.
+pub async fn decide_month(db: &SqlitePool, month: &str, base: i64, carry: i64) -> sqlx::Result<()> {
+    sqlx::query("INSERT OR IGNORE INTO month_budget (month, base, carry) VALUES (?, ?, ?)")
+        .bind(month)
+        .bind(base)
+        .bind(carry)
+        .execute(db)
+        .await?;
+    Ok(())
+}
+
+/// Finished months with anything spent, newest first: (month "YYYY-MM", spent).
+pub async fn past_months(db: &SqlitePool) -> sqlx::Result<Vec<(String, i64)>> {
+    sqlx::query_as(
+        "SELECT m, SUM(a) FROM (
+           SELECT strftime('%Y-%m', COALESCE(planned_at, picked_at), 'unixepoch', 'localtime') AS m, actual_cost AS a
+             FROM history WHERE outcome = 'did_it' AND actual_cost IS NOT NULL
+           UNION ALL
+           SELECT strftime('%Y-%m', spent_on), amount FROM other_spending
+         ) WHERE m < strftime('%Y-%m', 'now', 'localtime') GROUP BY m HAVING SUM(a) > 0 ORDER BY m DESC LIMIT 12",
+    )
+    .fetch_all(db)
+    .await
+}
+
+/// Log money spent on a date that wasn't a slip. `spent_on` is "YYYY-MM-DD"; blank means today.
+pub async fn add_other_spending(db: &SqlitePool, amount: i64, note: &str, spent_on: &str) -> sqlx::Result<()> {
+    sqlx::query("INSERT INTO other_spending (amount, note, spent_on) VALUES (?, ?, COALESCE(NULLIF(date(?), ''), date('now', 'localtime')))")
+        .bind(amount)
+        .bind(note.trim())
+        .bind(spent_on.trim())
+        .execute(db)
+        .await?;
+    Ok(())
+}
+
+pub async fn delete_other_spending(db: &SqlitePool, id: i64) -> sqlx::Result<()> {
+    sqlx::query("DELETE FROM other_spending WHERE id = ?").bind(id).execute(db).await?;
+    Ok(())
+}
+
+/// This month's non-slip spending, newest first: (id, amount, note, spent_on).
+pub async fn other_spending_this_month(db: &SqlitePool) -> sqlx::Result<Vec<(i64, i64, String, String)>> {
+    sqlx::query_as(
+        "SELECT id, amount, note, spent_on FROM other_spending
+         WHERE strftime('%Y-%m', spent_on) = strftime('%Y-%m', 'now', 'localtime')
+         ORDER BY spent_on DESC, id DESC",
+    )
+    .fetch_all(db)
     .await
 }
 

@@ -199,25 +199,118 @@ impl Me {
 /// "₹4,200 of ₹6,000 this month".
 pub struct BudgetView {
     pub spent: String,
-    /// Empty when no monthly budget is set.
+    /// This month's budget, including anything rolled over. Empty when none is set.
     pub budget: String,
-    /// Raw number for the edit field ("6000" or "").
+    /// Raw standing amount for the edit field ("6000" or "").
     pub budget_raw: String,
     /// 0–100, for a progress bar.
     pub pct: u8,
     pub over: bool,
+    /// "includes ₹1,800 from last month", or empty.
+    pub carry_note: String,
+    /// Last month's leftover, offered until we choose to roll it over or start fresh.
+    pub rollover: Option<Rollover>,
+}
+
+pub struct Rollover {
+    /// "October".
+    pub month: String,
+    pub spent: String,
+    pub budget: String,
+    pub left: String,
+}
+
+/// A finished month in the "Past months" list.
+pub struct PastMonth {
+    pub label: String,
+    pub spent: String,
+    /// Empty when no budget was set.
+    pub budget: String,
+}
+
+const MONTHS: [&str; 12] =
+    ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+/// "2026-10" → "October" (plus the year when it isn't this one).
+fn month_name(ym: &str, this_year: &str) -> String {
+    let (y, m) = ym.split_once('-').unwrap_or_default();
+    let name = m.parse::<usize>().ok().and_then(|m| MONTHS.get(m.wrapping_sub(1))).copied().unwrap_or_default();
+    if y == this_year { name.into() } else { format!("{name} {y}") }
+}
+
+fn standing_budget(v: Option<String>) -> Option<i64> {
+    v.and_then(|v| v.parse().ok()).filter(|b| *b > 0)
+}
+
+/// What last month left over, if it's still ours to roll over: not yet decided this month,
+/// a budget is set, and last month came in under it.
+async fn pending_rollover(s: &AppState, standing: Option<i64>) -> Result<Option<(String, i64, i64, i64)>, AppError> {
+    let Some(standing) = standing else { return Ok(None) };
+    let (this, prev) = (crate::db::month_offset(&s.db, 0).await?, crate::db::month_offset(&s.db, 1).await?);
+    if crate::db::month_budget(&s.db, &this).await?.is_some() {
+        return Ok(None);
+    }
+    let spent = crate::db::spent_in_month(&s.db, &prev).await?;
+    let prev_row = crate::db::month_budget(&s.db, &prev).await?;
+    if spent == 0 && prev_row.is_none() {
+        return Ok(None);
+    }
+    let budget = prev_row.map(|(b, c)| b + c).unwrap_or(standing);
+    Ok(Some((prev, spent, budget, (budget - spent).max(0))).filter(|r| r.3 > 0))
 }
 
 pub async fn budget_view(s: &AppState) -> Result<BudgetView, AppError> {
     let spent = crate::db::spent_this_month(&s.db).await?;
-    let budget: Option<i64> = crate::db::setting(&s.db, "monthly_budget").await?.and_then(|v| v.parse().ok());
+    let standing = standing_budget(crate::db::setting(&s.db, "monthly_budget").await?);
+    let this = crate::db::month_offset(&s.db, 0).await?;
+    let carry = crate::db::month_budget(&s.db, &this).await?.map(|(_, c)| c).unwrap_or(0);
+    let budget = standing.map(|b| b + carry);
+    let year = this.get(..4).unwrap_or_default();
+    let rollover = pending_rollover(s, standing).await?.map(|(prev, spent, budget, left)| Rollover {
+        month: month_name(&prev, year),
+        spent: s.cfg.money(spent),
+        budget: s.cfg.money(budget),
+        left: s.cfg.money(left),
+    });
     Ok(BudgetView {
         spent: if spent == 0 { format!("{}0", s.cfg.currency) } else { s.cfg.money(spent) },
         budget: budget.map(|b| s.cfg.money(b)).unwrap_or_default(),
-        budget_raw: budget.map(|b| b.to_string()).unwrap_or_default(),
-        pct: budget.filter(|b| *b > 0).map(|b| ((spent * 100) / b).clamp(0, 100) as u8).unwrap_or(0),
+        budget_raw: standing.map(|b| b.to_string()).unwrap_or_default(),
+        pct: budget.map(|b| ((spent * 100) / b).clamp(0, 100) as u8).unwrap_or(0),
         over: budget.is_some_and(|b| spent > b),
+        carry_note: if carry > 0 && standing.is_some() { format!("includes {} rolled over", s.cfg.money(carry)) } else { String::new() },
+        rollover,
     })
+}
+
+/// Finished months, newest first, each against the budget it had (or today's, if we never decided).
+pub async fn past_months(s: &AppState) -> Result<Vec<PastMonth>, AppError> {
+    let standing = standing_budget(crate::db::setting(&s.db, "monthly_budget").await?);
+    let this = crate::db::month_offset(&s.db, 0).await?;
+    let year = this.get(..4).unwrap_or_default();
+    let mut out = vec![];
+    for (month, spent) in crate::db::past_months(&s.db).await? {
+        let budget = crate::db::month_budget(&s.db, &month).await?.map(|(b, c)| b + c).or(standing);
+        out.push(PastMonth {
+            label: month_name(&month, year),
+            spent: s.cfg.money(spent),
+            budget: budget.map(|b| s.cfg.money(b)).unwrap_or_default(),
+        });
+    }
+    Ok(out)
+}
+
+/// Roll last month's leftover over (or start fresh) for this month. Does nothing if already decided.
+pub async fn settle_month(s: &AppState, roll: bool) -> Result<(), AppError> {
+    let standing = standing_budget(crate::db::setting(&s.db, "monthly_budget").await?);
+    let Some(base) = standing else { return Ok(()) };
+    let this = crate::db::month_offset(&s.db, 0).await?;
+    let carry = match pending_rollover(s, standing).await? {
+        Some((_, _, _, left)) if roll => left,
+        _ => 0,
+    };
+    crate::db::decide_month(&s.db, &this, base, carry).await?;
+    Ok(())
 }
 
 const WEEKDAYS: [&str; 7] = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];

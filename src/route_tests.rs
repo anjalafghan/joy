@@ -335,6 +335,77 @@ async fn the_budget_only_counts_what_we_really_spent() {
 }
 
 #[tokio::test]
+async fn spending_outside_a_slip_counts_toward_the_budget() {
+    let t = setup().await;
+    let r = t.post("/budget/spend", "", "amount=1%2C800&note=Dinner+at+Toto%27s&on=").await;
+    assert!(r.status.is_redirection() || r.status.is_success());
+    crate::db::add_other_spending(&t.db, 500, "", "2001-01-01").await.unwrap(); // an old month: doesn't count
+    assert_eq!(crate::db::spent_this_month(&t.db).await.unwrap(), 1800);
+    let id = crate::db::other_spending_this_month(&t.db).await.unwrap()[0].0;
+    crate::db::delete_other_spending(&t.db, id).await.unwrap();
+    assert_eq!(crate::db::spent_this_month(&t.db).await.unwrap(), 0);
+}
+
+#[tokio::test]
+async fn last_month_s_leftover_can_be_rolled_over_or_dropped() {
+    let t = setup().await;
+    let prev = "unixepoch() - 40 * 86400";
+    t.exec(&format!("INSERT INTO other_spending (amount, spent_on) VALUES (4200, date({prev}, 'unixepoch'))")).await;
+    // No budget set: nothing to offer.
+    assert!(!t.get("/history", "").await.body.contains("/budget/rollover"));
+    t.post("/budget", "", "amount=6000&back=%2Fhistory").await;
+    let page = t.get("/history", "").await.body;
+    assert!(page.contains("/budget/rollover") && page.contains("Roll ₹1,800 over"), "{page}");
+    assert!(page.contains("of ₹6,000"));
+
+    t.post("/budget/rollover", "", "choice=roll").await;
+    let page = t.get("/history", "").await.body;
+    assert!(!page.contains("/budget/rollover"), "decided: the card is gone");
+    assert!(page.contains("of ₹7,800") && page.contains("includes ₹1,800 rolled over"), "{page}");
+    assert!(page.contains("Past months") && page.contains("₹4,200"));
+
+    t.post("/budget/rollover", "", "choice=fresh").await; // a second press changes nothing
+    assert!(t.get("/history", "").await.body.contains("of ₹7,800"));
+}
+
+#[tokio::test]
+async fn starting_fresh_or_overspending_carries_nothing() {
+    let t = setup().await;
+    t.post("/budget", "", "amount=6000&back=%2Fhistory").await;
+    t.exec("INSERT INTO other_spending (amount, spent_on) VALUES (4200, date('now', 'localtime', 'start of month', '-1 day'))").await;
+    t.post("/budget/rollover", "", "choice=fresh").await;
+    let page = t.get("/history", "").await.body;
+    assert!(page.contains("of ₹6,000") && !page.contains("rolled over"));
+
+    let t = setup().await;
+    t.post("/budget", "", "amount=3000&back=%2Fhistory").await;
+    t.exec("INSERT INTO other_spending (amount, spent_on) VALUES (4200, date('now', 'localtime', 'start of month', '-1 day'))").await;
+    assert!(!t.get("/history", "").await.body.contains("/budget/rollover"), "overspent: nothing to roll");
+}
+
+#[tokio::test]
+async fn the_year_page_counts_spending_outside_a_slip_but_never_a_sealed_surprise() {
+    let t = setup().await;
+    let neha = t.as_person(1).await;
+    let year: i64 = t.scalar("SELECT CAST(strftime('%Y', 'now', 'localtime') AS INTEGER)").await;
+    let a = t.id_of("Cat café").await;
+    t.exec("INSERT INTO other_spending (amount, note, spent_on) VALUES (1800, 'Dinner', date('now', 'localtime', 'start of month'))").await;
+    t.exec(&format!(
+        "INSERT INTO history (activity_id, outcome, est_cost, actual_cost, planned_at, surprise, revealed, drawn_by)
+         VALUES ({a}, 'did_it', 900, 5000, unixepoch() - 3600, 1, 0, 0)"
+    ))
+    .await;
+    t.exec(&format!(
+        "INSERT INTO history (activity_id, outcome, est_cost, actual_cost, planned_at, rating) VALUES ({a}, 'did_it', 900, 700, unixepoch() - 7200, 5)"
+    ))
+    .await;
+    let page = t.get(&format!("/year/{year}"), &neha).await.body;
+    assert!(page.contains("₹2,500"), "the dinner and the visible date add up: {page}");
+    assert!(!page.contains("₹7,500") && !page.contains("₹5,000"), "the sealed surprise stays out");
+    assert!(page.contains("y-blots") && page.contains("y-tally"));
+}
+
+#[tokio::test]
 async fn cab_estimates_calibrate_from_real_fares() {
     let t = setup().await;
     let sassoon = t.id_of("Sunrise at Sassoon Docks").await;

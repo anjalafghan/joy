@@ -61,6 +61,16 @@
       <span class="budget-bar" style="--pct: {{ budget.pct }}" aria-hidden="true"></span>
     </div>
     {% endif %}
+    {% if !budget.carry_note.is_empty() %}<p class="k-hint">{{ budget.carry_note }}</p>{% endif %}
+    {% match budget.rollover %}{% when Some with (r) %}
+    <form class="k-budget-form" method="post" action="/budget/rollover">
+      <p>{{ r.month }} is over: {{ r.spent }} of {{ r.budget }}, so {{ r.left }} left.</p>
+      <div class="k-inline">
+        <button class="k-btn" type="submit" name="choice" value="roll">Roll {{ r.left }} over</button>
+        <button class="k-btn" type="submit" name="choice" value="fresh">Start fresh</button>
+      </div>
+    </form>
+    {% when None %}{% endmatch %}
     {% if !cost_insight.is_empty() %}<p class="k-insight">{{ cost_insight }}</p>{% endif %}
     <details class="k-budget-edit">
       <summary>{% if budget.budget.is_empty() %}Set a monthly budget{% else %}Change budget{% endif %}</summary>
@@ -73,6 +83,38 @@
         </div>
         <p class="k-hint" id="budget-hint">Leave it empty for no budget. It's a guide, not a rule.</p>
       </form>
+    </details>
+    {% if !past.is_empty() %}
+    <details class="k-budget-edit">
+      <summary>Past months</summary>
+      <ul class="k-hint">
+        {% for m in past %}<li>{{ m.label }} · {{ m.spent }}{% if !m.budget.is_empty() %} of {{ m.budget }}{% endif %}</li>
+        {% endfor %}
+      </ul>
+    </details>
+    {% endif %}
+    <details class="k-budget-edit"{% if !other_spend.is_empty() %} open{% endif %}>
+      <summary>Add a date that wasn't a slip</summary>
+      <form class="k-budget-form" method="post" action="/budget/spend">
+        <label class="k-label" for="spend-amount">What we spent</label>
+        <div class="k-inline">
+          <input class="k-field" id="spend-amount" name="amount" type="text" inputmode="numeric" pattern="[0-9, ]*" autocomplete="off" required placeholder="e.g. 1800">
+          <input class="k-field" name="note" type="text" maxlength="80" autocomplete="off" placeholder="Where? (optional)" aria-label="Where">
+          <input class="k-field" name="on" type="date" aria-label="Date (blank is today)">
+          <button class="k-btn" type="submit">Add</button>
+        </div>
+        <p class="k-hint">Counts toward this month's budget. Leave the date blank for today.</p>
+      </form>
+      {% if !other_spend.is_empty() %}
+      <ul class="k-hint">
+        {% for o in other_spend %}
+        <li>
+          {{ o.on }} · {{ o.amount }}{% if !o.note.is_empty() %} · {{ o.note }}{% endif %}
+          <form method="post" action="/budget/spend/{{ o.id }}/delete" style="display:inline"><button class="k-btn" type="submit" aria-label="Remove {{ o.amount }}">Remove</button></form>
+        </li>
+        {% endfor %}
+      </ul>
+      {% endif %}
     </details>
   </div>
   {% endif %}

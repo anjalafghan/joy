@@ -9,7 +9,7 @@ use axum::{
 use axum_extra::extract::{Form, SignedCookieJar};
 use serde::Deserialize;
 
-use super::{budget_view, planned_input, planned_label, render, AppError, BudgetView, HtmlResult, Me};
+use super::{budget_view, past_months, planned_input, planned_label, render, AppError, BudgetView, HtmlResult, Me};
 use crate::{
     auth,
     db::{self, HistoryRow},
@@ -188,6 +188,17 @@ struct HistoryTpl {
     currency: String,
     /// "Your dates usually run about 40% over the estimate (5 dates).", once there's enough to say.
     cost_insight: String,
+    /// Finished months, newest first.
+    past: Vec<super::PastMonth>,
+    /// This month's spending that wasn't a slip.
+    other_spend: Vec<OtherSpend>,
+}
+
+struct OtherSpend {
+    id: i64,
+    amount: String,
+    note: String,
+    on: String,
 }
 
 #[derive(Deserialize)]
@@ -232,6 +243,17 @@ pub async fn page(State(s): State<AppState>, jar: SignedCookieJar, Query(q): Que
         photo_error: photo_error_text(&q.err).into(),
         currency: s.cfg.currency.clone(),
         cost_insight: cost_insight(&super::learned(&s).await?),
+        past: past_months(&s).await?,
+        other_spend: db::other_spending_this_month(&s.db)
+            .await?
+            .into_iter()
+            .map(|(id, amount, note, on)| OtherSpend {
+                id,
+                amount: s.cfg.money(amount),
+                note,
+                on: planned_label(&format!("{on} 00:00 0")).split(',').next().unwrap_or_default().into(),
+            })
+            .collect(),
     })
 }
 
@@ -590,6 +612,42 @@ pub async fn set_budget(State(s): State<AppState>, Form(f): Form<BudgetForm>) ->
     db::set_setting(&s.db, "monthly_budget", value.as_deref()).await?;
     let back = if f.back.starts_with('/') && !f.back.starts_with("//") { f.back } else { "/history".into() };
     Ok(Redirect::to(&back))
+}
+
+#[derive(Deserialize)]
+pub struct RolloverForm {
+    /// "roll" carries last month's leftover into this month; anything else starts fresh.
+    #[serde(default)]
+    choice: String,
+}
+
+pub async fn rollover(State(s): State<AppState>, Form(f): Form<RolloverForm>) -> Result<Redirect, AppError> {
+    super::settle_month(&s, f.choice == "roll").await?;
+    Ok(Redirect::to("/history"))
+}
+
+#[derive(Deserialize)]
+pub struct SpendForm {
+    #[serde(default)]
+    amount: String,
+    #[serde(default)]
+    note: String,
+    /// "YYYY-MM-DD"; blank means today.
+    #[serde(default)]
+    on: String,
+}
+
+/// Log money spent on a date that wasn't one of our slips.
+pub async fn add_spend(State(s): State<AppState>, Form(f): Form<SpendForm>) -> Result<Redirect, AppError> {
+    if let Some(amount) = f.amount.trim().replace(',', "").parse::<i64>().ok().filter(|a| *a > 0) {
+        db::add_other_spending(&s.db, amount, &f.note, &f.on).await?;
+    }
+    Ok(Redirect::to("/history"))
+}
+
+pub async fn delete_spend(State(s): State<AppState>, Path(id): Path<i64>) -> Result<Redirect, AppError> {
+    db::delete_other_spending(&s.db, id).await?;
+    Ok(Redirect::to("/history"))
 }
 
 #[cfg(test)]

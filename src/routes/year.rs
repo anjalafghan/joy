@@ -14,7 +14,7 @@ use serde::Serialize;
 use sqlx::FromRow;
 
 use super::{render, AppError, Me};
-use crate::{auth, photos, picker, AppState};
+use crate::{auth, db, photos, picker, AppState};
 
 /// A kept date that happened this year and that both of us may see (no unrevealed surprises).
 #[derive(Debug, Clone, FromRow)]
@@ -105,6 +105,28 @@ pub struct BestNight {
     pub note: String,
     /// Other nights with the same top rating.
     pub more: usize,
+    /// Its photo, when it has one.
+    pub photo: String,
+}
+
+/// One kind of night (home, local, …) and its share of the year, for the paper strip.
+pub struct Kind {
+    pub key: String,
+    pub label: String,
+    pub n: usize,
+    /// 1–100 of the year's dates, at least 1 so every kind shows.
+    pub pct: i64,
+}
+
+/// A month's blot on the money line.
+pub struct MonthBlot {
+    pub letter: String,
+    pub name: String,
+    /// Radius in px, 0 when nothing was spent.
+    pub r: String,
+    pub over: bool,
+    /// "March: ₹6,800 of ₹6,000", for screen readers.
+    pub text: String,
 }
 
 pub struct Money {
@@ -114,6 +136,20 @@ pub struct Money {
     pub diff: String,
     pub over: bool,
     /// How many dates had a real cost.
+    pub n: usize,
+}
+
+/// A folded slip lying in the header's jar (one per date, coloured by kind of night).
+pub struct JarSlip {
+    pub x: i64,
+    pub y: i64,
+    pub rot: i64,
+    pub kind: String,
+}
+
+/// "★★★★★ × 3" under "stars we gave".
+pub struct RatingRow {
+    pub stars: i64,
     pub n: usize,
 }
 
@@ -173,6 +209,26 @@ struct YearTpl {
     /// "₹2,400 in cabs", when any real fares were logged.
     cabs: String,
     photos: Vec<YearPhoto>,
+    /// How many dates the busiest month held.
+    busiest_n: i64,
+    /// Tally marks: groups of five (the last group may be shorter), at most 24 groups.
+    tally: Vec<u8>,
+    /// Dates beyond what the tally has room for.
+    tally_more: usize,
+    kinds: Vec<Kind>,
+    /// "our best kind of night: day trips (4.8★)", or empty.
+    best_kind: String,
+    /// "4 five-star nights, 3 four-star", or empty.
+    rating_line: String,
+    /// The two most-given ratings, most stars first.
+    rating_rows: Vec<RatingRow>,
+    /// At most 14 slips in the header's jar.
+    jar_slips: Vec<JarSlip>,
+    month_blots: Vec<MonthBlot>,
+    /// Everything spent this year, slips or not; empty when nothing was.
+    year_total: String,
+    /// "₹6,000 a month", when a monthly budget is set.
+    budget_note: String,
     /// Pre-escaped JSON for <script type="application/json" id="year-share">.
     share_json: String,
 }
@@ -234,6 +290,7 @@ pub async fn page(State(s): State<AppState>, jar: SignedCookieJar, Path(year): P
             rating: b.rating.unwrap_or(0),
             note: b.note.lines().next().unwrap_or("").to_string(),
             more,
+            photo: if b.has_photo { photo_url(&s, b.id) } else { String::new() },
         }
     });
     let share = ShareData {
@@ -259,7 +316,89 @@ pub async fn page(State(s): State<AppState>, jar: SignedCookieJar, Path(year): P
     };
     let max = r.months.iter().copied().max().unwrap_or(0).max(1);
     let busiest = r.months.iter().enumerate().max_by_key(|(i, n)| (**n, -(*i as i64))).filter(|(_, n)| **n > 0).map(|(i, _)| MONTHS[i].to_string());
+    let busiest_n = r.months.iter().copied().max().unwrap_or(0);
+    let tally: Vec<u8> = (0..rows.len().min(120)).step_by(5).map(|i| (rows.len().min(120) - i).min(5) as u8).collect();
+    let kinds: Vec<Kind> = r
+        .kinds
+        .iter()
+        .map(|(k, n)| Kind {
+            key: k.clone(),
+            label: picker::setting_label(k).to_string(),
+            n: *n,
+            pct: ((*n * 100 / rows.len().max(1)) as i64).max(1),
+        })
+        .collect();
+    let best_kind = r
+        .best_kind
+        .as_ref()
+        .map(|(k, avg)| format!("our best kind of night: {} ({avg}★)", picker::setting_label(k).to_lowercase()))
+        .unwrap_or_default();
+    let rating_line = r
+        .rating_hist
+        .iter()
+        .enumerate()
+        .rev()
+        .filter(|(_, n)| **n > 0)
+        .take(2)
+        .map(|(i, n)| format!("{n} {}-star", i + 1))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let rating_rows: Vec<RatingRow> = r
+        .rating_hist
+        .iter()
+        .enumerate()
+        .rev()
+        .filter(|(_, n)| **n > 0)
+        .take(2)
+        .map(|(i, n)| RatingRow { stars: i as i64 + 1, n: *n })
+        .collect();
+    // Slips settle in rows from the bottom of the jar; positions are fixed so the jar never jumps.
+    const SLIP_SPOTS: [(i64, i64, i64); 14] = [
+        (52, 246, -14), (96, 252, 6), (140, 240, -8), (62, 262, 3), (150, 258, 12), (78, 224, 20), (124, 218, -26),
+        (50, 206, 9), (156, 210, -4), (100, 196, -12), (136, 186, 17), (66, 182, -20), (112, 166, 5), (150, 160, -9),
+    ];
+    let jar_slips: Vec<JarSlip> = rows
+        .iter()
+        .zip(SLIP_SPOTS)
+        .map(|(x, (sx, sy, rot))| JarSlip { x: sx, y: sy, rot, kind: x.setting.clone() })
+        .collect();
+    let spent = db::spent_by_month(&s.db, year).await?;
+    let standing: Option<i64> =
+        db::setting(&s.db, "monthly_budget").await?.and_then(|v| v.parse().ok()).filter(|b: &i64| *b > 0);
+    let mut month_blots = vec![];
+    let top = spent.iter().copied().max().unwrap_or(0).max(1);
+    for (i, sp) in spent.iter().copied().enumerate() {
+        let budget = db::month_budget(&s.db, &format!("{year}-{:02}", i + 1)).await?.map(|(b, c)| b + c).or(standing);
+        let r_px = match (sp, budget) {
+            (0, _) => 0.0,
+            (sp, Some(b)) => (sp as f64 / b as f64 * 9.0).clamp(3.0, 13.0),
+            (sp, None) => (sp as f64 / top as f64 * 12.0).clamp(3.0, 13.0),
+        };
+        month_blots.push(MonthBlot {
+            letter: MONTHS[i][..1].into(),
+            name: MONTHS[i].into(),
+            r: format!("{r_px:.1}"),
+            over: budget.is_some_and(|b| sp > b),
+            text: match (sp, budget) {
+                (0, _) => format!("{}: nothing logged", MONTHS[i]),
+                (sp, Some(b)) => format!("{}: {} of {}", MONTHS[i], s.cfg.money(sp), s.cfg.money(b)),
+                (sp, None) => format!("{}: {}", MONTHS[i], s.cfg.money(sp)),
+            },
+        });
+    }
+    let year_spent: i64 = spent.iter().sum();
     Ok(render(YearTpl {
+        busiest_n,
+        tally_more: rows.len().saturating_sub(120),
+        tally,
+        kinds,
+        best_kind,
+        rating_line,
+        rating_rows,
+        jar_slips,
+        month_blots,
+        year_total: if year_spent > 0 { s.cfg.money(year_spent) } else { String::new() },
+        budget_note: standing.map(|b| format!("{} a month", s.cfg.money(b))).unwrap_or_default(),
         me_name: Me::new(&s.cfg, who).name,
         year,
         years,
@@ -352,6 +491,13 @@ pub struct Recap {
     /// (spent, what we guessed for those, how many) over dates with a real cost.
     pub money: Option<(i64, i64, usize)>,
     pub cabs: i64,
+    /// Every kind of night with its count, most common first.
+    pub kinds: Vec<(String, usize)>,
+    /// How many nights got 1, 2, … 5 stars.
+    pub rating_hist: [usize; 5],
+    /// The kind with the best average rating (key, "4.8"), only when at least two kinds have two
+    /// or more rated nights to compare.
+    pub best_kind: Option<(String, String)>,
 }
 
 impl Recap {
@@ -374,7 +520,24 @@ impl Recap {
             c.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
             c
         };
-        r.vibe = count(rows.iter().map(|x| x.setting.clone()).collect()).first().map(|(k, _)| k.clone());
+        r.kinds = count(rows.iter().map(|x| x.setting.clone()).collect());
+        r.vibe = r.kinds.first().map(|(k, _)| k.clone());
+        for x in rows {
+            if let Some(v) = x.rating.filter(|v| (1..=5).contains(v)) {
+                r.rating_hist[(v - 1) as usize] += 1;
+            }
+        }
+        let mut by_kind: Vec<(String, f64, usize)> = vec![];
+        for (kind, _) in &r.kinds {
+            let rated: Vec<i64> = rows.iter().filter(|x| x.setting == *kind).filter_map(|x| x.rating).collect();
+            if rated.len() >= 2 {
+                by_kind.push((kind.clone(), rated.iter().sum::<i64>() as f64 / rated.len() as f64, rated.len()));
+            }
+        }
+        if by_kind.len() >= 2 {
+            by_kind.sort_by(|a, b| b.1.total_cmp(&a.1).then(b.2.cmp(&a.2)));
+            r.best_kind = by_kind.first().map(|(k, avg, _)| (k.clone(), format!("{avg:.1}")));
+        }
         r.tags = count(
             rows.iter()
                 .flat_map(|x| x.tags.split(',').map(|t| t.trim().to_lowercase()).filter(|t| !t.is_empty()).collect::<Vec<_>>())
@@ -458,6 +621,20 @@ mod tests {
         assert_eq!(r.streak_weeks, 3);
         assert_eq!(r.money, Some((2300, 2000, 2)), "only dates with a real cost are compared");
         assert_eq!(r.cabs, 800);
+        assert_eq!(r.rating_hist, [0, 0, 0, 1, 2]);
+        assert_eq!(r.kinds, vec![("local".to_string(), 3), ("home".to_string(), 1)]);
+        assert_eq!(r.best_kind, None, "home has only one rated night, so there's nothing to compare");
+    }
+
+    #[test]
+    fn best_kind_needs_two_kinds_with_two_rated_nights_each() {
+        let rows = vec![
+            row(1, 2461000, "local", "", Some(3), None),
+            row(1, 2461001, "local", "", Some(4), None),
+            row(2, 2461040, "travel", "", Some(5), None),
+            row(2, 2461041, "travel", "", Some(5), None),
+        ];
+        assert_eq!(Recap::from(&rows).best_kind, Some(("travel".into(), "5.0".into())));
     }
 
     #[test]
