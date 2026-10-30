@@ -7,6 +7,7 @@ import { initPress } from './press';
 import { initReveal } from './reveal';
 import { initJar } from './jar';
 import { initLists } from './lists';
+import { initKept } from './kept';
 import { initMonth, initYear } from './scrapbook';
 
 const page = document.body.dataset.page ?? '';
@@ -20,5 +21,6 @@ if (page !== 'login') {
 }
 if (page === 'jar') initJar();
 if (page === 'slips' || page === 'kept') initLists();
+if (page === 'kept') initKept();
 if (page === 'year') initYear();
 if (page === 'month') initMonth();

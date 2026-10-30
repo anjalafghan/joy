@@ -52,3 +52,4 @@ body[data-page="month"] main { perspective: 1800px; }
   .m-layer { display: none; }
   #jar { cursor: auto; }
 }
+.m-filling::after { transition: none; }

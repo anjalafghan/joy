@@ -6,14 +6,12 @@ import { createRoot, type Root } from 'react-dom/client';
 import { animated, type SpringValue } from '@react-spring/web';
 import { draggable } from './drag';
 import { burst } from './layer';
-import { buzz, clamp, cssVar, pose, reduced, set, springs, to } from './motion';
+import { buzz, clamp, cssVar, pose, reduced, set, springs, tints, to } from './motion';
 
 const YES = 110; // px of swipe that commits
 
 type JarApi = { jostle?: (k: number) => void };
 const jarApi = () => (window as unknown as { joyJar?: JarApi }).joyJar;
-const tints = () => ['--tint-home', '--tint-local', '--tint-day_trip', '--tint-travel', '--tint-apart'].map(cssVar);
-
 function Hints({ x, yes, back }: { x: SpringValue<number>; yes: boolean; back: boolean }) {
   return (
     <>

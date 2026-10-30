@@ -62,5 +62,7 @@ export function to(el: El, p: Go): Promise<unknown> {
 }
 
 export const cssVar = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+// One colour per kind of place, for paper confetti and ink flecks.
+export const tints = () => ['--tint-home', '--tint-local', '--tint-day_trip', '--tint-travel', '--tint-apart'].map(cssVar);
 export const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 export const buzz = (ms: number) => { try { navigator.vibrate?.(ms); } catch { /* no buzz */ } };
