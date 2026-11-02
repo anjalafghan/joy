@@ -74,6 +74,9 @@ pub struct Candidate {
     pub closed_days: Vec<u8>,
     /// Months it's in season, inclusive, possibly wrapping the new year (11, 5 = Nov–May).
     pub season: Option<(u8, u8)>,
+    /// Why it doesn't fit the date we're drawing for ("closes at 9"), or None when it does
+    /// (or we're not drawing for a particular date).
+    pub window_miss: Option<String>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -136,6 +139,8 @@ pub enum Hint {
     ClosedToday { title: String, weekday: u8 },
     /// Fits everything except the time of year.
     OutOfSeason { title: String, from: u8, to: u8 },
+    /// Fits everything except the date we're drawing for: too far, closed then, too long.
+    OutsideWindow { title: String, why: String },
     NoMoodMatch,
 }
 
@@ -154,6 +159,8 @@ struct Checks {
     mood: bool,
     /// Open today and in season.
     open: bool,
+    /// Fits the date we're drawing for.
+    window: bool,
 }
 
 fn checks(c: &Candidate, f: &Filters) -> Checks {
@@ -163,10 +170,11 @@ fn checks(c: &Candidate, f: &Filters) -> Checks {
         distance: f
             .max_km
             .is_none_or(|m| c.distance_km.is_none_or(|d| d <= m)),
-        setting: f.settings.is_empty() || f.settings.iter().any(|s| *s == c.setting),
+        setting: f.settings.is_empty() || f.settings.contains(&c.setting),
         mood: f.tag.as_ref().is_none_or(|t| c.tags.iter().any(|ct| ct == t))
             && f.energy.as_ref().is_none_or(|e| *e == c.energy),
         open: f.today.is_none_or(|t| !c.closed_days.contains(&t.weekday) && in_season(c.season, t.month)),
+        window: c.window_miss.is_none(),
     }
 }
 
@@ -190,7 +198,7 @@ pub fn weight(c: &Candidate, now: i64, rain_likely: bool) -> f64 {
 /// Does this candidate pass every hard filter? (Exclusions aside.)
 pub fn matches(c: &Candidate, f: &Filters) -> bool {
     let k = checks(c, f);
-    k.budget && k.duration && k.distance && k.setting && k.mood && k.open
+    k.budget && k.duration && k.distance && k.setting && k.mood && k.open && k.window
 }
 
 pub fn pick<R: Rng>(
@@ -238,39 +246,43 @@ fn hint(all: &[Candidate], f: &Filters) -> Hint {
     };
 
     let mut over_budget =
-        only_fails(|k| !k.budget && k.duration && k.distance && k.setting && k.mood && k.open);
+        only_fails(|k| !k.budget && k.duration && k.distance && k.setting && k.mood && k.open && k.window);
     over_budget.sort_by_key(|c| c.est_cost);
     if let Some(c) = over_budget.first() {
         return Hint::OverBudget { title: c.title.clone(), cost: c.est_cost };
     }
 
     let mut longer =
-        only_fails(|k| k.budget && !k.duration && k.distance && k.setting && k.mood && k.open);
+        only_fails(|k| k.budget && !k.duration && k.distance && k.setting && k.mood && k.open && k.window);
     longer.sort_by_key(|c| c.duration);
     if let Some(c) = longer.first() {
         return Hint::NeedsMoreTime { title: c.title.clone(), duration: c.duration };
     }
 
     let mut farther =
-        only_fails(|k| k.budget && k.duration && !k.distance && k.setting && k.mood && k.open);
+        only_fails(|k| k.budget && k.duration && !k.distance && k.setting && k.mood && k.open && k.window);
     farther.sort_by(|a, b| a.distance_km.partial_cmp(&b.distance_km).unwrap());
     if let Some(c) = farther.first() {
         return Hint::TooFar { title: c.title.clone(), km: c.distance_km.unwrap_or(0.0).round() as i64 };
     }
 
-    if let Some(c) = only_fails(|k| k.budget && k.duration && k.distance && !k.setting && k.mood && k.open)
+    if let Some(c) = only_fails(|k| k.budget && k.duration && k.distance && !k.setting && k.mood && k.open && k.window)
         .first()
     {
         return Hint::OtherSetting { title: c.title.clone(), setting: c.setting.clone() };
     }
 
     if let (Some(today), Some(c)) =
-        (f.today, only_fails(|k| k.budget && k.duration && k.distance && k.setting && k.mood && !k.open).first())
+        (f.today, only_fails(|k| k.budget && k.duration && k.distance && k.setting && k.mood && !k.open && k.window).first())
     {
         return match c.season {
             Some((from, to)) if !in_season(c.season, today.month) => Hint::OutOfSeason { title: c.title.clone(), from, to },
             _ => Hint::ClosedToday { title: c.title.clone(), weekday: today.weekday },
         };
+    }
+
+    if let Some(c) = only_fails(|k| k.budget && k.duration && k.distance && k.setting && k.mood && k.open && !k.window).first() {
+        return Hint::OutsideWindow { title: c.title.clone(), why: c.window_miss.clone().unwrap_or_default() };
     }
 
     Hint::NoMoodMatch
@@ -316,6 +328,7 @@ mod tests {
             distance_km: None,
             closed_days: vec![],
             season: None,
+            window_miss: None,
         }
     }
 

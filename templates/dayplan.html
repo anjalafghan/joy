@@ -1,0 +1,47 @@
+<section class="dayplan grain{% if plan.sealed %} is-sealed{% endif %}" id="plan-{{ plan.history_id }}" aria-labelledby="plan-h-{{ plan.history_id }}">
+  <p class="dp-when">{{ plan.when }}</p>
+  <h3 class="dp-title" id="plan-h-{{ plan.history_id }}">{{ plan.title }}</h3>
+  {% if let Some(p) = plan.rain %}
+  <p class="dp-rain" role="status"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.2 15.4a4.3 4.3 0 0 1-.4-8.5 5.4 5.4 0 0 1 10.3 1.4 3.6 3.6 0 0 1 .3 7.1"/><path d="M9 18.2l-.9 2.2M13 17.6l-.9 2.6M16.6 18.2l-.8 2"/></svg><span>Rain likely ({{ p }}%) and this one's outdoors.</span></p>
+  {% endif %}
+  {% if !plan.steps.is_empty() %}
+  <ol class="dp-route">
+    {% for st in plan.steps %}
+    <li class="dp-step{% if st.mine %} is-mine{% endif %}" style="--i: {{ loop.index0 }}"><span class="dp-at">{{ st.at }}</span><span class="dp-what">{{ st.what }}</span></li>
+    {% endfor %}
+  </ol>
+  {% endif %}
+  {% if plan.tight %}<p class="dp-note">A short one: the jar trimmed it so you both get home in time.</p>{% endif %}
+  {% if !plan.hours_note.is_empty() %}<p class="dp-note">{{ plan.hours_note }}</p>{% endif %}
+  {% if !plan.after.is_empty() %}<p class="dp-after"><span class="dp-hand">after, if you're hungry:</span> {{ plan.after }}</p>{% endif %}
+
+  {% if !plan.tasks.is_empty() %}
+  <div class="dp-jobs">
+    <p class="dp-hand">{% if plan.sealed %}your part of the surprise{% else %}dealt to you two{% endif %}</p>
+    <ul>
+      {% for t in plan.tasks %}
+      <li class="dp-job{% if t.done %} is-done{% endif %}{% if t.mine %} is-mine{% endif %}">
+        {% if t.mine %}
+        <form hx-post="/tasks/{{ t.id }}/done" hx-target="#plan-{{ plan.history_id }}" hx-swap="outerHTML" action="/tasks/{{ t.id }}/done" method="post">
+          <input type="hidden" name="done" value="{% if t.done %}0{% else %}1{% endif %}">
+          <button class="dp-tick" type="submit" aria-pressed="{% if t.done %}true{% else %}false{% endif %}"><svg viewBox="0 0 24 24" aria-hidden="true"><rect class="dp-box" x="3.5" y="3.5" width="17" height="17" rx="3"/><path class="dp-check" d="M7.4 12.6l3 3 6.4-7"/></svg><span class="dp-job-t">{{ t.task }}</span>{% if !t.due.is_empty() %}<span class="dp-due">{{ t.due }}</span>{% endif %}</button>
+        </form>
+        {% else %}
+        <p class="dp-theirs"><span class="dp-job-t">{{ t.task }}</span><span class="dp-due">{{ t.whose }}{% if !t.due.is_empty() %} · {{ t.due }}{% endif %}{% if t.done %} · done{% endif %}</span></p>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  {% if let Some(b) = plan.plan_b %}
+  <div class="dp-planb">
+    <p><span class="dp-hand">plan B, folded in:</span> {{ b.title }}{% if !b.place.is_empty() %}<span class="dp-soft"> · {{ b.place }}</span>{% endif %}</p>
+    <form hx-post="/history/{{ plan.history_id }}/plan-b" hx-target="#plan-{{ plan.history_id }}" hx-swap="outerHTML" action="/history/{{ plan.history_id }}/plan-b" method="post">
+      <button class="btn {% if plan.rain.is_some() %}btn-stamp{% else %}btn-quiet{% endif %}" type="submit">Swap to Plan B</button>
+    </form>
+  </div>
+  {% endif %}
+  <p class="dp-links"><a href="{{ plan.ics_url }}">Add to calendar<span class="visually-hidden"> (with a reminder when it's time to leave)</span></a></p>
+</section>

@@ -21,6 +21,8 @@ pub struct Config {
     pub photos_dir: std::path::PathBuf,
     /// Neighbourhood names (e.g. "Bandra") used in personal slip notes. Optional.
     pub areas: [Option<String>; 2],
+    /// When we meet and where we start from. None (no DATE_DAYS) = draw for any time.
+    pub schedule: Option<crate::schedule::Schedule>,
 }
 
 impl Config {
@@ -63,6 +65,7 @@ impl Config {
                 (var("PERSON_B").unwrap_or_else(|| "Neha".into()), var("HOME_B").and_then(|s| parse_latlng(&s))),
             ],
             areas: [var("HOME_A_AREA"), var("HOME_B_AREA")],
+            schedule: crate::schedule::Schedule::from_vars(var),
             photos_dir: var("PHOTOS_DIR").map(Into::into).unwrap_or_else(|| {
                 let url = var("DATABASE_URL").unwrap_or_else(|| "sqlite://data/joy.db".into());
                 crate::sqlite_dir(&url).map(|d| d.join("photos")).unwrap_or_else(|| "photos".into())
@@ -85,6 +88,7 @@ impl Config {
             dev_no_login,
             people: [("Rohit".into(), Some((19.00, 73.05))), ("Neha".into(), Some((19.28, 72.87)))],
             areas: [None, None],
+            schedule: None,
             photos_dir,
         }
     }
@@ -159,7 +163,7 @@ pub fn road_km(a: (f64, f64), b: (f64, f64)) -> f64 {
 fn group_western(d: &str) -> String {
     let mut out = String::new();
     for (i, c) in d.chars().enumerate() {
-        if i > 0 && (d.len() - i) % 3 == 0 {
+        if i > 0 && (d.len() - i).is_multiple_of(3) {
             out.push(',');
         }
         out.push(c);
@@ -207,6 +211,7 @@ mod tests {
             trust_fly_client_ip: false,
             people: [("Rohit".into(), None), ("Neha".into(), None)],
             areas: areas.map(|a| a.map(String::from)),
+            schedule: None,
             photos_dir: "photos".into(),
         }
     }

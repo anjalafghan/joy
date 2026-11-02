@@ -10,6 +10,8 @@ pub struct Event<'a> {
     pub description: &'a str,
     /// Unix seconds, for DTSTAMP.
     pub now: i64,
+    /// Remind this many minutes before the start, and say what for ("Time to leave").
+    pub alarm: (i64, &'a str),
 }
 
 pub fn render(e: &Event) -> String {
@@ -29,8 +31,8 @@ pub fn render(e: &Event) -> String {
         format!("DESCRIPTION:{}", escape(e.description)),
         "BEGIN:VALARM".into(),
         "ACTION:DISPLAY".into(),
-        "DESCRIPTION:Date soon".into(),
-        "TRIGGER:-PT2H".into(),
+        format!("DESCRIPTION:{}", escape(e.alarm.1)),
+        format!("TRIGGER:-PT{}M", e.alarm.0.clamp(0, 24 * 60)),
         "END:VALARM".into(),
         "END:VEVENT".into(),
         "END:VCALENDAR".into(),
@@ -103,7 +105,9 @@ mod tests {
             location: "Karjat",
             description: "line one\nline two",
             now: 1_792_300_000,
+            alarm: (95, "Time to leave"),
         });
+        assert!(ics.contains("TRIGGER:-PT95M\r\n") && ics.contains("DESCRIPTION:Time to leave\r\n"));
         assert!(ics.contains("DTSTART:20261018T133000Z\r\n"));
         assert!(ics.contains("DTEND:20261018T153000Z\r\n"));
         assert!(ics.contains("SUMMARY:Dinner at Saltt\\, then the drive\\; maybe\r\n"));

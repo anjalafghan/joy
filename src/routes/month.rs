@@ -158,7 +158,7 @@ pub async fn page(State(s): State<AppState>, jar: SignedCookieJar, Path((year, m
     .fetch_all(&s.db)
     .await?;
     let nav = |m: &String| Nav { href: format!("/year/{}/{}", &m[..4], m[5..].trim_start_matches('0')), label: month_label(m) };
-    let prev = kept.iter().filter(|m| **m < key).next_back().map(nav);
+    let prev = kept.iter().rfind(|m| **m < key).map(nav);
     let next = kept.iter().find(|m| **m > key).map(nav);
 
     let to_come: i64 = sqlx::query_scalar(

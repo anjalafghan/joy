@@ -6,6 +6,7 @@
   {% if !a.closed_label.is_empty() %}<p class="closed-note"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.6" y="5.2" width="16.8" height="15" rx="2"/><path d="M3.8 9.8h16.4M8 3.4v3.6M16 3.4v3.6"/></svg><span>{{ a.closed_label }}</span></p>{% endif %}
   {% if middle && !done %}<p class="middle-line"><svg viewBox="0 0 64 28" aria-hidden="true" focusable="false"><circle cx="22" cy="14" r="11"/><circle cx="42" cy="14" r="11"/></svg>where you both meet tonight</p>{% endif %}
   <h2 id="slip-title" class="slip-title" tabindex="-1">{{ a.title }}</h2>
+  {% if !done && !plan_line.is_empty() %}<p class="plan-line"><span class="plan-line-k">{{ when_label }}:</span> {{ plan_line }}</p>{% endif %}
   {% if done %}{% if let Some(p) = paired %}<p class="paired-line"><span aria-hidden="true">+ </span><span class="visually-hidden">paired with </span>{{ p.title }}</p>{% endif %}{% endif %}
   {% if a.generated %}<p class="gen-tag"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.2l1.5 4.3 4.3 1.5-4.3 1.5L8 12.8 6.5 8.5 2.2 7l4.3-1.5z"/></svg>generated for you</p>{% endif %}
   {% if a.times_done == 0 %}<p class="never" aria-label="Never done before">never done!</p>{% endif %}
@@ -16,7 +17,8 @@
     {% if !a.distances.is_empty() %}<p class="soft"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18.5c3.2-.4 4.4-2.6 5.6-5.4 1.3-3.1 3.2-6.2 7-6.9"/><path d="M15.4 3.9l2.4 2.3-2.2 2.5"/><circle cx="4.2" cy="18.6" r="1.4"/></svg><span>{{ a.distances|join(" · ") }}</span></p>{% endif %}
   </div>
   {% endif %}
-  {% if !a.travel.is_empty() %}
+  {# With a plan, its calibrated times replace the rough table: one set of numbers, not two. #}
+  {% if !a.travel.is_empty() && plan_line.is_empty() && plan.is_none() %}
   <section class="travel" aria-labelledby="travel-h">
     <p class="travel-h" id="travel-h">getting there <span>· one way, roughly</span></p>
     <table class="travel-t">
@@ -71,7 +73,9 @@
   {% if !surprise && !share_text.is_empty() %}
   <p class="share-row"><a class="share" href="{{ wa_url }}" target="_blank" rel="noopener noreferrer" data-share="{{ share_text }}"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.6 3.6 3.4 10.4c-.7.3-.6 1.2.1 1.4l6.3 1.9 1.9 6.3c.2.7 1.1.8 1.4.1z"/><path d="M9.8 13.7 20.6 3.6"/></svg><span>Send to {{ partner }}</span><span class="visually-hidden"> (opens WhatsApp)</span></a></p>
   {% endif %}
-  {% if !history_ids.is_empty() %}
+  {% if let Some(plan) = plan %}
+  {% include "dayplan.html" %}
+  {% else if !history_ids.is_empty() %}
   <div class="planned" id="planned">
     <form class="f-when" hx-post="/history/when" hx-target="#planned" hx-swap="outerHTML" hx-disabled-elt="find button">
       <input type="hidden" name="ids" value="{{ history_ids }}">
@@ -94,7 +98,7 @@
   <section class="pairs" aria-labelledby="pairs-h">
     <p class="pairs-h" id="pairs-h">pairs nicely with…</p>
     {% for p in pairs %}
-    <form class="f-accept f-pair" hx-post="/accept/{{ a.id }}?with={{ p.id }}" hx-target="#pick" hx-swap="innerHTML" hx-sync="#pick:drop" hx-disabled-elt="find button">
+    <form class="f-accept f-pair" hx-post="/accept/{{ a.id }}?with={{ p.id }}&amp;when={{ when }}" hx-target="#pick" hx-swap="innerHTML" hx-sync="#pick:drop" hx-disabled-elt="find button">
       <p class="pair-title"><span class="pair-plus" aria-hidden="true">+</span>{{ p.title }}</p>
       <p class="pair-meta">{{ p.cost }} · {{ p.duration }}<span aria-hidden="true"> · </span><span class="pair-total">together {{ p.together }}</span></p>
       {% if !p.over.is_empty() %}<p class="pair-over">{{ p.over }}</p>{% endif %}
@@ -104,7 +108,7 @@
   </section>
   {% endif %}
   <div class="slip-actions">
-    <form class="f-accept" hx-post="/accept/{{ a.id }}" hx-target="#pick" hx-swap="innerHTML" hx-sync="#pick:drop" hx-disabled-elt="find button">
+    <form class="f-accept" hx-post="/accept/{{ a.id }}?when={{ when }}" hx-target="#pick" hx-swap="innerHTML" hx-sync="#pick:drop" hx-disabled-elt="find button">
       <button class="btn btn-stamp" type="submit">It's a date</button>
     </form>
     {% if rerolls_left > 0 || free_putback %}
@@ -128,7 +132,7 @@
   {% if can_surprise || can_veto || !share_text.is_empty() %}
   <div class="slip-more">
     {% if can_surprise %}
-    <form class="f-accept f-surprise" hx-post="/accept/{{ a.id }}?surprise=1" hx-target="#pick" hx-swap="innerHTML" hx-sync="#pick:drop" hx-disabled-elt="find button">
+    <form class="f-accept f-surprise" hx-post="/accept/{{ a.id }}?surprise=1&amp;when={{ when }}" hx-target="#pick" hx-swap="innerHTML" hx-sync="#pick:drop" hx-disabled-elt="find button">
       <button class="share" type="submit"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.6 7.2c0-.9.7-1.6 1.6-1.6h13.6c.9 0 1.6.7 1.6 1.6v9.6c0 .9-.7 1.6-1.6 1.6H5.2c-.9 0-1.6-.7-1.6-1.6z"/><path d="M4 6.6l8 6.4 8-6.4"/></svg><span>Keep it a surprise for {{ partner }}</span></button>
     </form>
     {% endif %}

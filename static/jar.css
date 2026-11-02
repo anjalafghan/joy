@@ -608,3 +608,81 @@ body[data-page="jar"] main { padding-top: 0; }
 .middle-line { display: flex; align-items: center; gap: 6px; margin: 2px 0 4px; font-family: var(--font-hand); font-size: 1.2rem; color: var(--stamp); }
 .middle-line svg { width: 30px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.6; }
 @media (prefers-reduced-motion: reduce) { .pill span { transition: none; } }
+
+/* ── the day-of plan: a route inked onto the stamped slip ─────────────────── */
+.plan-line { margin: 8px 0 0; font-size: var(--step--1); color: var(--ink); font-variant-numeric: tabular-nums; }
+.plan-line-k { font: 600 1.15rem/1 var(--font-hand); color: var(--stamp); margin-right: 2px; }
+.blank-when select { font-weight: 600; }
+
+.next-plan { margin: 0 0 22px; }
+.next-plan-k { margin: 0 0 8px; font: 600 1.2rem/1.2 var(--font-hand); color: var(--ink-soft); }
+
+.dayplan {
+  position: relative; margin-top: 18px; padding: 16px 16px 14px;
+  background: var(--slip); color: var(--ink);
+  border: 1px solid var(--rule); border-left: 4px solid var(--stamp); border-radius: var(--radius-slip, 6px);
+  box-shadow: 0 1px 0 var(--rule), 0 10px 22px -18px rgba(43, 36, 51, .45);
+}
+.slip .dayplan { box-shadow: none; }
+.dp-when { margin: 0; font: 600 var(--step--1)/1.2 var(--font-ui); letter-spacing: .04em; text-transform: uppercase; color: var(--stamp); }
+.dp-title { margin: 4px 0 10px; font: 600 var(--step-1)/1.2 var(--font-display); font-variation-settings: "SOFT" 100, "WONK" 1; }
+.dp-hand { font: 600 1.15rem/1 var(--font-hand); color: var(--ink-soft); }
+.dp-note, .dp-after, .dp-rain { margin: 8px 0 0; font-size: var(--step--1); color: var(--ink-soft); }
+.dp-after { color: var(--ink); }
+.dp-rain { display: flex; gap: 8px; align-items: center; color: var(--ink); font-weight: 600; }
+.dp-rain .ico { width: 18px; height: 18px; flex: none; fill: none; stroke: var(--stamp); stroke-width: 1.7; stroke-linecap: round; }
+.dp-soft { color: var(--ink-soft); }
+
+/* The route: dots joined by a dashed ink line, each step inking in after the last. */
+.dp-route { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+.dp-step {
+  position: relative; display: grid; grid-template-columns: 4.6rem 1fr; gap: 10px; align-items: baseline;
+  padding: 5px 0 5px 18px; font-size: var(--step--1); font-variant-numeric: tabular-nums;
+  animation: dp-ink 420ms var(--ease-out) both; animation-delay: calc(var(--i, 0) * 70ms);
+}
+.dp-step::before {
+  content: ""; position: absolute; left: 3px; top: 50%; width: 9px; height: 9px; margin-top: -4.5px;
+  border-radius: 50%; border: 2px solid var(--ink-soft); background: var(--slip);
+}
+.dp-step::after {
+  content: ""; position: absolute; left: 7px; top: calc(50% + 6px); bottom: calc(-50% + 6px);
+  border-left: 1.5px dashed var(--rule);
+}
+.dp-step:last-child::after { display: none; }
+.dp-step:first-child::before, .dp-step:last-child::before { border-color: var(--stamp); background: var(--stamp); }
+.dp-step.is-mine .dp-what { font-weight: 600; }
+.dp-step.is-mine::before { border-color: var(--stamp); }
+.dp-at { color: var(--ink-soft); white-space: nowrap; }
+.dp-what { color: var(--ink); overflow-wrap: anywhere; }
+@keyframes dp-ink { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+/* Jobs: a ruled little list, mine as tickable boxes that draw their check. */
+.dp-jobs { margin-top: 14px; padding-top: 10px; border-top: 1px dashed var(--rule); }
+.dp-jobs ul { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 2px; }
+.dp-jobs form { margin: 0; }
+.dp-tick, .dp-theirs {
+  width: 100%; min-height: 44px; margin: 0; padding: 6px 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  background: none; border: 0; color: var(--ink); font: inherit; font-size: var(--step--1); text-align: left; cursor: pointer;
+}
+.dp-theirs { cursor: default; padding-left: 34px; color: var(--ink-soft); }
+.dp-tick svg { width: 24px; height: 24px; flex: none; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.dp-box { stroke: var(--ink-soft); transition: stroke var(--t-small) var(--ease-out); }
+.dp-check { stroke: var(--stamp); stroke-dasharray: 16; stroke-dashoffset: 16; transition: stroke-dashoffset 320ms var(--ease-out); }
+.dp-job.is-done .dp-check { stroke-dashoffset: 0; }
+.dp-job.is-done .dp-box { stroke: var(--stamp); }
+.dp-job.is-done .dp-job-t { text-decoration: line-through; text-decoration-color: var(--stamp); color: var(--ink-soft); }
+.dp-tick:focus-visible { outline: 2px solid var(--stamp); outline-offset: 2px; border-radius: 4px; }
+.dp-job-t { flex: 1 1 auto; min-width: 0; }
+.dp-due { font-size: .8rem; color: var(--ink-soft); white-space: nowrap; }
+
+.dp-planb { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--rule); display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; justify-content: space-between; }
+.dp-planb p { margin: 0; font-size: var(--step--1); flex: 1 1 14rem; }
+.dp-planb form { margin: 0; }
+.dp-links { margin: 12px 0 0; font-size: var(--step--1); }
+.dp-links a { color: var(--ink); text-underline-offset: 3px; }
+.dayplan.is-sealed { border-left-color: var(--ink-soft); }
+
+@media (prefers-reduced-motion: reduce) {
+  .dp-step { animation: none; }
+  .dp-check { transition: none; }
+}

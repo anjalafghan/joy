@@ -508,6 +508,16 @@ pub async fn invite(
         (s.cfg.personalize(&r.title), r.place.clone(), format!("{}{}", s.cfg.personalize(&r.notes), maps.unwrap_or_default()))
     };
     let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs() as i64;
+    // With a day-of plan: the timeline goes in the notes and the reminder is for when to leave.
+    let plan = if q.sealed == "1" { None } else { super::dayplan::build(&s, &r, who).await? };
+    let (description, alarm) = match &plan {
+        Some(p) if !p.steps.is_empty() => {
+            let lines: Vec<String> = p.steps.iter().map(|st| format!("{}  {}", st.at, st.what)).collect();
+            let before = p.leave_before(who);
+            (format!("{}\n\n{description}", lines.join("\n")), if before > 0 { (before + 15, "Time to get ready to leave") } else { (120, "Date soon") })
+        }
+        _ => (description, (120, "Date soon")),
+    };
     let body = ics::render(&ics::Event {
         uid: format!("joy-{id}@joy"),
         start: r.planned_at.unwrap_or(now),
@@ -516,6 +526,7 @@ pub async fn invite(
         location: &location,
         description: &description,
         now,
+        alarm: (alarm.0, alarm.1),
     });
     Ok((
         [

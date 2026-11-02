@@ -109,6 +109,57 @@
       <p class="hint">The jar won’t suggest it on closed days or out of season. Seasons can wrap the new year (Nov until May).</p>
     </fieldset>
 
+    <details class="group-box more-details"{% if details_open %} open{% endif %}>
+      <summary>More details <span class="opt">for the day-of plan</span></summary>
+      <p class="hint">The jar uses these to work out when to leave, whether to book, and what to bring. Leave any of them blank.</p>
+      <div class="field">
+        <label for="f-hours">Opening hours</label>
+        <input id="f-hours" name="hours" value="{{ hours }}" autocomplete="off" spellcheck="false" placeholder="tue-sun 12:00-23:30; mon 18:00-23:00" aria-describedby="hours-hint"{% if error.contains("Hours") %} aria-invalid="true" autofocus{% endif %}>
+        <p class="hint" id="hours-hint">{% if hours_today.is_empty() %}Days, then 24-hour times. A close before the open runs past midnight.{% else %}Today: {{ hours_today }}{% endif %}</p>
+      </div>
+      <div class="pair">
+        <div class="field">
+          <label for="f-best">Best time</label>
+          <div class="select"><select id="f-best" name="best_time"><option value="">Any time</option>{% for o in best_times %}<option value="{{ o.value }}"{% if o.selected %} selected{% endif %}>{{ o.label }}</option>{% endfor %}</select></div>
+        </div>
+        <div class="field">
+          <label for="f-min">How long, in minutes</label>
+          <input id="f-min" type="number" name="minutes" value="{{ minutes }}" inputmode="numeric" min="1" step="5" placeholder="90">
+        </div>
+      </div>
+      <div class="pair">
+        <div class="field">
+          <label for="f-book">Booking</label>
+          <div class="select"><select id="f-book" name="booking"><option value="">Not sure</option>{% for o in bookings %}<option value="{{ o.value }}"{% if o.selected %} selected{% endif %}>{{ o.label }}</option>{% endfor %}</select></div>
+        </div>
+        <div class="field">
+          <label for="f-ahead">Days ahead</label>
+          <input id="f-ahead" type="number" name="book_ahead_days" value="{{ book_ahead_days }}" inputmode="numeric" min="1" max="90" placeholder="2">
+        </div>
+      </div>
+      <fieldset class="chips">
+        <legend class="sub-legend">If it rains</legend>
+        <div class="chip-row">
+          <label class="chip"><input type="radio" name="cover" value=""{% if cover_unknown %} checked{% endif %}><span>Not sure</span></label>
+          {% for o in covers %}<label class="chip"><input type="radio" name="cover" value="{{ o.value }}"{% if o.selected %} checked{% endif %}><span>{{ o.label }}</span></label>{% endfor %}
+        </div>
+      </fieldset>
+      <div class="field">
+        <label for="f-bring">Bring</label>
+        <input id="f-bring" name="bring" value="{{ bring }}" autocomplete="off" placeholder="closed shoes, cash">
+      </div>
+      <div class="pair">
+        <div class="field">
+          <label for="f-station">Nearest station</label>
+          <input id="f-station" name="station" value="{{ station }}" autocomplete="off" placeholder="Andheri">
+        </div>
+        <div class="field">
+          <label for="f-walk">Walk, in minutes</label>
+          <input id="f-walk" type="number" name="station_walk_min" value="{{ station_walk_min }}" inputmode="numeric" min="1" max="120" placeholder="10">
+        </div>
+      </div>
+    </details>
+
     {% if !pair_opts.is_empty() %}
     <fieldset class="group-box pairs-box">
       <legend>Pairs well with <span class="opt">optional</span></legend>

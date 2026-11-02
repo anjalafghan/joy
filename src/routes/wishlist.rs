@@ -153,6 +153,20 @@ struct FormTpl {
     /// Months for the season pickers; `selected` marks the current from/to.
     season_from_opts: Vec<Opt>,
     season_to_opts: Vec<Opt>,
+    hours: String,
+    /// "Open 12:00 pm – 11:30 pm" style preview of `hours` for today, or empty.
+    hours_today: String,
+    best_times: Vec<Opt>,
+    minutes: String,
+    bookings: Vec<Opt>,
+    book_ahead_days: String,
+    covers: Vec<Opt>,
+    cover_unknown: bool,
+    bring: String,
+    station: String,
+    station_walk_min: String,
+    /// Open "More details" when any of them is filled in or wrong.
+    details_open: bool,
 }
 
 async fn form(s: &AppState, jar: &SignedCookieJar, id: Option<i64>, i: &ActivityInput, error: &str) -> HtmlResult {
@@ -178,11 +192,11 @@ async fn form(s: &AppState, jar: &SignedCookieJar, id: Option<i64>, i: &Activity
         currency: s.cfg.currency.clone(),
         couple: format!("{} & {}", s.cfg.people[0].0, s.cfg.people[1].0),
         error: error.into(),
-        settings: Opt::list(SETTINGS, &[i.setting.clone()]),
+        settings: Opt::list(SETTINGS, std::slice::from_ref(&i.setting)),
         durations: duration_opts(&i.duration),
-        energies: Opt::list(ENERGIES, &[i.energy.clone()]),
+        energies: Opt::list(ENERGIES, std::slice::from_ref(&i.energy)),
         people: {
-            let mut p = Opt::list(people, &[i.added_by.clone()]);
+            let mut p = Opt::list(people, std::slice::from_ref(&i.added_by));
             // Keep an author we don't know (e.g. imported "list") instead of silently overwriting it.
             if !i.added_by.is_empty() && !p.iter().any(|o| o.selected) {
                 let label = if i.added_by == "list" { "Both of us".into() } else { i.added_by.clone() };
@@ -198,6 +212,22 @@ async fn form(s: &AppState, jar: &SignedCookieJar, id: Option<i64>, i: &Activity
             .collect(),
         season_from_opts: month_opts(&i.season_from),
         season_to_opts: month_opts(&i.season_to),
+        hours: i.hours.clone(),
+        hours_today: match crate::hours::Hours::parse(&i.hours) {
+            Some(h) => h.label(db::local_today(&s.db).await?.2),
+            None => String::new(),
+        },
+        best_times: Opt::list(db::BEST_TIMES, std::slice::from_ref(&i.best_time)),
+        minutes: i.minutes.clone(),
+        bookings: Opt::list(db::BOOKINGS, std::slice::from_ref(&i.booking)),
+        book_ahead_days: i.book_ahead_days.clone(),
+        covers: Opt::list(db::COVERS, std::slice::from_ref(&i.cover)),
+        cover_unknown: !db::COVERS.iter().any(|(k, _)| *k == i.cover),
+        bring: i.bring.clone(),
+        station: i.station.clone(),
+        station_walk_min: i.station_walk_min.clone(),
+        details_open: error.contains("Hours")
+            || [&i.hours, &i.best_time, &i.minutes, &i.booking, &i.bring, &i.station].iter().any(|v| !v.trim().is_empty()),
     })
 }
 
@@ -228,6 +258,15 @@ fn input_from(s: &AppState, a: &Activity) -> ActivityInput {
         closed: a.closed_days.split(',').filter(|d| !d.is_empty()).map(str::to_string).collect(),
         season_from: a.season().map(|s| s.0.to_string()).unwrap_or_default(),
         season_to: a.season().map(|s| s.1.to_string()).unwrap_or_default(),
+        hours: a.hours.clone(),
+        best_time: a.best_time.clone(),
+        minutes: a.minutes.map(|m| m.to_string()).unwrap_or_default(),
+        booking: a.booking.clone(),
+        book_ahead_days: a.book_ahead_days.map(|m| m.to_string()).unwrap_or_default(),
+        cover: a.cover.clone(),
+        bring: a.bring.clone(),
+        station: a.station.clone(),
+        station_walk_min: a.station_walk_min.map(|m| m.to_string()).unwrap_or_default(),
     }
 }
 
@@ -244,10 +283,7 @@ pub async fn new(State(s): State<AppState>, jar: SignedCookieJar) -> HtmlResult 
         tags: String::new(),
         energy: "med".into(),
         added_by: s.cfg.people[0].0.clone(),
-        pairs: vec![],
-        closed: vec![],
-        season_from: String::new(),
-        season_to: String::new(),
+        ..Default::default()
     };
     form(&s, &jar, None, &blank, "").await
 }
@@ -269,6 +305,8 @@ async fn save(s: AppState, jar: SignedCookieJar, id: Option<i64>, i: ActivityInp
         "Give it a name."
     } else if !i.location.trim().is_empty() && latlng.is_none() {
         "Location should look like “19.13, 72.81”. Leave it blank for at-home plans."
+    } else if !i.hours.trim().is_empty() && crate::hours::Hours::parse(&i.hours).is_none() {
+        "Hours should look like “tue-sun 12:00-23:30”, with a “;” between different days."
     } else if Duration::parse(&i.duration).is_none() || !SETTINGS.iter().any(|(k, _)| *k == i.setting) {
         "Pick a setting and duration."
     } else {

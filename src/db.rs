@@ -29,6 +29,22 @@ pub struct Activity {
     pub season_to: Option<i64>,
     /// The estimate came from a real cost, so the learned factor leaves it alone.
     pub est_from_actual: bool,
+    /// Opening hours, "tue-sun 12:00-23:30; mon 18:00-23:00". Empty = unknown.
+    pub hours: String,
+    /// morning | afternoon | evening | night | "" (any time).
+    pub best_time: String,
+    /// How long the date takes, not counting travel. None = from `duration`.
+    pub minutes: Option<i64>,
+    /// none | weekends | always | "" (unknown).
+    pub booking: String,
+    pub book_ahead_days: Option<i64>,
+    /// indoor | outdoor | mixed | "" (unknown).
+    pub cover: String,
+    /// "closed shoes, cash".
+    pub bring: String,
+    /// Nearest local or metro station, and the walk from it.
+    pub station: String,
+    pub station_walk_min: Option<i64>,
 }
 
 impl Activity {
@@ -58,6 +74,25 @@ impl Activity {
         }
     }
 
+    /// Minutes the date itself takes: what the slip says, else a guess from its duration.
+    pub fn minutes(&self) -> i64 {
+        self.minutes.filter(|m| *m > 0).unwrap_or_else(|| crate::ics::minutes_for(&self.duration))
+    }
+
+    /// Would rain spoil it? Unknown slips fall back to the "outdoors" tag.
+    pub fn outdoor(&self) -> bool {
+        match self.cover.as_str() {
+            "outdoor" => true,
+            "indoor" | "mixed" => false,
+            _ => self.tag_list().iter().any(|t| t == "outdoors"),
+        }
+    }
+
+    /// The things to remember to take, one per item.
+    pub fn bring_list(&self) -> Vec<String> {
+        self.bring.split(',').map(|t| t.trim().to_string()).filter(|t| !t.is_empty()).collect()
+    }
+
     pub fn candidate(&self, distance_km: Option<f64>, factor: Option<f64>) -> Candidate {
         Candidate {
             id: self.id,
@@ -72,12 +107,13 @@ impl Activity {
             distance_km,
             closed_days: crate::picker::parse_closed(&self.closed_days),
             season: self.season(),
+            window_miss: None,
         }
     }
 }
 
 /// Fields a person edits on the add/edit form.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 pub struct ActivityInput {
     pub title: String,
     #[serde(default)]
@@ -108,6 +144,45 @@ pub struct ActivityInput {
     pub season_from: String,
     #[serde(default)]
     pub season_to: String,
+    #[serde(default)]
+    pub hours: String,
+    #[serde(default)]
+    pub best_time: String,
+    /// Blank = guess from the duration.
+    #[serde(default)]
+    pub minutes: String,
+    #[serde(default)]
+    pub booking: String,
+    #[serde(default)]
+    pub book_ahead_days: String,
+    #[serde(default)]
+    pub cover: String,
+    #[serde(default)]
+    pub bring: String,
+    #[serde(default)]
+    pub station: String,
+    #[serde(default)]
+    pub station_walk_min: String,
+}
+
+pub const BEST_TIMES: [(&str, &str); 4] = [("morning", "Morning"), ("afternoon", "Afternoon"), ("evening", "Evening"), ("night", "Late night")];
+pub const BOOKINGS: [(&str, &str); 3] = [("none", "Walk in"), ("weekends", "Book for weekends"), ("always", "Always book")];
+pub const COVERS: [(&str, &str); 3] = [("indoor", "Indoors"), ("outdoor", "Outdoors"), ("mixed", "Bit of both")];
+
+/// Keep a form value only when it's one of `allowed`, so the database never holds anything else.
+fn one_of(v: &str, allowed: &[(&str, &str)]) -> String {
+    let v = v.trim();
+    if allowed.iter().any(|(k, _)| *k == v) { v.to_string() } else { String::new() }
+}
+
+/// At most `max` characters, cut on a character boundary.
+fn capped(s: &str, max: usize) -> String {
+    s.chars().take(max).collect()
+}
+
+/// A small positive number from a form field, or None.
+fn small_number(v: &str, max: i64) -> Option<i64> {
+    v.trim().parse::<i64>().ok().filter(|n| (1..=max).contains(n))
 }
 
 /// An empty cost field means free, not a bad request.
@@ -122,7 +197,8 @@ fn blank_as_zero<'de, D: serde::Deserializer<'de>>(d: D) -> Result<i64, D::Error
 
 const COLS: &str = "id, title, notes, est_cost, setting, area, venue, lat, lng, duration, tags, energy, \
                     added_by, times_done, last_done_at, last_skipped_at, generated, \
-                    closed_days, season_from, season_to, est_from_actual";
+                    closed_days, season_from, season_to, est_from_actual, \
+                    hours, best_time, minutes, booking, book_ahead_days, cover, bring, station, station_walk_min";
 
 pub async fn list(db: &SqlitePool, archived: bool) -> sqlx::Result<Vec<Activity>> {
     sqlx::query_as(&format!(
@@ -151,13 +227,17 @@ pub async fn save(db: &SqlitePool, id: Option<i64>, a: &ActivityInput, latlng: O
         .join(",");
     let sql = match id {
         None => "INSERT INTO activities (title, notes, est_cost, setting, duration, venue, area, lat, lng, tags, energy, added_by,
-                 closed_days, season_from, season_to, id)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
+                 closed_days, season_from, season_to, hours, best_time, minutes, booking, book_ahead_days, cover, bring,
+                 station, station_walk_min, id)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?17, ?18, ?19, ?20, ?21, ?22, ?23,
+                 ?24, ?25, ?16)",
         // A hand-edited estimate is ours again, so the learned factor applies to it.
         Some(_) => "UPDATE activities SET title = ?1, notes = ?2,
                     est_from_actual = CASE WHEN est_cost = ?3 THEN est_from_actual ELSE 0 END, est_cost = ?3,
                     setting = ?4, duration = ?5, venue = ?6, area = ?7, lat = ?8, lng = ?9, tags = ?10, energy = ?11,
-                    added_by = ?12, closed_days = ?13, season_from = ?14, season_to = ?15 WHERE id = ?16",
+                    added_by = ?12, closed_days = ?13, season_from = ?14, season_to = ?15, hours = ?17, best_time = ?18,
+                    minutes = ?19, booking = ?20, book_ahead_days = ?21, cover = ?22, bring = ?23, station = ?24,
+                    station_walk_min = ?25 WHERE id = ?16",
     };
     let closed = crate::picker::WEEKDAYS
         .iter()
@@ -184,6 +264,15 @@ pub async fn save(db: &SqlitePool, id: Option<i64>, a: &ActivityInput, latlng: O
         .bind(season.map(|s| s.0))
         .bind(season.map(|s| s.1))
         .bind(id)
+        .bind(crate::hours::Hours::parse(&a.hours).map(|h| h.to_string()).unwrap_or_default())
+        .bind(one_of(&a.best_time, &BEST_TIMES))
+        .bind(small_number(&a.minutes, 7 * 24 * 60))
+        .bind(one_of(&a.booking, &BOOKINGS))
+        .bind(small_number(&a.book_ahead_days, 90))
+        .bind(one_of(&a.cover, &COVERS))
+        .bind(capped(&a.bring.split(',').map(str::trim).filter(|t| !t.is_empty()).collect::<Vec<_>>().join(", "), 200))
+        .bind(capped(&a.station.split_whitespace().collect::<Vec<_>>().join(" "), 60))
+        .bind(small_number(&a.station_walk_min, 120))
         .execute(db)
         .await?;
     // From this statement's own result: a separate query could run on another pool connection.
@@ -321,6 +410,8 @@ pub struct HistoryRow {
     pub surprise: bool,
     pub revealed: bool,
     pub has_photo: bool,
+    /// The slip to swap to if plans fall through.
+    pub plan_b: Option<i64>,
 }
 
 const MONTHS: [&str; 12] = [
@@ -352,7 +443,7 @@ const HISTORY_COLS: &str = "h.id, h.activity_id, h.picked_at, a.title, a.notes, 
     date(h.picked_at, 'unixepoch', 'localtime') AS day, h.outcome, h.rating, h.note,
     h.drawn_by, h.planned_at,
     strftime('%Y-%m-%d %H:%M %w', h.planned_at, 'unixepoch', 'localtime') AS planned_local,
-    h.surprise, h.revealed, h.has_photo";
+    h.surprise, h.revealed, h.has_photo, h.plan_b";
 
 pub async fn history(db: &SqlitePool) -> sqlx::Result<Vec<HistoryRow>> {
     sqlx::query_as(&format!(
@@ -414,6 +505,7 @@ pub async fn delete_history(db: &SqlitePool, id: i64) -> sqlx::Result<()> {
     .execute(&mut *tx)
     .await?;
     sqlx::query("DELETE FROM memories WHERE history_id = ?").bind(id).execute(&mut *tx).await?;
+    sqlx::query("DELETE FROM tasks WHERE history_id = ?").bind(id).execute(&mut *tx).await?;
     sqlx::query("DELETE FROM history WHERE id = ?").bind(id).execute(&mut *tx).await?;
     if let Some(a) = activity {
         sqlx::query(
@@ -826,4 +918,131 @@ pub async fn keep_from_savings(db: &SqlitePool, activity: i64, cost: i64, drawn_
         .await?;
     tx.commit().await?;
     Ok(Some(row))
+}
+
+// ── the day-of plan ───────────────────────────────────────────────────────
+
+pub async fn set_plan_b(db: &SqlitePool, history_id: i64, plan_b: Option<i64>) -> sqlx::Result<()> {
+    sqlx::query("UPDATE history SET plan_b = ? WHERE id = ?").bind(plan_b).bind(history_id).execute(db).await?;
+    Ok(())
+}
+
+/// Go with Plan B instead: the kept date becomes the other slip, and the original becomes its
+/// Plan B (so swapping back is one more tap). Done counts follow the slip we're really doing.
+pub async fn swap_plan_b(db: &SqlitePool, history_id: i64) -> sqlx::Result<bool> {
+    let mut tx = db.begin().await?;
+    let row: Option<(i64, Option<i64>)> =
+        sqlx::query_as("SELECT activity_id, plan_b FROM history WHERE id = ? AND outcome = 'did_it'")
+            .bind(history_id)
+            .fetch_optional(&mut *tx)
+            .await?;
+    let Some((from, Some(to))) = row else {
+        tx.rollback().await?;
+        return Ok(false);
+    };
+    sqlx::query("UPDATE history SET activity_id = ?, plan_b = ?, est_cost = (SELECT est_cost FROM activities WHERE id = ?) WHERE id = ?")
+        .bind(to)
+        .bind(from)
+        .bind(to)
+        .bind(history_id)
+        .execute(&mut *tx)
+        .await?;
+    for a in [from, to] {
+        sqlx::query(
+            "UPDATE activities SET
+               times_done = (SELECT COUNT(*) FROM history WHERE activity_id = ?1 AND outcome = 'did_it'),
+               last_done_at = (SELECT MAX(picked_at) FROM history WHERE activity_id = ?1 AND outcome = 'did_it')
+             WHERE id = ?1",
+        )
+        .bind(a)
+        .execute(&mut *tx)
+        .await?;
+    }
+    tx.commit().await?;
+    Ok(true)
+}
+
+#[derive(Debug, Clone, FromRow)]
+pub struct Task {
+    pub id: i64,
+    pub history_id: i64,
+    pub who: i64,
+    pub task: String,
+    pub due: String,
+    pub done_at: Option<i64>,
+}
+
+/// How many jobs each of us has been dealt so far, to keep the dealing fair.
+pub async fn task_counts(db: &SqlitePool) -> sqlx::Result<[i64; 2]> {
+    let rows: Vec<(i64, i64)> = sqlx::query_as("SELECT who, COUNT(*) FROM tasks GROUP BY who").fetch_all(db).await?;
+    let mut out = [0; 2];
+    for (who, n) in rows {
+        if let Some(slot) = usize::try_from(who).ok().and_then(|w| out.get_mut(w)) {
+            *slot = n;
+        }
+    }
+    Ok(out)
+}
+
+/// Deal a date's jobs (who, task, due). Only the first deal counts: a double tap adds nothing.
+pub async fn add_tasks(db: &SqlitePool, history_id: i64, tasks: &[(usize, String, String)]) -> sqlx::Result<()> {
+    let mut tx = db.begin().await?;
+    let already: bool = sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM tasks WHERE history_id = ?)")
+        .bind(history_id)
+        .fetch_one(&mut *tx)
+        .await?;
+    if !already {
+        for (who, task, due) in tasks {
+            sqlx::query("INSERT INTO tasks (history_id, who, task, due) VALUES (?, ?, ?, ?)")
+                .bind(history_id)
+                .bind(*who as i64)
+                .bind(task)
+                .bind(due)
+                .execute(&mut *tx)
+                .await?;
+        }
+    }
+    tx.commit().await
+}
+
+pub async fn tasks_for(db: &SqlitePool, history_id: i64) -> sqlx::Result<Vec<Task>> {
+    sqlx::query_as("SELECT id, history_id, who, task, due, done_at FROM tasks WHERE history_id = ? ORDER BY who, id")
+        .bind(history_id)
+        .fetch_all(db)
+        .await
+}
+
+pub async fn task(db: &SqlitePool, id: i64) -> sqlx::Result<Option<Task>> {
+    sqlx::query_as("SELECT id, history_id, who, task, due, done_at FROM tasks WHERE id = ?").bind(id).fetch_optional(db).await
+}
+
+/// Tick a job off (or untick it).
+pub async fn set_task_done(db: &SqlitePool, id: i64, done: bool) -> sqlx::Result<()> {
+    sqlx::query("UPDATE tasks SET done_at = CASE WHEN ? THEN COALESCE(done_at, unixepoch()) ELSE NULL END WHERE id = ?")
+        .bind(done)
+        .bind(id)
+        .execute(db)
+        .await?;
+    Ok(())
+}
+
+/// Local now: ("YYYY-MM-DD", minutes since midnight).
+pub async fn local_now(db: &SqlitePool) -> sqlx::Result<(String, i64)> {
+    sqlx::query_as(
+        "SELECT date('now', 'localtime'),
+                CAST(strftime('%H', 'now', 'localtime') AS INTEGER) * 60 + CAST(strftime('%M', 'now', 'localtime') AS INTEGER)",
+    )
+    .fetch_one(db)
+    .await
+}
+
+/// The next kept date still to come (from 3 hours ago), soonest first.
+pub async fn next_planned(db: &SqlitePool) -> sqlx::Result<Option<HistoryRow>> {
+    sqlx::query_as(&format!(
+        "SELECT {HISTORY_COLS} FROM history h JOIN activities a ON a.id = h.activity_id
+         WHERE h.outcome = 'did_it' AND h.planned_at >= unixepoch() - 3 * 3600
+         ORDER BY h.planned_at, h.id LIMIT 1"
+    ))
+    .fetch_optional(db)
+    .await
 }

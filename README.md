@@ -30,6 +30,18 @@ The first run creates `data/joy.db` and seeds it with your wishlist (`migrations
 
 The logic lives in `src/picker.rs` and is unit tested with `cargo test`.
 
+## When we meet: the day-of plan
+
+Set `DATE_DAYS`, `OFFICE` and the other schedule lines from `.env.example`, and the jar draws for a real date instead of "tonight". The sentence starts **For Thursday evening we have…**: the next few days you meet, today's long-distance evening on days you don't, or *any day at all*.
+
+- **Weeknights** start at the office. A slip only fits if you can get there, do it, and still each be where you need to be by your `LATEST_*` time. Morning things, at-home slips and places closed by then drop out.
+- **Weekends** start from each home. A place over `WEEKEND_MAX_TRAVEL_MIN` away for either of you drops out, and the start time follows the slip's best time and opening hours.
+- **Travel times are calibrated** to your real commutes (`COMMUTE_*_MIN`), so the plan uses your numbers, not the model's.
+- **Stamping a slip plans the day.** It sets the time, writes a timeline (when to leave, when you're each home), picks a **Plan B** (indoors, close by, similar vibe, one tap to swap), suggests somewhere to eat after, and **deals the jobs** (book it, bring cash) to whoever has had fewer. A surprise's jobs stay with its planner, and the partner sees only their own times.
+- The jar page shows your next date's plan until it's over. The calendar invite carries the timeline and reminds you when it's time to leave.
+
+Slips have optional details for this (hours, best time, minutes, booking, rain, bring, station) under **More details** on the slip form. Seeded slips were filled in from their notes and venue listings in Nov 2026. Hours we couldn't confirm stay empty, and the plan says to check.
+
 ## Meet in the middle
 
 When neither of you wants to be the one who decides, each of you checks in on your own phone: energy, spend, time, how far, and optionally a vibe. Once you both have, **Draw from the middle** picks only from slips that fit both of you. That means the lower budget, the shorter time, the lower energy and the nearer distance, and a slip that matches either vibe. If either of you answers "We're apart", only long-distance slips are drawn. Otherwise long-distance slips are left out.

@@ -1,10 +1,12 @@
 mod auth;
 mod config;
 mod db;
+mod hours;
 mod ics;
 mod photos;
 mod picker;
 mod routes;
+mod schedule;
 #[cfg(test)]
 mod route_tests;
 mod travel;
@@ -132,6 +134,8 @@ pub fn build_app(state: AppState) -> Router {
         .route("/savings/{id}/delete", post(routes::history::delete_saving))
         .route("/savings/keep", post(routes::history::keep_goal))
         .route("/history/{id}/line", post(routes::history::set_line))
+        .route("/history/{id}/plan-b", post(routes::dayplan::swap_plan_b))
+        .route("/tasks/{id}/done", post(routes::dayplan::task_done))
         .route("/who", get(routes::auth::who_page).post(routes::auth::set_who))
         .route("/history/{id}", post(routes::history::rate))
         .route("/logout", post(routes::auth::logout))

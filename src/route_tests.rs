@@ -40,12 +40,17 @@ impl Res {
 }
 
 pub async fn setup_with(dev_no_login: bool, passcode_hash: &str) -> T {
+    setup_custom(dev_no_login, passcode_hash, |_| {}).await
+}
+
+pub async fn setup_custom(dev_no_login: bool, passcode_hash: &str, tweak: impl FnOnce(&mut Config)) -> T {
     // One connection: every in-memory SQLite connection is its own empty database.
     let db = SqlitePoolOptions::new().max_connections(1).connect("sqlite::memory:").await.unwrap();
     sqlx::migrate!().run(&db).await.unwrap();
     let photos = std::env::temp_dir().join(format!("joy-test-{}", rand::random::<u64>()));
     std::fs::create_dir_all(&photos).unwrap();
-    let cfg = Config::for_tests(photos.clone(), passcode_hash, dev_no_login);
+    let mut cfg = Config::for_tests(photos.clone(), passcode_hash, dev_no_login);
+    tweak(&mut cfg);
     let state = AppState {
         db: db.clone(),
         cfg: Arc::new(cfg),
@@ -914,4 +919,212 @@ async fn money_put_in_by_hand_can_be_taken_back_and_isn_t_spending() {
     let id = t.scalar("SELECT max(id) FROM savings").await;
     t.post(&format!("/savings/{id}/delete"), "", "").await;
     assert_eq!(crate::db::savings_balance(&t.db).await.unwrap(), 0);
+}
+
+// ── the day-of plan ───────────────────────────────────────────────────────
+
+/// A jar that knows when we meet: Tue/Thu after work from the office, Sat/Sun from home.
+async fn setup_scheduled() -> T {
+    setup_custom(true, "unused", |c| {
+        let vars = [
+            ("DATE_DAYS", "tue,thu,sat,sun"),
+            ("OFFICE", "19.1741, 72.8580"),
+            ("OFFICE_NAME", "the office"),
+            ("LATEST_A", "22:00"),
+            ("LATEST_A_AT", "19.1646, 72.8493"),
+            ("LATEST_A_PLACE", "Goregaon station"),
+            ("LATEST_B", "23:00"),
+        ];
+        c.schedule = crate::schedule::Schedule::from_vars(|k| vars.iter().find(|(n, _)| *n == k).map(|(_, v)| v.to_string()));
+    })
+    .await
+}
+
+/// The jar page's date choices: (value, label).
+fn whens(jar: &str) -> Vec<(String, String)> {
+    let Some(sel) = jar.split("name=\"when\"").nth(1).and_then(|r| r.split("</select>").next()) else { return vec![] };
+    sel.split("<option value=\"")
+        .skip(1)
+        .filter_map(|o| {
+            let (v, rest) = o.split_once('"')?;
+            let label = rest.split_once('>')?.1.split('<').next()?;
+            Some((v.to_string(), label.to_string()))
+        })
+        .collect()
+}
+
+/// A Versova café near the office: books ahead, needs cash, open late.
+async fn near_cafe(t: &T) -> i64 {
+    t.exec(
+        "INSERT INTO activities (title, est_cost, setting, venue, area, lat, lng, duration, energy, hours, minutes, booking,
+           book_ahead_days, cover, bring, station)
+         VALUES ('Coffee by the creek', 800, 'local', 'Creek Café', 'Versova', 19.135, 72.815, 'short', 'low',
+           'mon-sun 08:00-23:30', 90, 'always', 1, 'indoor', 'cash, a book', 'Versova')",
+    )
+    .await;
+    t.id_of("Coffee by the creek").await
+}
+
+#[tokio::test]
+async fn the_jar_draws_for_our_next_date_and_only_what_fits_it() {
+    let t = setup_scheduled().await;
+    let neha = t.as_person(1).await;
+    let jar = t.get("/", &neha).await.body;
+    let w = whens(&jar);
+    assert!(w.len() >= 3, "a few dates to choose from: {w:?}");
+    assert!(jar.contains("<option value=\"any\">any day at all</option>"));
+    let weeknight = w.iter().find(|(_, l)| l.ends_with("evening")).expect("a Tue or Thu evening").0.clone();
+
+    let near = near_cafe(&t).await;
+    t.exec("INSERT INTO activities (title, est_cost, setting, venue, lat, lng, duration, energy, minutes)
+            VALUES ('Long lunch in Colaba', 900, 'local', 'Colaba Causeway', 18.92, 72.83, 'short', 'low', 120)").await;
+    let far = t.id_of("Long lunch in Colaba").await;
+
+    let ids = match_ids(&t, &neha, &format!("when={weeknight}")).await;
+    assert!(ids.contains(&near), "a café near the office fits a weeknight");
+    assert!(!ids.contains(&far), "Colaba is too far after work");
+    let any = match_ids(&t, &neha, "when=any").await;
+    assert!(any.contains(&near) && any.contains(&far), "any day lifts the window");
+
+    // Nothing else fits: the jar says why, and offers to draw for any day.
+    t.exec(&format!("UPDATE activities SET archived = 1 WHERE id != {far}")).await;
+    let r = t.post("/pick", &neha, &format!("when={weeknight}")).await;
+    assert!(r.body.contains("Colaba") && r.body.contains("weeknight"), "{}", r.body);
+    assert!(r.body.contains("Draw for any day"));
+    assert!(r.body.contains("name=\"when\" value=\"any\""));
+}
+
+#[tokio::test]
+async fn keeping_a_date_plans_the_day_deals_the_jobs_and_folds_in_a_plan_b() {
+    let t = setup_scheduled().await;
+    let neha = t.as_person(1).await;
+    let w = whens(&t.get("/", &neha).await.body);
+    let weeknight = w.iter().find(|(_, l)| l.ends_with("evening")).unwrap().0.clone();
+    let cafe = near_cafe(&t).await;
+    // An outdoor walk next door, with the café as the obvious Plan B.
+    t.exec("INSERT INTO activities (title, est_cost, setting, venue, lat, lng, duration, energy, minutes, cover)
+            VALUES ('Sunset on the jetty', 0, 'local', 'Versova jetty', 19.136, 72.814, 'short', 'low', 60, 'outdoor')").await;
+    let walk = t.id_of("Sunset on the jetty").await;
+
+    // The drawn card says when, before we commit.
+    let card = t.post("/pick", &neha, &format!("when={weeknight}&current={walk}&excluded=")).await;
+    assert!(card.body.contains("leave 7:30 pm") || card.body.contains("plan-line"), "{}", card.body);
+
+    let r = t.post(&format!("/accept/{cafe}?when={weeknight}"), &neha, "").await;
+    assert_eq!(r.status, StatusCode::OK);
+    let hid = t.scalar(&format!("SELECT id FROM history WHERE activity_id = {cafe}")).await;
+    assert_eq!(t.scalar(&format!("SELECT planned_at IS NOT NULL FROM history WHERE id = {hid}")).await, 1, "the time is set for us");
+    assert_eq!(
+        t.scalar(&format!("SELECT strftime('%H:%M', planned_at, 'unixepoch', 'localtime') > '19:30' FROM history WHERE id = {hid}")).await,
+        1
+    );
+    assert!(r.body.contains("Leave the office together"), "{}", r.body);
+    assert!(r.body.contains("Rohit at Goregaon station"));
+    assert!(r.body.contains("Book Creek Café") && r.body.contains("Bring cash") && r.body.contains("Bring a book"));
+    // Neha drew it, so Rohit gets the first job; they alternate.
+    assert_eq!(t.scalar(&format!("SELECT who FROM tasks WHERE history_id = {hid} ORDER BY id LIMIT 1")).await, 0);
+    assert_eq!(t.scalar(&format!("SELECT count(DISTINCT who) FROM tasks WHERE history_id = {hid}")).await, 2);
+    // A double tap deals nothing twice.
+    t.post(&format!("/accept/{cafe}?when={weeknight}"), &neha, "").await;
+    assert_eq!(t.scalar(&format!("SELECT count(*) FROM tasks WHERE history_id = {hid}")).await, 3);
+
+    // The walk's Plan B is the café next door; swap and swap back.
+    let r = t.post(&format!("/accept/{walk}?when={weeknight}"), &neha, "").await;
+    let walk_h = t.scalar(&format!("SELECT id FROM history WHERE activity_id = {walk}")).await;
+    assert_eq!(t.scalar(&format!("SELECT plan_b FROM history WHERE id = {walk_h}")).await, cafe);
+    assert!(r.body.contains("plan B, folded in"));
+    let swapped = t.post(&format!("/history/{walk_h}/plan-b"), &neha, "").await;
+    assert!(swapped.body.contains("Coffee by the creek"), "{}", swapped.body);
+    assert_eq!(t.scalar(&format!("SELECT activity_id FROM history WHERE id = {walk_h}")).await, cafe);
+    t.post(&format!("/history/{walk_h}/plan-b"), &neha, "").await;
+    assert_eq!(t.scalar(&format!("SELECT activity_id FROM history WHERE id = {walk_h}")).await, walk);
+
+    // The invite carries the plan, and its reminder is for leaving.
+    let ics = t.get(&format!("/history/{hid}/invite.ics"), &neha).await.body;
+    assert!(ics.contains("Leave the office together") && ics.contains("Time to get ready to leave"), "{ics}");
+}
+
+#[tokio::test]
+async fn only_whoever_was_dealt_a_job_ticks_it_off() {
+    let t = setup_scheduled().await;
+    let (rohit, neha) = (t.as_person(0).await, t.as_person(1).await);
+    let cafe = near_cafe(&t).await;
+    t.exec(&format!("INSERT INTO history (activity_id, outcome, drawn_by, planned_at) VALUES ({cafe}, 'did_it', 1, unixepoch('now', '+1 day'))")).await;
+    let hid = t.scalar("SELECT max(id) FROM history").await;
+    t.exec(&format!("INSERT INTO tasks (history_id, who, task) VALUES ({hid}, 0, 'Book Creek Café')")).await;
+    let task = t.scalar("SELECT max(id) FROM tasks").await;
+
+    assert_eq!(t.post(&format!("/tasks/{task}/done"), &neha, "done=1").await.status, StatusCode::FORBIDDEN);
+    assert_eq!(t.post(&format!("/tasks/{task}/done"), "", "done=1").await.status, StatusCode::FORBIDDEN, "nobody in particular");
+    let r = t.post(&format!("/tasks/{task}/done"), &rohit, "done=1").await;
+    assert_eq!(r.status, StatusCode::OK);
+    assert!(r.body.contains("is-done"));
+    assert_eq!(t.scalar(&format!("SELECT done_at IS NOT NULL FROM tasks WHERE id = {task}")).await, 1);
+    t.post(&format!("/tasks/{task}/done"), &rohit, "done=0").await;
+    assert_eq!(t.scalar(&format!("SELECT done_at IS NULL FROM tasks WHERE id = {task}")).await, 1);
+
+    // The jar page shows the next date's plan, with the jobs.
+    let jar = t.get("/", &rohit).await.body;
+    assert!(jar.contains("Your next date") && jar.contains("Book Creek Café"), "{jar}");
+}
+
+#[tokio::test]
+async fn a_surprise_s_plan_gives_the_partner_only_hints() {
+    let t = setup_scheduled().await;
+    let (rohit, neha) = (t.as_person(0).await, t.as_person(1).await);
+    let cafe = near_cafe(&t).await;
+    t.exec(&format!(
+        "INSERT INTO history (activity_id, outcome, drawn_by, surprise, planned_at, plan_b) VALUES ({cafe}, 'did_it', 0, 1, unixepoch('now', '+1 day'), {cafe})"
+    ))
+    .await;
+    let hid = t.scalar("SELECT max(id) FROM history").await;
+    t.exec(&format!("INSERT INTO tasks (history_id, who, task) VALUES ({hid}, 0, 'Book Creek Café')")).await;
+
+    let jar = without_slip_list(&t.get("/", &neha).await.body);
+    assert!(jar.contains("A surprise"), "{jar}");
+    for leak in ["Creek", "Versova", "Book "] {
+        assert!(!jar.contains(leak), "the surprise's plan leaks {leak}");
+    }
+    assert_eq!(t.post(&format!("/history/{hid}/plan-b"), &neha, "").await.status, StatusCode::FORBIDDEN);
+    assert!(t.get("/", &rohit).await.body.contains("Book Creek Café"), "the planner sees their jobs");
+}
+
+#[tokio::test]
+async fn slip_details_are_saved_and_bad_hours_are_caught() {
+    let t = setup().await;
+    let base = "title=Jazz+at+the+corner&est_cost=1200&setting=local&duration=short&energy=med&location=19.06%2C72.83";
+    let bad = t.post("/wishlist", "", &format!("{base}&hours=evenings")).await;
+    assert!(bad.body.contains("Hours should look like"), "{}", bad.body);
+    assert_eq!(t.scalar("SELECT count(*) FROM activities WHERE title = 'Jazz at the corner'").await, 0);
+
+    let r = t
+        .post("/wishlist", "", &format!("{base}&hours=Tue-Sun+19%3A00-01%3A00&best_time=night&minutes=120&booking=always&book_ahead_days=3&cover=indoor&bring=cash%2C+++ID&station=Khar&station_walk_min=8"))
+        .await;
+    assert_eq!(r.status, StatusCode::SEE_OTHER);
+    let id = t.id_of("Jazz at the corner").await;
+    let row: (String, String, i64, String, String, String) = sqlx::query_as(
+        "SELECT hours, best_time, minutes, booking, bring, station FROM activities WHERE id = ?",
+    )
+    .bind(id)
+    .fetch_one(&t.db)
+    .await
+    .unwrap();
+    assert_eq!(row, ("tue-sun 19:00-01:00".into(), "night".into(), 120, "always".into(), "cash, ID".into(), "Khar".into()));
+
+    // Only known values get in.
+    t.post(&format!("/wishlist/{id}"), "", &format!("{base}&best_time=whenever&booking=maybe&cover=sky&minutes=-5")).await;
+    let row: (String, String, String, Option<i64>) =
+        sqlx::query_as("SELECT best_time, booking, cover, minutes FROM activities WHERE id = ?").bind(id).fetch_one(&t.db).await.unwrap();
+    assert_eq!(row, (String::new(), String::new(), String::new(), None));
+}
+
+#[tokio::test]
+async fn a_stale_date_on_an_old_card_plans_nothing() {
+    let t = setup_scheduled().await;
+    let neha = t.as_person(1).await;
+    let cafe = near_cafe(&t).await;
+    let r = t.post(&format!("/accept/{cafe}?when=2000-01-04"), &neha, "").await;
+    assert_eq!(r.status, StatusCode::OK);
+    assert_eq!(t.scalar(&format!("SELECT planned_at IS NULL FROM history WHERE activity_id = {cafe}")).await, 1);
+    assert!(r.body.contains("When is it?"), "asks for a time instead");
 }

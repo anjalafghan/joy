@@ -150,12 +150,27 @@
 </section>
 {% endif %}
 
+{% if let Some(plan) = next_plan %}
+<div class="next-plan">
+  <p class="next-plan-k">{% if plan.my_open_tasks() > 0 %}Your next date · {{ plan.my_open_tasks() }} thing{% if plan.my_open_tasks() > 1 %}s{% endif %} for you to do{% else %}Your next date{% endif %}</p>
+  {% include "dayplan.html" %}
+</div>
+{% endif %}
+
 <form id="tonight" class="tonight" hx-post="/pick" hx-target="#pick" hx-swap="innerHTML swap:260ms" hx-sync="#pick:drop" hx-disabled-elt="find #draw">
   {% if let Some(p) = rain %}
   <p class="weather"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.2 15.4a4.3 4.3 0 0 1-.4-8.5 5.4 5.4 0 0 1 10.3 1.4 3.6 3.6 0 0 1 .3 7.1"/><path d="M9 18.2l-.9 2.2M13 17.6l-.9 2.6M16.6 18.2l-.8 2"/></svg><span>Rain likely tonight ({{ p }}%), so cozy ones float up.</span></p>
   {% endif %}
   <p class="sentence">
-    <span class="lead">Tonight we have</span>
+    {% if whens.is_empty() %}<span class="lead">Tonight we have</span>{% else %}<span class="lead">For</span>
+    <label class="blank blank-when">
+      <span class="visually-hidden">Which date we're drawing for</span>
+      <select name="when">
+        {% for o in whens %}<option value="{{ o.value }}"{% if o.selected %} selected{% endif %}>{{ o.label }}</option>{% endfor %}
+        <option value="any">any day at all</option>
+      </select>
+    </label>
+    <span class="lead-rest">we have</span>{% endif %}
     <label class="blank blank-money">
       <span class="visually-hidden">Budget for both of us, in {{ currency }} (leave empty for any)</span>
       <span class="cur" aria-hidden="true">{{ currency }}</span><input type="number" name="budget" inputmode="numeric" min="0" step="any" placeholder="any amount" autocomplete="off">

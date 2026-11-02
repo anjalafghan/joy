@@ -20,6 +20,7 @@ use crate::{
     auth,
     routes::middle::Middle,
     picker::{self, Candidate, Duration, Filters, Hint, PickResult, Today, ENERGIES, MAX_REROLLS, SETTINGS},
+    schedule::Slot,
     weather, AppState,
 };
 
@@ -67,6 +68,10 @@ struct DecideTpl {
     nudge_soon: bool,
     /// "Meet in the middle": tonight's private check-ins, from this viewer's side.
     middle: super::middle::MiddleView,
+    /// The dates we could draw for ("Thursday evening"), the next one selected; empty without a schedule.
+    whens: Vec<Opt>,
+    /// The next kept date's day-of plan, until it's over.
+    next_plan: Option<super::dayplan::DayPlan>,
 }
 
 /// Weeks without a date before the jar says so.
@@ -144,8 +149,18 @@ pub async fn page(State(s): State<AppState>, jar: SignedCookieJar) -> HtmlResult
         .map(|r| Memory { title: s.cfg.personalize(&r.title), when: format!("{} {}", r.day_label(), r.day.get(..4).unwrap_or("")) });
     let nudge = nudge(&s, who).await?;
     let middle = super::middle::view(&s, who, &me.partner).await?;
-    let jar = jar_data(&s).await?;
+    let jar = jar_data(&s, None).await?;
     let acts = &jar.acts;
+    let whens: Vec<Opt> = super::dayplan::slots(&s, 4)
+        .await?
+        .iter()
+        .enumerate()
+        .map(|(i, sl)| Opt { value: sl.key(), label: sl.label(), selected: i == 0 })
+        .collect();
+    let next_plan = match db::next_planned(&s.db).await? {
+        Some(r) => super::dayplan::build(&s, &r, who).await?,
+        None => None,
+    };
     let mut tags: Vec<String> = acts.iter().flat_map(|a| a.tag_list()).collect();
     tags.sort();
     tags.dedup();
@@ -185,6 +200,8 @@ pub async fn page(State(s): State<AppState>, jar: SignedCookieJar) -> HtmlResult
         nudge: nudge.0,
         nudge_soon: nudge.1,
         middle,
+        whens,
+        next_plan,
     })
 }
 
@@ -212,6 +229,8 @@ pub struct PickForm {
     veto: String,
     /// "1": draw from tonight's check-ins ("Meet in the middle") instead of these filters.
     middle: String,
+    /// The date we're drawing for ("2026-11-05"), "any", or empty for the next one.
+    when: String,
 }
 
 impl PickForm {
@@ -267,9 +286,10 @@ impl PickForm {
     /// read the other's answers out of the page.
     fn filter_fields(&self) -> Vec<(String, String)> {
         if self.is_middle() {
-            return vec![("middle".into(), "1".into())];
+            return vec![("middle".into(), "1".into()), ("when".into(), self.when.clone())];
         }
         let mut h: Vec<(String, String)> = vec![
+            ("when".into(), self.when.clone()),
             ("budget".into(), self.budget.clone()),
             ("max_duration".into(), self.max_duration.clone()),
             ("tag".into(), self.tag.clone()),
@@ -297,13 +317,22 @@ pub struct JarData {
     pub acts: Vec<db::Activity>,
     pub learned: Learned,
     pub today: Today,
+    /// The date we're drawing for, when we have a schedule and didn't say "any time".
+    pub slot: Option<Slot>,
 }
 
-pub async fn jar_data(s: &AppState) -> Result<JarData, AppError> {
+pub async fn jar_data(s: &AppState, slot: Option<Slot>) -> Result<JarData, AppError> {
     let vetoed: Vec<i64> = db::vetoes(&s.db).await?.into_iter().map(|(a, _)| a).collect();
     let acts = db::list(&s.db, false).await?.into_iter().filter(|a| !vetoed.contains(&a.id)).collect();
-    let (_, _, weekday, month) = db::local_today(&s.db).await?;
-    Ok(JarData { acts, learned: learned(s).await?, today: Today { weekday, month } })
+    // Closed days and seasons are about the day we're drawing for, not necessarily today.
+    let today = match &slot {
+        Some(sl) => Today { weekday: sl.weekday(), month: sl.month() },
+        None => {
+            let (_, _, weekday, month) = db::local_today(&s.db).await?;
+            Today { weekday, month }
+        }
+    };
+    Ok(JarData { acts, learned: learned(s).await?, today, slot })
 }
 
 impl JarData {
@@ -313,6 +342,9 @@ impl JarData {
             .map(|a| {
                 let mut c = a.candidate(distance_from(&s.cfg, a, f.from()), self.learned.cost);
                 c.title = s.cfg.personalize(&c.title);
+                if let (Some(slot), Some(sched)) = (&self.slot, &s.cfg.schedule) {
+                    c.window_miss = sched.fit(&s.cfg, slot, a).err();
+                }
                 c
             })
             .collect()
@@ -332,7 +364,7 @@ pub struct MatchCount {
 
 /// Which slips fit the current filters — lets the jar react live as filters change.
 pub async fn matching(State(s): State<AppState>, Form(f): Form<PickForm>) -> Result<Json<MatchCount>, AppError> {
-    let jar = jar_data(&s).await?;
+    let jar = jar_data(&s, super::dayplan::slot_for(&s, &f.when).await?).await?;
     let cands = jar.candidates(&s, &f);
     let filters = jar.filters(&f, rain(&s).await.is_some());
     let ids: Vec<i64> = cands.iter().filter(|c| picker::matches(c, &filters)).map(|c| c.id).collect();
@@ -388,6 +420,14 @@ struct CardTpl {
     wa_url: String,
     /// Drawn from tonight's check-ins.
     middle: bool,
+    /// The date this draw is for ("2026-11-05" or "any"), passed on to "It's a date".
+    when: String,
+    /// "Thursday evening", or empty.
+    when_label: String,
+    /// On a drawn card: the plan in a line ("leave 7:30 pm · home by 10:40 pm").
+    plan_line: String,
+    /// On a kept card: the whole day-of plan.
+    plan: Option<super::dayplan::DayPlan>,
 }
 
 impl CardTpl {
@@ -414,6 +454,10 @@ impl CardTpl {
             history_ids: String::new(),
             share_text: String::new(),
             wa_url: String::new(),
+            when: String::new(),
+            when_label: String::new(),
+            plan_line: String::new(),
+            plan: None,
         }
     }
 }
@@ -465,14 +509,15 @@ pub async fn pick(State(s): State<AppState>, jar: SignedCookieJar, Form(f): Form
                 None => {
                     if let Some(a) = current {
                         let learned = learned(&s).await?;
-                        return card(&s, &d, &f, Some(&a), &excluded, used, &learned).await;
+                        let slot = super::dayplan::slot_for(&s, &f.when).await?;
+                        return card(&s, &d, &f, Some(&a), &excluded, used, &learned, slot).await;
                     }
                 }
             }
         }
     }
 
-    let jar = jar_data(&s).await?;
+    let jar = jar_data(&s, super::dayplan::slot_for(&s, &f.when).await?).await?;
     let mut cands = jar.candidates(&s, &f);
     if let Some(m) = &middle {
         cands.retain(|c| m.allows(&c.energy, &c.tags));
@@ -483,7 +528,16 @@ pub async fn pick(State(s): State<AppState>, jar: SignedCookieJar, Form(f): Form
 
     match result {
         PickResult::Pick(id) => {
-            card(&s, &d, &f, jar.acts.iter().find(|a| a.id == id), &excluded, used, &jar.learned).await
+            card(&s, &d, &f, jar.acts.iter().find(|a| a.id == id), &excluded, used, &jar.learned, jar.slot).await
+        }
+        PickResult::NoMatch(Hint::OutsideWindow { title, why }) if middle.is_none() => {
+            let label = jar.slot.map(|sl| sl.label()).unwrap_or_default();
+            render(CardTpl {
+                message: format!("Nothing in the jar fits {label}. Closest: {title}, but it's {why}."),
+                relax_label: "Draw for any day".into(),
+                relax_hidden: PickForm { when: "any".into(), excluded: String::new(), used: String::new(), current: String::new(), reroll: String::new(), ..f.clone() }.filter_fields(),
+                ..CardTpl::blank()
+            })
         }
         // Saying which filter to loosen would give away one of our answers.
         PickResult::NoMatch(h) if middle.is_some() => render(CardTpl {
@@ -505,6 +559,7 @@ pub async fn pick(State(s): State<AppState>, jar: SignedCookieJar, Form(f): Form
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn card(
     s: &AppState,
     d: &Drawer,
@@ -513,6 +568,7 @@ async fn card(
     excluded: &[i64],
     used: u32,
     learned: &Learned,
+    slot: Option<Slot>,
 ) -> HtmlResult {
     let pairs = match a {
         Some(a) => pair_offers(s, f, a, learned).await?,
@@ -520,7 +576,14 @@ async fn card(
     };
     let view = a.map(|a| ActivityView::new(&s.cfg, a, learned));
     let share = view.as_ref().map(share_text).unwrap_or_default();
+    let plan_line = match (a, &slot, &s.cfg.schedule) {
+        (Some(a), Some(slot), Some(sched)) => sched.fit(&s.cfg, slot, a).map(|fit| plan_line(&s.cfg, slot, &fit)).unwrap_or_default(),
+        _ => String::new(),
+    };
     render(CardTpl {
+        when: slot.map(|sl| sl.key()).unwrap_or_else(|| "any".into()),
+        when_label: slot.map(|sl| sl.label()).unwrap_or_default(),
+        plan_line,
         hidden: f.hidden(excluded, used, a.map_or(0, |a| a.id)),
         rerolls_left: picker::rerolls_left(used, d.max),
         max_rerolls: d.max,
@@ -536,6 +599,28 @@ async fn card(
         pairs,
         ..CardTpl::blank()
     })
+}
+
+/// The plan in a line, for a drawn slip: when to go and when each of us is back.
+fn plan_line(cfg: &crate::config::Config, slot: &Slot, fit: &crate::schedule::Fit) -> String {
+    use crate::schedule::{at, Kind};
+    match slot.kind {
+        Kind::Apart => format!("{} on a call", at(fit.start)),
+        Kind::Weeknight => {
+            let leave = fit.start - fit.there[0].map_or(0, |t| t.minutes);
+            let homes: Vec<String> = (0..2)
+                .filter_map(|w| Some(format!("{} back {}", cfg.people[w].0, at(fit.end + fit.back[w]?.minutes))))
+                .collect();
+            let mut parts = vec![format!("leave {}", at(leave)), format!("there {}", at(fit.start))];
+            parts.extend(homes);
+            parts.join(" · ")
+        }
+        Kind::Weekend => {
+            let mut parts = vec![format!("{} – {}", at(fit.start), at(fit.end))];
+            parts.extend((0..2).filter_map(|w| Some(format!("{} {} each way", cfg.people[w].0, crate::travel::duration_label(fit.there[w]?.minutes)))));
+            parts.join(" · ")
+        }
+    }
 }
 
 /// Up to two partners for the drawn slip, with the combined cost against tonight's budget.
@@ -601,6 +686,7 @@ fn hint_text(s: &AppState, form: &PickForm, f: &Filters, h: Hint) -> String {
         Hint::OutOfSeason { title, from, to } => {
             format!("{title} would fit, but it's only on {}.", picker::season_label(from, to))
         }
+        Hint::OutsideWindow { title, why } => format!("Nothing fits that day. Closest: {title}, but it's {why}."),
         Hint::NoMoodMatch => "Nothing matches that vibe or energy.".into(),
     }
 }
@@ -628,6 +714,10 @@ fn relax(s: &AppState, f: &PickForm, h: &Hint) -> (String, Option<PickForm>) {
         }
         // Nothing to loosen: we can't change the day or the season.
         Hint::ClosedToday { .. } | Hint::OutOfSeason { .. } => return (String::new(), None),
+        Hint::OutsideWindow { .. } => {
+            r.when = "any".into();
+            "Draw for any day".into()
+        }
         Hint::NoMoodMatch => {
             r.tag.clear();
             r.energy.clear();
@@ -648,6 +738,9 @@ pub struct AcceptQuery {
     /// Keep it as a surprise for the other one of us ("1").
     #[serde(default)]
     surprise: Option<String>,
+    /// The date it was drawn for ("2026-11-05"), so the jar can set the time and plan the day.
+    #[serde(default)]
+    when: String,
 }
 
 pub async fn accept(
@@ -669,10 +762,25 @@ pub async fn accept(
             paired = Some(ActivityView::new(&s.cfg, &p, &learned));
         }
     }
+    // Only the exact date it was drawn for: a card left open overnight shouldn't plan another day.
+    let slot = super::dayplan::slot_exact(&s, &q.when).await?;
+    super::dayplan::on_keep(&s, &ids, slot.as_ref(), who, surprise).await?;
+    let plan = match db::history_row(&s.db, ids[0]).await? {
+        Some(r) => super::dayplan::build(&s, &r, who).await?,
+        None => None,
+    };
     let a = db::get(&s.db, id).await?;
     let view = a.as_ref().map(|a| ActivityView::new(&s.cfg, a, &learned));
     let share = view.as_ref().map(share_text).unwrap_or_default();
+    let share = match &plan {
+        Some(p) if !surprise => {
+            let lines: Vec<String> = p.steps.iter().map(|st| format!("{} {}", st.at, st.what)).collect();
+            format!("{share}\n\n{}\n{}", p.when, lines.join("\n"))
+        }
+        _ => share,
+    };
     render(CardTpl {
+        plan,
         done: true,
         stamp_date: db::today(&s.db).await?,
         paired,

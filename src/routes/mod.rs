@@ -1,4 +1,5 @@
 pub mod auth;
+pub mod dayplan;
 pub mod decide;
 pub mod history;
 pub mod middle;
