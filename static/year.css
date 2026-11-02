@@ -21,7 +21,8 @@ body[data-page="year"] main { max-width: 1120px; padding-bottom: 120px; }
 }
 .y-wire { fill: none; stroke: #3a3346; stroke-width: 1.5; }
 .y-bulbs { fill: #ffd58a; }
-.y-bulb { filter: url(#y-bulb-glow); animation: y-twinkle 2.8s ease-in-out var(--d, 0s) infinite; }
+/* Gradient glows, not blur filters: a filter re-rasterises on every twinkle frame. */
+.y-bulb { fill: url(#y-bulb-glow); animation: y-twinkle 2.8s ease-in-out var(--d, 0s) infinite; }
 @keyframes y-twinkle { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
 
 /* ── other years ─────────────────────────────────────────── */
@@ -104,7 +105,7 @@ body[data-page="year"] main { max-width: 1120px; padding-bottom: 120px; }
 .y-jar-slip[data-kind="travel"] rect { fill: #b9d3e6; }
 .y-jar-slip:nth-child(3n) rect { filter: brightness(1.05); }
 .y-flies { fill: #ffe7a3; display: none; }
-.y-fly { filter: url(#y-fly-glow); transform-box: fill-box; animation: y-drift 5.5s ease-in-out var(--d, 0s) infinite; }
+.y-fly { fill: url(#y-fly-glow); transform-box: fill-box; animation: y-drift 5.5s ease-in-out var(--d, 0s) infinite; }
 @keyframes y-drift { 0%, 100% { transform: translate(0, 0); opacity: .5; } 50% { transform: translate(5px, -12px); opacity: 1; } }
 @media (prefers-color-scheme: dark) {
   .y-jar { --jar-line: rgba(243, 230, 210, .55); }

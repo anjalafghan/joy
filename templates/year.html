@@ -45,24 +45,24 @@
 {# a string of fairy lights over the page, only after dark #}
 <div class="y-sky" aria-hidden="true">
   <svg viewBox="0 0 1280 110" width="1280" height="110">
-    <defs><filter id="y-bulb-glow" x="-200%" y="-200%" width="500%" height="500%"><feGaussianBlur stdDeviation="5"/></filter></defs>
+    <defs><radialGradient id="y-bulb-glow"><stop offset="0" stop-color="#ffd58a"/><stop offset=".45" stop-color="#ffd58a" stop-opacity=".5"/><stop offset="1" stop-color="#ffd58a" stop-opacity="0"/></radialGradient></defs>
     <path class="y-wire" d="M0,30 Q320,120 640,50 T1280,40"/>
     <g class="y-bulbs">
-      <circle class="y-bulb" cx="80" cy="58" r="10" style="--d: .1s"/><circle cx="80" cy="58" r="3.5"/>
-      <circle class="y-bulb" cx="160" cy="73" r="10" style="--d: 1.2s"/><circle cx="160" cy="73" r="3.5"/>
-      <circle class="y-bulb" cx="240" cy="83" r="10" style="--d: .6s"/><circle cx="240" cy="83" r="3.5"/>
-      <circle class="y-bulb" cx="320" cy="88" r="10" style="--d: 2s"/><circle cx="320" cy="88" r="3.5"/>
-      <circle class="y-bulb" cx="400" cy="88" r="10" style="--d: .9s"/><circle cx="400" cy="88" r="3.5"/>
-      <circle class="y-bulb" cx="480" cy="83" r="10" style="--d: 1.6s"/><circle cx="480" cy="83" r="3.5"/>
-      <circle class="y-bulb" cx="560" cy="73" r="10" style="--d: .3s"/><circle cx="560" cy="73" r="3.5"/>
-      <circle class="y-bulb" cx="640" cy="58" r="10" style="--d: 2.3s"/><circle cx="640" cy="58" r="3.5"/>
-      <circle class="y-bulb" cx="720" cy="43" r="10" style="--d: 1s"/><circle cx="720" cy="43" r="3.5"/>
-      <circle class="y-bulb" cx="800" cy="31" r="10" style="--d: .5s"/><circle cx="800" cy="31" r="3.5"/>
-      <circle class="y-bulb" cx="880" cy="24" r="10" style="--d: 1.8s"/><circle cx="880" cy="24" r="3.5"/>
-      <circle class="y-bulb" cx="960" cy="21" r="10" style="--d: .2s"/><circle cx="960" cy="21" r="3.5"/>
-      <circle class="y-bulb" cx="1040" cy="22" r="10" style="--d: 1.4s"/><circle cx="1040" cy="22" r="3.5"/>
-      <circle class="y-bulb" cx="1120" cy="26" r="10" style="--d: 2.6s"/><circle cx="1120" cy="26" r="3.5"/>
-      <circle class="y-bulb" cx="1200" cy="35" r="10" style="--d: .8s"/><circle cx="1200" cy="35" r="3.5"/>
+      <circle class="y-bulb" cx="80" cy="58" r="20" style="--d: .1s"/><circle cx="80" cy="58" r="3.5"/>
+      <circle class="y-bulb" cx="160" cy="73" r="20" style="--d: 1.2s"/><circle cx="160" cy="73" r="3.5"/>
+      <circle class="y-bulb" cx="240" cy="83" r="20" style="--d: .6s"/><circle cx="240" cy="83" r="3.5"/>
+      <circle class="y-bulb" cx="320" cy="88" r="20" style="--d: 2s"/><circle cx="320" cy="88" r="3.5"/>
+      <circle class="y-bulb" cx="400" cy="88" r="20" style="--d: .9s"/><circle cx="400" cy="88" r="3.5"/>
+      <circle class="y-bulb" cx="480" cy="83" r="20" style="--d: 1.6s"/><circle cx="480" cy="83" r="3.5"/>
+      <circle class="y-bulb" cx="560" cy="73" r="20" style="--d: .3s"/><circle cx="560" cy="73" r="3.5"/>
+      <circle class="y-bulb" cx="640" cy="58" r="20" style="--d: 2.3s"/><circle cx="640" cy="58" r="3.5"/>
+      <circle class="y-bulb" cx="720" cy="43" r="20" style="--d: 1s"/><circle cx="720" cy="43" r="3.5"/>
+      <circle class="y-bulb" cx="800" cy="31" r="20" style="--d: .5s"/><circle cx="800" cy="31" r="3.5"/>
+      <circle class="y-bulb" cx="880" cy="24" r="20" style="--d: 1.8s"/><circle cx="880" cy="24" r="3.5"/>
+      <circle class="y-bulb" cx="960" cy="21" r="20" style="--d: .2s"/><circle cx="960" cy="21" r="3.5"/>
+      <circle class="y-bulb" cx="1040" cy="22" r="20" style="--d: 1.4s"/><circle cx="1040" cy="22" r="3.5"/>
+      <circle class="y-bulb" cx="1120" cy="26" r="20" style="--d: 2.6s"/><circle cx="1120" cy="26" r="3.5"/>
+      <circle class="y-bulb" cx="1200" cy="35" r="20" style="--d: .8s"/><circle cx="1200" cy="35" r="3.5"/>
     </g>
   </svg>
 </div>
@@ -98,7 +98,7 @@
   <svg class="y-jar" viewBox="0 0 260 300" role="img" aria-label="A glass jar holding {{ dates }} folded date {% if dates == 1 %}slip{% else %}slips{% endif %}">
     <defs>
       <radialGradient id="y-jar-glow" cx="50%" cy="58%" r="55%"><stop offset="0" stop-color="#ffcf8a" stop-opacity=".5"/><stop offset="1" stop-color="#ffcf8a" stop-opacity="0"/></radialGradient>
-      <filter id="y-fly-glow" x="-300%" y="-300%" width="700%" height="700%"><feGaussianBlur stdDeviation="3"/></filter>
+      <radialGradient id="y-fly-glow"><stop offset="0" stop-color="#ffe7a3"/><stop offset=".4" stop-color="#ffe7a3" stop-opacity=".5"/><stop offset="1" stop-color="#ffe7a3" stop-opacity="0"/></radialGradient>
       <clipPath id="y-jar-clip"><path d="M84,62 L156,62 L156,82 C156,92 200,96 200,130 L200,250 C200,268 188,276 170,276 L70,276 C52,276 40,268 40,250 L40,130 C40,96 84,92 84,82 Z"/></clipPath>
     </defs>
     <ellipse class="y-jar-glow" cx="120" cy="180" rx="135" ry="130" fill="url(#y-jar-glow)"/>
@@ -107,12 +107,12 @@
       <rect class="y-jar-glass" width="260" height="300"/>
       {% for sl in jar_slips %}<g class="y-jar-slip" data-kind="{{ sl.kind }}" transform="translate({{ sl.x }},{{ sl.y }}) rotate({{ sl.rot }})"><rect width="42" height="18" rx="2"/><line x1="21" y1="0" x2="21" y2="18"/></g>{% endfor %}
       <g class="y-flies">
-        <circle class="y-fly" cx="88" cy="150" r="4" style="--d: .2s"/>
-        <circle class="y-fly" cx="146" cy="128" r="4" style="--d: 1.6s"/>
-        <circle class="y-fly" cx="118" cy="184" r="4" style="--d: .9s"/>
-        <circle class="y-fly" cx="168" cy="172" r="4" style="--d: 2.4s"/>
-        <circle class="y-fly" cx="70" cy="196" r="4" style="--d: 3.1s"/>
-        <circle class="y-fly" cx="128" cy="110" r="4" style="--d: 1.2s"/>
+        <circle class="y-fly" cx="88" cy="150" r="10" style="--d: .2s"/>
+        <circle class="y-fly" cx="146" cy="128" r="10" style="--d: 1.6s"/>
+        <circle class="y-fly" cx="118" cy="184" r="10" style="--d: .9s"/>
+        <circle class="y-fly" cx="168" cy="172" r="10" style="--d: 2.4s"/>
+        <circle class="y-fly" cx="70" cy="196" r="10" style="--d: 3.1s"/>
+        <circle class="y-fly" cx="128" cy="110" r="10" style="--d: 1.2s"/>
       </g>
     </g>
     <path class="y-jar-line" d="M84,62 L156,62 L156,82 C156,92 200,96 200,130 L200,250 C200,268 188,276 170,276 L70,276 C52,276 40,268 40,250 L40,130 C40,96 84,92 84,82 Z"/>

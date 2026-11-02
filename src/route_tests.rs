@@ -293,6 +293,16 @@ async fn closed_days_and_seasons_follow_today() {
 }
 
 #[tokio::test]
+async fn every_slip_carries_its_search_text() {
+    let t = setup().await;
+    let body = t.get("/wishlist", "").await.body;
+    assert!(body.contains("id=\"slip-q\""), "the search box is on the page");
+    // Title, place, tags and notes, lowercased, so the box can match any of them.
+    assert!(body.contains("data-search=\"ferry to elephanta caves "), "{body}");
+    assert!(body.contains("closed mondays"), "notes are searchable too");
+}
+
+#[tokio::test]
 async fn the_jar_learns_from_real_costs() {
     let t = setup().await;
     let cook = t.id_of("Cook together").await; // ₹800
@@ -349,8 +359,8 @@ async fn spending_outside_a_slip_counts_toward_the_budget() {
 #[tokio::test]
 async fn last_month_s_leftover_can_be_rolled_over_or_dropped() {
     let t = setup().await;
-    let prev = "unixepoch() - 40 * 86400";
-    t.exec(&format!("INSERT INTO other_spending (amount, spent_on) VALUES (4200, date({prev}, 'unixepoch'))")).await;
+    // The last day of last month, whatever today is ("40 days ago" is two months back early in a month).
+    t.exec("INSERT INTO other_spending (amount, spent_on) VALUES (4200, date('now', 'localtime', 'start of month', '-1 day'))").await;
     // No budget set: nothing to offer.
     assert!(!t.get("/history", "").await.body.contains("/budget/rollover"));
     t.post("/budget", "", "amount=6000&back=%2Fhistory").await;

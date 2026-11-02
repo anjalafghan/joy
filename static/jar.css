@@ -70,9 +70,16 @@ body[data-page="jar"] main { padding-top: 0; }
 .glow-stop--out { stop-opacity: 0; }
 .lantern { opacity: calc(.35 + .65 * var(--lit)); transition: opacity var(--t-medium) var(--ease-out); }
 .fireflies { display: none; }
-.fireflies circle { fill: var(--firefly); filter: url(#ff-blur); opacity: .2; }
+/* Soft dots from a gradient, not a blur filter: a filter re-rasterises every animation frame. */
+.fireflies circle { fill: url(#ff-glow); opacity: .2; }
+.ff-core { stop-color: var(--firefly); }
+.ff-mid { stop-color: var(--firefly); stop-opacity: .45; }
+.ff-out { stop-color: var(--firefly); stop-opacity: 0; }
+/* The lantern's halo is a box-shadow on a still layer behind the glass, painted once, instead of
+   a drop-shadow filter on the whole jar, which redrew under every firefly and falling slip. */
+.jar::before { content: ""; position: absolute; left: 9.5%; right: 9.5%; top: 30%; bottom: 3.5%; border-radius: 12% / 9%; pointer-events: none; }
 @media (prefers-color-scheme: dark) {
-  .jar { filter: drop-shadow(0 0 26px color-mix(in srgb, var(--glow) calc(var(--lit) * 70%), transparent)); }
+  .jar::before { box-shadow: 0 0 26px 2px color-mix(in srgb, var(--glow) calc(var(--lit) * 70%), transparent); }
   .fireflies { display: inline; }
   .fireflies circle { animation: firefly var(--d) var(--ease-in-out) var(--o) infinite; }
   .label-text { fill: var(--ink); }

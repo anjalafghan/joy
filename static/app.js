@@ -1,3 +1,13 @@
+// Ambient loops (fireflies, rain, fairy lights) pause while scrolled out of view, so a phone
+// reading further down the page isn't redrawing what nobody can see. Hidden tabs pause on their own.
+(() => {
+  if (!('IntersectionObserver' in window)) return;
+  const io = new IntersectionObserver((entries) => {
+    for (const e of entries) e.target.classList.toggle('is-still', !e.isIntersecting);
+  });
+  document.querySelectorAll('.fireflies, .rain-glass, .y-sky, .y-flies, .flies').forEach((el) => io.observe(el));
+})();
+
 // joy on every page (except login): the service worker, offline copies, and the switch for them.
 (() => {
   'use strict';

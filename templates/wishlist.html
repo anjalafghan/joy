@@ -46,14 +46,21 @@
     </ul>
   </nav>
 
+  <div class="slip-search" role="search" hidden>
+    <label for="slip-q" class="visually-hidden">Search slips</label>
+    <svg class="search-ico" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.6" cy="10.4" r="6.4"/><path d="M15.4 15.3l4.8 4.9"/></svg>
+    <input id="slip-q" class="search-input" type="search" placeholder="Search slips, places, tags…" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" aria-describedby="search-status">
+    <p class="search-status soft" id="search-status" aria-live="polite"></p>
+  </div>
+
   <p class="slips-hint soft">Tap a slip to change it. <span class="nowrap">“Take out”</span> sets one aside, it waits in the drawer below.</p>
 
   {% for g in groups %}
   <section class="group tint-{{ g.key }}" id="g-{{ g.key }}" aria-labelledby="h-{{ g.key }}">
     <h2 class="group-h" id="h-{{ g.key }}"><span class="group-label">{{ g.label }}</span> <span class="group-n">{{ g.items.len() }} {% if g.items.len() == 1 %}slip{% else %}slips{% endif %}</span></h2>
-    <ul class="stack" role="list">
+    <ul class="stack" role="list" style="contain-intrinsic-size: auto {% if g.key == "home" || g.key == "apart" %}{{ g.items.len() * 104 + 32 }}{% else %}{{ g.items.len() * 138 + 32 }}{% endif %}px">
       {% for a in g.items %}
-      <li class="slip grain" style="--i:{{ loop.index0 }}" data-id="{{ a.id }}">
+      <li class="slip grain" style="--i:{{ loop.index0 }}" data-id="{{ a.id }}" data-search="{{ a.title|lower }} {{ a.place|lower }} {{ a.tags|join(" ")|lower }} {{ a.setting|lower }} {{ a.notes|lower }}">
         <span class="fold" aria-hidden="true"></span>
         <a class="slip-link" href="/wishlist/{{ a.id }}"><span class="slip-title">{{ a.title }}</span></a>
         <p class="slip-meta"><span>{{ a.cost }}</span><span class="sep" aria-hidden="true"> · </span><span>{{ a.duration }}</span>{% if a.times_done > 0 %}<span class="done"><svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.3c-4.6-3.2-8.3-6.4-8.3-10.4 0-2.6 2-4.6 4.4-4.6 1.6 0 3 .9 3.9 2.2.9-1.3 2.3-2.2 3.9-2.2 2.4 0 4.4 2 4.4 4.6 0 4-3.7 7.2-8.3 10.4z"/></svg>{% if a.times_done == 1 %}done once{% else %}done {{ a.times_done }}×{% endif %}</span>{% endif %}</p>

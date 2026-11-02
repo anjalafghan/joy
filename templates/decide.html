@@ -31,15 +31,15 @@
     <svg class="jar-front" viewBox="0 0 240 300" focusable="false">
       <defs>
         <clipPath id="inside"><path d="M76 60v10c0 12-10 17-25 21-18 5-25 14-25 31v140c0 15 8 24 24 24h140c16 0 24-9 24-24V122c0-17-7-26-25-31-15-4-25-9-25-21V60z"/></clipPath>
-        <filter id="ff-blur" x="-2" y="-2" width="5" height="5"><feGaussianBlur stdDeviation="1.6"/></filter>
+        <radialGradient id="ff-glow"><stop offset="0" class="ff-core"/><stop offset=".4" class="ff-mid"/><stop offset="1" class="ff-out"/></radialGradient>
       </defs>
       <g class="fireflies" clip-path="url(#inside)">
-        <circle cx="70" cy="200" r="2.2" style="--d:5.2s;--o:-.4s"/>
-        <circle cx="150" cy="160" r="1.8" style="--d:6.4s;--o:-2.1s"/>
-        <circle cx="112" cy="232" r="2" style="--d:4.6s;--o:-3.3s"/>
-        <circle cx="186" cy="214" r="1.6" style="--d:7.1s;--o:-1.2s"/>
-        <circle cx="96" cy="140" r="1.5" style="--d:5.8s;--o:-4.4s"/>
-        <circle cx="168" cy="250" r="1.9" style="--d:6.8s;--o:-.9s"/>
+        <circle cx="70" cy="200" r="5.4" style="--d:5.2s;--o:-.4s"/>
+        <circle cx="150" cy="160" r="5.0" style="--d:6.4s;--o:-2.1s"/>
+        <circle cx="112" cy="232" r="5.2" style="--d:4.6s;--o:-3.3s"/>
+        <circle cx="186" cy="214" r="4.8" style="--d:7.1s;--o:-1.2s"/>
+        <circle cx="96" cy="140" r="4.7" style="--d:5.8s;--o:-4.4s"/>
+        <circle cx="168" cy="250" r="5.1" style="--d:6.8s;--o:-.9s"/>
       </g>
       <!-- the thick glass base -->
       <path class="glass-base" d="M24 268c2 12 11 20 26 20h140c15 0 24-8 26-20q-96 12-192 0z"/>

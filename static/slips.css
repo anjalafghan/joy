@@ -48,6 +48,30 @@
 }
 .slips-hint { font-size: var(--step--1); margin: 14px 0 8px; max-width: 46ch; }
 
+/* ── search (hidden until the JS shows it) ───────────────── */
+.slip-search { position: relative; margin-top: 16px; }
+.slip-search[hidden] { display: none; }
+.search-ico {
+  position: absolute; left: 14px; top: 14px; z-index: 1;
+  color: var(--ink-soft); pointer-events: none;
+}
+.search-input {
+  -webkit-appearance: none; appearance: none;
+  display: block; width: 100%; min-height: 46px;
+  padding: 10px 40px 10px 42px;
+  font: 400 var(--step-0)/1.4 var(--font-ui); color: var(--ink);
+  background: var(--slip); border: 1.5px solid var(--rule); border-radius: 999px;
+  transition: border-color var(--t-small) var(--ease-out);
+}
+.search-input::placeholder { color: var(--ink-soft); opacity: 1; }
+@media (hover: hover) { .search-input:hover { border-color: var(--ink-soft); } }
+.search-input:focus-visible { outline: 2px solid var(--stamp); outline-offset: 3px; border-color: var(--ink-soft); }
+.search-status { margin: 8px 0 0; font-size: var(--step--1); }
+.search-status:empty { display: none; }
+/* filtered-out slips, groups and jump chips: hidden explicitly so no display rule can win */
+.slip[hidden], .group[hidden], .group-index li[hidden] { display: none; }
+.slips-page.searching .group { margin-top: 20px; }
+
 /* ── groups ──────────────────────────────────────────────── */
 .group { margin-top: 30px; scroll-margin-top: calc(76px + env(safe-area-inset-top)); }
 .group-h {
@@ -66,6 +90,10 @@
 
 /* ── the slip ────────────────────────────────────────────── */
 .stack { list-style: none; margin: 0; padding: 0; }
+/* Offscreen groups skip layout and paint (hundreds of slips, each with grain and a blend mode).
+   Containment clips paint to the box, so the padding leaves room for the slips' shadows. The
+   template sets a size estimate per group so the scrollbar and #jump links land close. */
+.group .stack { content-visibility: auto; padding: 0 16px 32px; margin: 0 -16px -32px; }
 .slip {
   --r: -.5deg; --x: 0px;
   position: relative;

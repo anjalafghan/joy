@@ -23,7 +23,7 @@ use axum::{
 use axum_extra::extract::cookie::Key;
 use rand::{distributions::Alphanumeric, Rng};
 use sqlx::{sqlite::SqlitePoolOptions, SqlitePool};
-use tower_http::{services::ServeDir, trace::TraceLayer};
+use tower_http::{compression::CompressionLayer, services::ServeDir, trace::TraceLayer};
 
 use config::Config;
 
@@ -146,6 +146,9 @@ pub fn build_app(state: AppState) -> Router {
         .layer(middleware::from_fn_with_state(state.clone(), web::page_headers))
         // Outermost, so everything inside sees only a who cookie backed by that person's passcode.
         .layer(middleware::from_fn_with_state(state.clone(), auth::check_who))
+        // Pages and scripts go out compressed (photos are skipped: they're JPEGs already), so a
+        // phone's radio is on for a fraction of the time.
+        .layer(CompressionLayer::new())
         .layer(TraceLayer::new_for_http())
         .with_state(state)
 }

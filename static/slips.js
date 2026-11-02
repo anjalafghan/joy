@@ -11,8 +11,10 @@
     let toastTimer = 0;
 
     // Floating "Write a slip" once the header button has scrolled away (phones only via CSS).
-    let fab = null;
+    // An observer rather than a scroll listener: no layout read on every scroll frame.
+    let fab = null, fabIo = null;
     const syncFab = () => {
+      fabIo?.disconnect();
       const src = $('.write-btn');
       if (!src) { if (fab) fab.classList.remove('show'); return; }
       if (!fab) {
@@ -23,10 +25,91 @@
         fab.setAttribute('aria-hidden', 'true');
         document.body.appendChild(fab);
       }
-      fab.classList.toggle('show', src.getBoundingClientRect().bottom < 0);
+      fabIo = new IntersectionObserver(([e]) => fab.classList.toggle('show', !e.isIntersecting && e.boundingClientRect.bottom < 0));
+      fabIo.observe(src);
     };
-    addEventListener('scroll', syncFab, { passive: true });
     syncFab();
+
+    // Search: every word must appear in a slip's data-search. The query lives out here, not in the DOM, so it survives swapFrom.
+    let query = '';
+    const hayCache = new WeakMap();
+    const norm = (s) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    const hay = (li) => {
+      let h = hayCache.get(li);
+      if (h === undefined) { h = norm(li.dataset.search || ''); hayCache.set(li, h); }
+      return h;
+    };
+
+    // Filters whatever is in the DOM right now, so it also works right after a swap.
+    function filterSlips() {
+      const page = $('.slips-page');
+      if (!page) return;
+      const words = norm(query).trim().split(/\s+/).filter(Boolean);
+      const on = words.length > 0;
+      page.classList.toggle('searching', on);
+      const hint = $('.slips-hint');
+      if (hint) hint.hidden = on;
+      const byId = new Map();
+      let all = 0;
+      page.querySelectorAll('section.group').forEach((sec) => {
+        const slips = sec.querySelectorAll('li.slip');
+        let m = 0;
+        slips.forEach((li) => {
+          const ok = !on || words.every((w) => hay(li).includes(w));
+          li.hidden = !ok;
+          if (ok) m++;
+        });
+        sec.hidden = on && m === 0;
+        const cnt = sec.querySelector('.group-n');
+        if (cnt) {
+          if (!cnt.dataset.orig) cnt.dataset.orig = cnt.textContent;
+          cnt.textContent = on ? `${m} of ${slips.length} ${slips.length === 1 ? 'slip' : 'slips'}` : cnt.dataset.orig;
+        }
+        byId.set(sec.id, { m, n: slips.length });
+        all += m;
+      });
+      page.querySelectorAll('.group-index li').forEach((li) => {
+        const a = li.querySelector('a[href^="#"]');
+        const g = a && byId.get(a.getAttribute('href').slice(1));
+        if (!g) return;
+        li.hidden = on && g.m === 0;
+        const n = a.querySelector('.n');
+        if (n) {
+          if (!n.dataset.orig) n.dataset.orig = n.textContent;
+          n.textContent = on ? `${g.m} of ${g.n}` : n.dataset.orig;
+        }
+      });
+      const status = $('#search-status');
+      if (status) {
+        status.textContent = !on ? '' : all === 0 ? `Nothing in the jar matches “${query.trim()}”.`
+          : all === 1 ? '1 slip matches' : `${all} slips match`;
+      }
+    }
+
+    // Runs on every (re)rendered .slips-page. The old input and its listeners go away with the old DOM.
+    function initSearch() {
+      const q = $('#slip-q');
+      if (!q) return;
+      q.closest('.slip-search').hidden = false;
+      q.value = query;
+      q.addEventListener('input', () => { query = q.value; filterSlips(); });
+      q.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && q.value) { e.preventDefault(); q.value = query = ''; filterSlips(); }
+      });
+      filterSlips();
+    }
+
+    // "/" jumps to the search box unless focus is already in a field. Bound once; the box is looked up at press time.
+    addEventListener('keydown', (e) => {
+      if (e.key !== '/' || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey || e.isComposing) return;
+      const t = e.target;
+      if (t instanceof HTMLElement && (t.matches('input, textarea, select') || t.isContentEditable)) return;
+      const q = $('#slip-q');
+      if (!q) return;
+      e.preventDefault();
+      q.focus({ preventScroll: true });
+    });
+    initSearch();
 
     async function swapFrom(res) {
       const html = await res.text();
@@ -38,6 +121,7 @@
       cur.replaceWith(next);
       if (drawerOpen && $('#drawer')) $('#drawer').open = true;
       syncFab();
+      initSearch();
     }
 
     function toast(msg, undo) {
