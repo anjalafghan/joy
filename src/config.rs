@@ -23,6 +23,8 @@ pub struct Config {
     pub areas: [Option<String>; 2],
     /// When we meet and where we start from. None (no DATE_DAYS) = draw for any time.
     pub schedule: Option<crate::schedule::Schedule>,
+    /// Where Joy lives on the web ("https://joy-jar.fly.dev"), for links we send each other.
+    pub public_url: String,
 }
 
 impl Config {
@@ -54,6 +56,9 @@ impl Config {
             database_url: var("DATABASE_URL").unwrap_or_else(|| "sqlite://data/joy.db?mode=rwc".into()),
             host: var("HOST").map(|h| h.parse()).transpose().context("HOST")?.unwrap_or([0, 0, 0, 0].into()),
             port: var("PORT").map(|p| p.parse()).transpose().context("PORT")?.unwrap_or(3000),
+            public_url: var("PUBLIC_URL")
+                .map(|u| u.trim_end_matches('/').to_string())
+                .unwrap_or_else(|| format!("http://localhost:{}", var("PORT").unwrap_or_else(|| "3000".into()))),
             passcode_hash,
             key,
             cookie_secure: var("COOKIE_SECURE").is_some_and(|v| v == "true" || v == "1"),
@@ -89,6 +94,7 @@ impl Config {
             people: [("Rohit".into(), Some((19.00, 73.05))), ("Neha".into(), Some((19.28, 72.87)))],
             areas: [None, None],
             schedule: None,
+            public_url: "http://localhost:3000".into(),
             photos_dir,
         }
     }
@@ -212,6 +218,7 @@ mod tests {
             people: [("Rohit".into(), None), ("Neha".into(), None)],
             areas: areas.map(|a| a.map(String::from)),
             schedule: None,
+            public_url: "http://localhost:3000".into(),
             photos_dir: "photos".into(),
         }
     }

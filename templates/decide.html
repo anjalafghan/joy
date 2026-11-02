@@ -2,6 +2,56 @@
 {% block title %}The jar · joy{% endblock %}
 {% block page %}jar{% endblock %}
 {% block me %}{% if me_name.is_empty() %}who?{% else %}{{ me_name }}{% endif %}{% endblock %}
+{% block middle %}{% if middle.enabled %}<details class="nav-middle" id="middle-menu">
+  <summary aria-label="Meet in the middle" title="Meet in the middle"><svg viewBox="0 0 64 28" aria-hidden="true" focusable="false"><circle cx="22" cy="14" r="11"/><circle cx="42" cy="14" r="11"/></svg>{% if middle.both_in() || (middle.partner_in && middle.mine.is_none()) %}<span class="nav-dot"><span class="visually-hidden">{% if middle.both_in() %}: you've both checked in{% else %}: {{ middle.partner }} has checked in{% endif %}</span></span>{% endif %}</summary>
+  <div class="nav-middle-panel">
+<section class="middle grain{% if middle.both_in() %} is-met{% endif %}" id="middle" aria-labelledby="middle-h">
+  <svg class="middle-mark" viewBox="0 0 64 28" aria-hidden="true" focusable="false"><circle cx="22" cy="14" r="11"/><circle cx="42" cy="14" r="11"/><path class="middle-lens" d="M32 5.6a11 11 0 0 1 0 16.8 11 11 0 0 1 0-16.8z"/></svg>
+  <h2 class="middle-h" id="middle-h">Meet in the middle</h2>
+  {% if middle.both_in() %}
+  <p class="middle-p">You've both told the jar how tonight feels. It'll draw only from what fits you both. Neither of you sees the other's answers.</p>
+  {% else if middle.mine.is_some() %}
+  <p class="middle-p">You're checked in. Waiting for {{ middle.partner }}: when they open the jar, they'll see it's their turn. Your answers stay yours.</p>
+  <p class="middle-ask"><a href="{{ middle.wa_url }}" target="_blank" rel="noopener noreferrer">Ask {{ middle.partner }} to check in<span class="visually-hidden"> (opens WhatsApp)</span></a></p>
+  {% else if middle.partner_in %}
+  <p class="middle-p"><strong>{{ middle.partner }} has checked in for tonight.</strong> Add yours and the jar draws from where you meet. You won't see their answers, and they won't see yours.</p>
+  {% else %}
+  <p class="middle-p">Can't decide together? Each of you tells the jar how tonight feels, on your own phone. It draws from the overlap, and neither of you sees the other's answers.</p>
+  {% endif %}
+
+  <details class="middle-form-wrap"{% if middle.mine.is_none() && middle.partner_in %} open{% endif %}>
+    <summary class="middle-toggle">{% if middle.mine.is_some() %}Change my answers{% else %}Check in for tonight{% endif %}</summary>
+    <form class="middle-form" method="post" action="/middle">
+      <fieldset class="middle-q">
+        <legend>Energy</legend>
+        {% for o in middle.energies %}<label class="pill"><input type="radio" name="energy" value="{{ o.value }}"{% if o.selected %} checked{% endif %}><span>{{ o.label }}</span></label>{% endfor %}
+      </fieldset>
+      <fieldset class="middle-q">
+        <legend>Spend, for both of us</legend>
+        {% for o in middle.budgets %}<label class="pill"><input type="radio" name="budget" value="{{ o.value }}"{% if o.selected %} checked{% endif %}><span>{% if o.value.is_empty() || o.value == "0" %}{{ o.label }}{% else %}up to {{ o.label }}{% endif %}</span></label>{% endfor %}
+      </fieldset>
+      <fieldset class="middle-q">
+        <legend>Time</legend>
+        {% for o in middle.times %}<label class="pill"><input type="radio" name="max_duration" value="{{ o.value }}"{% if o.selected %} checked{% endif %}><span>{{ o.label }}</span></label>{% endfor %}
+      </fieldset>
+      <fieldset class="middle-q">
+        <legend>How far</legend>
+        {% for o in middle.reaches %}<label class="pill"><input type="radio" name="reach" value="{{ o.value }}"{% if o.selected %} checked{% endif %}><span>{{ o.label }}</span></label>{% endfor %}
+      </fieldset>
+      <fieldset class="middle-q">
+        <legend>Mood</legend>
+        <label class="pill"><input type="radio" name="vibe" value=""{% if middle.no_vibe() %} checked{% endif %}><span>any</span></label>{% for o in middle.vibes %}<label class="pill"><input type="radio" name="vibe" value="{{ o.value }}"{% if o.selected %} checked{% endif %}><span>{{ o.label }}</span></label>{% endfor %}
+      </fieldset>
+      <div class="middle-actions">
+        <button class="btn btn-ink" type="submit">{% if middle.mine.is_some() %}Save my answers{% else %}Check in{% endif %}</button>
+        {% if middle.mine.is_some() %}<button class="middle-clear" type="submit" name="clear" value="1" formnovalidate>Take mine back</button>{% endif %}
+      </div>
+      <p class="middle-fine">Kept until tonight ends, then deleted.</p>
+    </form>
+  </details>
+</section>
+  </div>
+</details>{% endif %}{% endblock %}
 {% block head %}
 <link rel="stylesheet" href="/static/jar.css?v={{ crate::BUILD }}">
 <script src="/static/jar.js?v={{ crate::BUILD }}" defer></script>
@@ -102,53 +152,7 @@
 
 <div id="pick" aria-live="polite"></div>
 
-{% if middle.enabled %}
-<section class="middle grain{% if middle.both_in() %} is-met{% endif %}" id="middle" aria-labelledby="middle-h">
-  <svg class="middle-mark" viewBox="0 0 64 28" aria-hidden="true" focusable="false"><circle cx="22" cy="14" r="11"/><circle cx="42" cy="14" r="11"/><path class="middle-lens" d="M32 5.6a11 11 0 0 1 0 16.8 11 11 0 0 1 0-16.8z"/></svg>
-  <h2 class="middle-h" id="middle-h">Meet in the middle</h2>
-  {% if middle.both_in() %}
-  <p class="middle-p">You've both told the jar how tonight feels. It'll draw only from what fits you both. Neither of you sees the other's answers.</p>
-  {% else if middle.mine.is_some() %}
-  <p class="middle-p">You're checked in. Waiting for {{ middle.partner }}: when they open the jar, they'll see it's their turn. Your answers stay yours.</p>
-  <p class="middle-ask"><a href="{{ middle.wa_url }}" target="_blank" rel="noopener noreferrer">Ask {{ middle.partner }} to check in<span class="visually-hidden"> (opens WhatsApp)</span></a></p>
-  {% else if middle.partner_in %}
-  <p class="middle-p"><strong>{{ middle.partner }} has checked in for tonight.</strong> Add yours and the jar draws from where you meet. You won't see their answers, and they won't see yours.</p>
-  {% else %}
-  <p class="middle-p">Can't decide together? Each of you tells the jar how tonight feels, on your own phone. It draws from the overlap, and neither of you sees the other's answers.</p>
-  {% endif %}
 
-  <details class="middle-form-wrap"{% if middle.mine.is_none() && middle.partner_in %} open{% endif %}>
-    <summary class="middle-toggle">{% if middle.mine.is_some() %}Change my answers{% else %}Check in for tonight{% endif %}</summary>
-    <form class="middle-form" method="post" action="/middle">
-      <fieldset class="middle-q">
-        <legend>Energy</legend>
-        {% for o in middle.energies %}<label class="pill"><input type="radio" name="energy" value="{{ o.value }}"{% if o.selected %} checked{% endif %}><span>{{ o.label }}</span></label>{% endfor %}
-      </fieldset>
-      <fieldset class="middle-q">
-        <legend>Spend, for both of us</legend>
-        {% for o in middle.budgets %}<label class="pill"><input type="radio" name="budget" value="{{ o.value }}"{% if o.selected %} checked{% endif %}><span>{% if o.value.is_empty() || o.value == "0" %}{{ o.label }}{% else %}up to {{ o.label }}{% endif %}</span></label>{% endfor %}
-      </fieldset>
-      <fieldset class="middle-q">
-        <legend>Time</legend>
-        {% for o in middle.times %}<label class="pill"><input type="radio" name="max_duration" value="{{ o.value }}"{% if o.selected %} checked{% endif %}><span>{{ o.label }}</span></label>{% endfor %}
-      </fieldset>
-      <fieldset class="middle-q">
-        <legend>How far</legend>
-        {% for o in middle.reaches %}<label class="pill"><input type="radio" name="reach" value="{{ o.value }}"{% if o.selected %} checked{% endif %}><span>{{ o.label }}</span></label>{% endfor %}
-      </fieldset>
-      <fieldset class="middle-q">
-        <legend>In the mood for <span class="middle-opt">optional</span></legend>
-        <label class="pill"><input type="radio" name="vibe" value=""{% if middle.no_vibe() %} checked{% endif %}><span>anything</span></label>{% for o in middle.vibes %}<label class="pill"><input type="radio" name="vibe" value="{{ o.value }}"{% if o.selected %} checked{% endif %}><span>{{ o.label }}</span></label>{% endfor %}
-      </fieldset>
-      <div class="middle-actions">
-        <button class="btn btn-ink" type="submit">{% if middle.mine.is_some() %}Save my answers{% else %}Check in{% endif %}</button>
-        {% if middle.mine.is_some() %}<button class="middle-clear" type="submit" name="clear" value="1" formnovalidate>Take mine back</button>{% endif %}
-      </div>
-      <p class="middle-fine">Kept until tonight ends, then deleted.</p>
-    </form>
-  </details>
-</section>
-{% endif %}
 
 {% if let Some(plan) = next_plan %}
 <div class="next-plan">

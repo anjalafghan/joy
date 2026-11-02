@@ -12,6 +12,8 @@ primary_region = 'sin'
   COOKIE_SECURE = 'true'
   TRUST_FLY_CLIENT_IP = 'true'
   CURRENCY_SYMBOL = '₹'
+  # Links we send each other (the WhatsApp envelopes) point here.
+  PUBLIC_URL = 'https://joy-jar.fly.dev'
   # Local time for stamp dates, months in Kept, and calendar invites.
   TZ = 'Asia/Kolkata'
 

@@ -306,7 +306,7 @@ impl Schedule {
     }
 
     /// From one of our homes to a place (or back), the way that person travels.
-    fn home_leg(&self, cfg: &Config, who: usize, place: (f64, f64)) -> Option<Leg> {
+    pub fn home_leg(&self, cfg: &Config, who: usize, place: (f64, f64)) -> Option<Leg> {
         let home = cfg.people[who].1?;
         let km = road_km(home, place);
         let base = if self.modes[who] == "cab" { travel::cab(km).minutes } else { travel::train(km).minutes };

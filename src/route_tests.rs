@@ -327,7 +327,10 @@ async fn a_slip_can_be_planned_for_a_day_and_sent() {
     assert_eq!(r.status, StatusCode::OK);
     assert!(r.body.contains("is planned for <strong>Mon 2 Nov, 7:00 pm</strong>"), "{}", r.body);
     assert!(r.body.contains("Send to Rohit"), "{}", r.body);
-    assert!(r.body.contains("https://wa.me/?text=Our%20date%3A%20Do%20a%20physical%20jigsaw"), "{}", r.body);
+    // What goes to WhatsApp is an envelope link, not the date spelled out.
+    let token = t.text(&format!("SELECT share_token FROM history WHERE activity_id = {id}")).await;
+    assert!(r.body.contains(&format!("%2Fe%2F{token}")), "{}", r.body);
+    assert!(!r.body.contains("wa.me/?text=Our%20date"), "{}", r.body);
     let hid = t.scalar(&format!("SELECT id FROM history WHERE activity_id = {id}")).await;
     assert_eq!(t.scalar(&format!("SELECT drawn_by FROM history WHERE id = {hid}")).await, 1);
     assert_eq!(
@@ -740,7 +743,8 @@ async fn meet_in_the_middle_draws_from_the_overlap_and_never_shows_the_other_s_a
         assert!(!neha_jar.contains(answer), "Neha's page shows Rohit's answer {answer}");
     }
 
-    t.post("/middle", &neha, "energy=low&budget=500&max_duration=short&reach=home&vibe=cozy").await;
+    // Staying in still means one of us crossing town: half a day, door to door.
+    t.post("/middle", &neha, "energy=low&budget=500&max_duration=half_day&reach=home&vibe=cozy").await;
     assert!(t.get("/", &rohit).await.body.contains("Draw from the middle"));
 
     let mut current = String::new();
@@ -1012,7 +1016,7 @@ async fn keeping_a_date_plans_the_day_deals_the_jobs_and_folds_in_a_plan_b() {
 
     // The drawn card says when, before we commit.
     let card = t.post("/pick", &neha, &format!("when={weeknight}&current={walk}&excluded=")).await;
-    assert!(card.body.contains("leave 7:30 pm") || card.body.contains("plan-line"), "{}", card.body);
+    assert!(card.body.contains("card-route") && card.body.contains("Leave the office together"), "the day, before it's a date: {}", card.body);
 
     let r = t.post(&format!("/accept/{cafe}?when={weeknight}"), &neha, "").await;
     assert_eq!(r.status, StatusCode::OK);
@@ -1173,4 +1177,78 @@ async fn a_stale_date_on_an_old_card_plans_nothing() {
     assert_eq!(r.status, StatusCode::OK);
     assert_eq!(t.scalar(&format!("SELECT planned_at IS NULL FROM history WHERE activity_id = {cafe}")).await, 1);
     assert!(r.body.contains("When is it?"), "asks for a time instead");
+}
+
+// ── envelopes, the header, and travel time ─────────────────────────────────
+
+#[tokio::test]
+async fn an_envelope_opens_without_logging_in_and_keeps_a_surprise_sealed() {
+    let t = setup().await;
+    let neha = t.as_person(1).await;
+    let play = t.id_of(PLAY).await;
+
+    // A kept date: the link opens for anyone holding it, logged in or not.
+    let r = t.post(&format!("/accept/{play}"), &neha, "").await;
+    assert!(r.body.contains("Send Rohit the envelope"), "{}", r.body);
+    let hid = t.scalar(&format!("SELECT max(id) FROM history WHERE activity_id = {play}")).await;
+    let token = t.text(&format!("SELECT share_token FROM history WHERE id = {hid}")).await;
+    assert_eq!(token.len(), 24);
+    let page = t.get(&format!("/e/{token}"), "").await;
+    assert_eq!(page.status, StatusCode::OK);
+    assert!(page.body.contains("Prithvi") && page.body.contains("It&#x27;s a date"), "{}", page.body);
+    assert!(page.body.contains("For Rohit, from Neha"));
+    assert_eq!(page.headers.get("x-robots-tag").unwrap(), "noindex");
+    assert!(!page.body.contains("og:title\" content=\"A play"), "the preview never gives it away");
+
+    // Guessing gets nothing.
+    assert_eq!(t.get("/e/AAAAAAAAAAAAAAAAAAAAAAAA", "").await.status, StatusCode::NOT_FOUND);
+    assert_eq!(t.get("/e/short", "").await.status, StatusCode::NOT_FOUND);
+
+    // A surprise's envelope holds hints only, until it's revealed.
+    let h = surprise_from_rohit(&t).await;
+    let token = crate::db::date_token(&t.db, h).await.unwrap();
+    let sealed = t.get(&format!("/e/{token}"), "").await.body;
+    assert!(sealed.contains("A surprise") && sealed.contains("stays locked"), "{sealed}");
+    assert!(!sealed.contains("Prithvi"), "{sealed}");
+    t.exec(&format!("UPDATE history SET revealed = 1 WHERE id = {h}")).await;
+    assert!(t.get(&format!("/e/{token}"), "").await.body.contains("Prithvi"));
+
+    // The same token every time it's shared.
+    assert_eq!(crate::db::date_token(&t.db, h).await.unwrap(), token);
+}
+
+#[tokio::test]
+async fn a_drawn_slip_is_sent_as_an_envelope_and_its_place_is_the_map_link() {
+    let t = setup().await;
+    let neha = t.as_person(1).await;
+    t.exec("UPDATE activities SET archived = 1 WHERE lat IS NULL").await;
+    let card = t.post("/pick", &neha, "").await.body;
+    let id: i64 = card.split("data-id=\"").nth(1).and_then(|r| r.split('"').next()).and_then(|i| i.parse().ok()).expect("a drawn slip");
+    let token = t.text(&format!("SELECT share_token FROM activities WHERE id = {id}")).await;
+    assert_eq!(token.len(), 24);
+    assert!(card.contains(&format!("%2Fe%2F{token}")), "{card}");
+    assert!(!card.contains("Open in Maps"));
+    assert!(card.contains("class=\"place-link\" href=\"https://www.google.com/maps/"), "{card}");
+    let env = t.get(&format!("/e/{token}"), "").await;
+    assert!(env.body.contains("What about this?"), "{} {}", env.status, env.body);
+}
+
+#[tokio::test]
+async fn the_header_has_the_year_and_meet_in_the_middle_drops_down_from_it() {
+    let t = setup().await;
+    let neha = t.as_person(1).await;
+    let jar = t.get("/", &neha).await.body;
+    assert!(jar.contains("<a href=\"/year\" data-nav=\"year\">Year</a>"));
+    let header = jar.split("</header>").next().unwrap();
+    assert!(header.contains("id=\"middle-menu\"") && header.contains("Check in for tonight"), "the check-in lives in the header");
+    assert!(header.contains("value=\"any\""), "energy and mood can be any");
+    // Elsewhere it's a link back to it.
+    assert!(t.get("/history", &neha).await.body.contains("href=\"/#middle\""));
+}
+
+#[tokio::test]
+async fn slips_joy_made_go_back_for_free() {
+    let t = setup().await;
+    assert_eq!(t.scalar("SELECT count(*) FROM activities WHERE added_by = 'joy' AND generated = 0").await, 0);
+    assert_eq!(t.scalar("SELECT generated FROM activities WHERE title = 'Pizza next door at J3'").await, 1);
 }

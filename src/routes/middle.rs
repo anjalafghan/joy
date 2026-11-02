@@ -22,7 +22,7 @@ pub const REACHES: [(&str, &str); 5] = [
 ];
 /// Spend for both of us. None = any amount.
 pub const BUDGETS: [Option<i64>; 5] = [Some(0), Some(500), Some(1500), Some(3000), None];
-pub const ENERGY_WORDS: [(&str, &str); 3] = [("low", "Low"), ("med", "Some"), ("high", "Lots")];
+pub const ENERGY_WORDS: [(&str, &str); 4] = [("low", "Low"), ("med", "Some"), ("high", "Lots"), ("any", "Any")];
 pub const TIMES: [(&str, &str); 5] =
     [("short", "A couple of hours"), ("half_day", "Half a day"), ("full_day", "A whole day"), ("weekend", "The weekend"), ("", "Any")];
 /// Vibes worth asking about (a subset of the tags slips use).
@@ -38,6 +38,7 @@ pub struct Checkin {
     pub vibe: String,
 }
 
+/// "any" (and "high") rule nothing out.
 fn energy_rank(e: &str) -> u8 {
     match e {
         "low" => 0,
@@ -244,6 +245,13 @@ mod tests {
         assert!(!m.stay_in);
         assert_eq!(m.max_energy, 0, "one of us is tired, so nothing high-energy");
         assert_eq!(m.vibes, vec!["adventurous".to_string(), "cozy".to_string()]);
+    }
+
+    #[test]
+    fn any_energy_rules_nothing_out() {
+        let m = meet(&c("any", None, "", "far", ""), &c("any", None, "", "far", ""));
+        assert!(m.allows("high", &[]) && m.allows("low", &[]));
+        assert!(!meet(&c("any", None, "", "far", ""), &c("low", None, "", "far", "")).allows("high", &[]));
     }
 
     #[test]

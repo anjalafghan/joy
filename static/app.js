@@ -99,3 +99,15 @@
     r.dispatchEvent(new Event('change', { bubbles: true }));
   });
 })();
+
+// Meet in the middle lives in the header: open it for /#middle (where its form lands), and
+// close it on Escape or a tap anywhere else.
+(() => {
+  const menu = document.getElementById('middle-menu');
+  if (!menu) return;
+  if (location.hash === '#middle') menu.open = true;
+  document.addEventListener('click', (e) => { if (menu.open && !menu.contains(e.target)) menu.open = false; });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && menu.open) { menu.open = false; menu.querySelector('summary').focus(); }
+  });
+})();

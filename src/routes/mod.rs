@@ -1,6 +1,7 @@
 pub mod auth;
 pub mod dayplan;
 pub mod decide;
+pub mod envelope;
 pub mod history;
 pub mod middle;
 pub mod month;
@@ -87,6 +88,8 @@ pub struct ActivityView {
     pub vetoed_by: String,
     /// Opens Uber with this place as the drop-off, to see the real fare.
     pub uber_url: Option<String>,
+    /// "about 6 h 30 min door to door", when getting there takes a while.
+    pub door: String,
 }
 
 pub struct TravelLine {
@@ -158,6 +161,10 @@ impl ActivityView {
                     })
                 })
                 .collect(),
+            door: match door_minutes(cfg, a) {
+                Some(m) if m >= a.minutes() + 30 => format!("about {} door to door", crate::travel::duration_label((m + 15) / 30 * 30)),
+                _ => String::new(),
+            },
             uber_url: a.latlng().map(|(lat, lng)| {
                 format!(
                     "https://m.uber.com/ul/?action=setPickup&pickup=my_location\
@@ -167,6 +174,40 @@ impl ActivityView {
             }),
         }
     }
+}
+
+/// How long each of us travels one way to get there, in minutes: by our usual train or metro
+/// (calibrated to our real commutes when the schedule knows them). At home together, one of
+/// us comes over; long distance, nobody travels.
+pub fn travel_minutes(cfg: &Config, a: &Activity) -> [Option<i64>; 2] {
+    let leg = |who: usize, place: (f64, f64)| -> Option<i64> {
+        match &cfg.schedule {
+            Some(sched) => sched.home_leg(cfg, who, place).map(|l| l.minutes),
+            None => Some(crate::travel::train(crate::config::road_km(cfg.people[who].1?, place)).minutes),
+        }
+    };
+    match a.setting.as_str() {
+        "apart" => [None, None],
+        // Whoever has the shorter trip comes over; the other stays put.
+        "home" => match (cfg.people[0].1, cfg.people[1].1) {
+            (Some(h0), Some(h1)) => {
+                let (m0, m1) = (leg(0, h1), leg(1, h0));
+                if m0.unwrap_or(i64::MAX) <= m1.unwrap_or(i64::MAX) { [m0, Some(0)] } else { [Some(0), m1] }
+            }
+            _ => [None, None],
+        },
+        _ => match a.latlng() {
+            Some(p) => [leg(0, p), leg(1, p)],
+            None => [None, None],
+        },
+    }
+}
+
+/// The whole date for whichever of us travels longest: there, the date itself, and back.
+/// None when nobody travels (or we can't tell).
+pub fn door_minutes(cfg: &Config, a: &Activity) -> Option<i64> {
+    let longest = travel_minutes(cfg, a).into_iter().flatten().max()?;
+    Some(a.minutes() + 2 * longest)
 }
 
 /// Distance the "how far" filter compares against: from one person's home,
@@ -372,21 +413,26 @@ pub fn url_encode(s: &str) -> String {
 }
 
 /// What we send each other on WhatsApp about a slip.
-pub fn share_text(v: &ActivityView) -> String {
-    let mut t = format!("Date idea from our jar: {}", v.title);
-    if !v.place.is_empty() {
-        t += &format!(" ({})", v.place);
-    }
-    t += &format!(" · {} · {}", v.cost, v.duration);
-    if let Some(url) = &v.maps_url {
-        t += &format!("\n{url}");
-    }
-    t
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_date_far_from_both_of_us_takes_most_of_the_day() {
+        let mut cfg = Config::for_tests("photos".into(), "", false);
+        cfg.people = [("Anjal".into(), Some((19.0, 73.05))), ("Diya".into(), Some((19.28, 72.87)))];
+        let a = Activity { setting: "local".into(), lat: Some(19.136), lng: Some(72.83), duration: "short".into(), ..Default::default() };
+        let [ulwe, mira] = travel_minutes(&cfg, &a);
+        assert!(ulwe.unwrap() > 60 && mira.unwrap() > 30, "{ulwe:?} {mira:?}");
+        let door = door_minutes(&cfg, &a).unwrap();
+        assert_eq!(door, a.minutes() + 2 * ulwe.unwrap().max(mira.unwrap()));
+        assert!(picker::Duration::of_minutes(door) > picker::Duration::Short, "two hours in Andheri isn't a couple of hours: {door}");
+        // At home together, one of us comes over; long distance, nobody travels.
+        let home = Activity { setting: "home".into(), ..a.clone() };
+        assert!(travel_minutes(&cfg, &home).contains(&Some(0)));
+        let apart = Activity { setting: "apart".into(), ..a };
+        assert_eq!(door_minutes(&cfg, &apart), None);
+    }
 
     #[test]
     fn labels_planned_times() {

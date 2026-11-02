@@ -12,7 +12,7 @@ use axum_extra::extract::SignedCookieJar;
 
 use super::{
     learned, Learned,
-    budget_view, distance_from, duration_opts, render, share_text, url_encode, ActivityView, AppError, BudgetView,
+    budget_view, distance_from, duration_opts, render, ActivityView, AppError, BudgetView,
     HtmlResult, Me, Opt,
 };
 use crate::{
@@ -364,6 +364,12 @@ impl JarData {
                     _ => distance_from(&s.cfg, a, f.from()),
                 };
                 let mut c = a.candidate(km, self.learned.cost);
+                // "The time we have" is door to door: two hours in Andheri is most of a day from
+                // home. An evening from the office has its own clock (the fit above).
+                let from_office = self.slot.is_some_and(|sl| sl.kind == crate::schedule::Kind::Weeknight);
+                if let Some(m) = super::door_minutes(&s.cfg, a).filter(|_| !from_office) {
+                    c.duration = c.duration.max(Duration::of_minutes(m));
+                }
                 c.title = s.cfg.personalize(&c.title);
                 if let (Some(slot), Some(sched)) = (&self.slot, &s.cfg.schedule) {
                     c.window_miss = sched.fit(&s.cfg, slot, a).err();
@@ -451,6 +457,10 @@ struct CardTpl {
     when_label: String,
     /// On a drawn card: the plan in a line ("leave 7:30 pm · home by 10:40 pm").
     plan_line: String,
+    /// On a drawn card: the day's timeline, before we say yes to it.
+    route: Vec<super::dayplan::StepView>,
+    /// "Open 12:00 pm – 11:30 pm" that day, or a nudge to check.
+    route_note: String,
     /// On a kept card: the whole day-of plan.
     plan: Option<super::dayplan::DayPlan>,
 }
@@ -481,6 +491,8 @@ impl CardTpl {
             wa_url: String::new(),
             when: String::new(),
             start: String::new(),
+            route: vec![],
+            route_note: String::new(),
             when_label: String::new(),
             plan_line: String::new(),
             plan: None,
@@ -600,15 +612,44 @@ async fn card(
         Some(a) => pair_offers(s, f, a, learned).await?,
         None => vec![],
     };
-    let view = a.map(|a| ActivityView::new(&s.cfg, a, learned));
-    let share = view.as_ref().map(share_text).unwrap_or_default();
-    let plan_line = match (a, &slot, &s.cfg.schedule) {
-        (Some(a), Some(slot), Some(sched)) => sched.fit(&s.cfg, slot, a).map(|fit| plan_line(&s.cfg, slot, &fit)).unwrap_or_default(),
+    let mut view = a.map(|a| ActivityView::new(&s.cfg, a, learned));
+    // From the office, door to door from home doesn't apply: the timeline has the real times.
+    if let (Some(v), Some(crate::schedule::Kind::Weeknight)) = (view.as_mut(), slot.map(|sl| sl.kind)) {
+        v.door.clear();
+    }
+    // "Send to Diya" sends an envelope to open, not the slip spelled out in the chat.
+    let share = match a {
+        Some(a) => super::envelope::wa_text(&s.cfg, &db::slip_token(&s.db, a.id).await?, "Found one in our jar for us. Open the envelope:"),
+        None => String::new(),
+    };
+    let fit = match (a, &slot, &s.cfg.schedule) {
+        (Some(a), Some(slot), Some(sched)) => sched.fit(&s.cfg, slot, a).ok(),
+        _ => None,
+    };
+    let plan_line = match (&fit, &slot) {
+        (Some(fit), Some(slot)) => plan_line(&s.cfg, slot, fit),
         _ => String::new(),
+    };
+    // The day as it would go, shown before "It's a date" so we can decide with it.
+    let (route, route_note) = match (a, &slot, &s.cfg.schedule, &fit) {
+        (Some(a), Some(slot), Some(sched), Some(fit)) => (
+            crate::schedule::timeline(sched, &s.cfg, slot, a, fit)
+                .into_iter()
+                .map(|st| super::dayplan::StepView { mine: st.who.is_some() && st.who == d.me.who, at: st.at, minutes: st.minutes, what: st.what })
+                .collect(),
+            match crate::hours::Hours::parse(&a.hours) {
+                _ if matches!(a.setting.as_str(), "home" | "apart") => String::new(),
+                Some(h) => h.label(slot.weekday()),
+                None => "Hours not confirmed: check before you go".into(),
+            },
+        ),
+        _ => (vec![], String::new()),
     };
     render(CardTpl {
         when: slot.map(|sl| sl.key()).unwrap_or_else(|| "any".into()),
         start: f.start().into(),
+        route,
+        route_note,
         when_label: slot.map(|sl| sl.label()).unwrap_or_default(),
         plan_line,
         hidden: f.hidden(excluded, used, a.map_or(0, |a| a.id)),
@@ -619,7 +660,7 @@ async fn card(
         can_surprise: d.me.who.is_some(),
         can_veto: d.me.who.is_some(),
         partner: d.me.partner.clone(),
-        wa_url: format!("https://wa.me/?text={}", url_encode(&share)),
+        wa_url: super::envelope::wa_url(&share),
         middle: f.is_middle(),
         share_text: share,
         activity: view,
@@ -801,15 +842,13 @@ pub async fn accept(
         None => None,
     };
     let a = db::get(&s.db, id).await?;
-    let view = a.as_ref().map(|a| ActivityView::new(&s.cfg, a, &learned));
-    let share = view.as_ref().map(share_text).unwrap_or_default();
-    let share = match &plan {
-        Some(p) if !surprise => {
-            let lines: Vec<String> = p.steps.iter().map(|st| format!("{} {}", st.at, st.what)).collect();
-            format!("{share}\n\n{}\n{}", p.when, lines.join("\n"))
-        }
-        _ => share,
-    };
+    let mut view = a.as_ref().map(|a| ActivityView::new(&s.cfg, a, &learned));
+    if let (Some(v), Some(crate::schedule::Kind::Weeknight)) = (view.as_mut(), slot.map(|sl| sl.kind)) {
+        v.door.clear();
+    }
+    // The kept date goes over as an envelope: the plan is inside, and a surprise stays sealed.
+    let line = if surprise { "I've planned something for us. Open the envelope (it stays sealed till the day):" } else { "It's a date! Open the envelope:" };
+    let share = super::envelope::wa_text(&s.cfg, &db::date_token(&s.db, ids[0]).await?, line);
     render(CardTpl {
         plan,
         done: true,
@@ -818,7 +857,7 @@ pub async fn accept(
         surprise,
         partner: Me::new(&s.cfg, who).partner,
         history_ids: ids.iter().map(|i| i.to_string()).collect::<Vec<_>>().join(","),
-        wa_url: format!("https://wa.me/?text={}", url_encode(&share)),
+        wa_url: super::envelope::wa_url(&share),
         share_text: share,
         activity: view,
         ..CardTpl::blank()

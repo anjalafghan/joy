@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}{% if from.is_empty() %}A note from our jar{% else %}{{ from }} sent you a date{% endif %} · joy{% endblock %}
+{% block page %}envelope{% endblock %}
+{% block nav %}{% endblock %}
+{% block head %}
+<meta name="robots" content="noindex">
+<meta property="og:title" content="{% if from.is_empty() %}A note from our jar{% else %}{{ from }} sent you a date{% endif %}">
+<meta property="og:description" content="Open the envelope.">
+<script>document.documentElement.classList.add('js');</script>
+<link rel="stylesheet" href="/static/envelope.css?v={{ crate::BUILD }}">
+<script src="/static/envelope.js?v={{ crate::BUILD }}" defer></script>
+{% endblock %}
+{% block content %}
+<div class="env-page">
+  <p class="env-to">{% if !to.is_empty() %}For {{ to }}{% if !from.is_empty() %}, from {{ from }}{% endif %}{% else %}From our jar{% endif %}</p>
+
+  <div class="env" id="env">
+    <div class="env-back" aria-hidden="true"></div>
+    <div class="env-peek" aria-hidden="true">
+      <p class="env-peek-k">{{ kicker }}</p>
+      <p class="env-peek-t">{{ title }}</p>
+    </div>
+    <div class="env-pocket" aria-hidden="true"></div>
+    <div class="env-flap" aria-hidden="true"></div>
+    <button class="env-seal" id="env-open" type="button" aria-controls="letter" aria-expanded="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.3c-4.6-3.2-8.3-6.4-8.3-10.4 0-2.6 2-4.6 4.4-4.6 1.6 0 3 .9 3.9 2.2.9-1.3 2.3-2.2 3.9-2.2 2.4 0 4.4 2 4.4 4.6 0 4-3.7 7.2-8.3 10.4z"/></svg>
+      <span class="visually-hidden">Open the envelope</span>
+    </button>
+  </div>
+  <p class="env-hint" id="env-hint">Tap the seal to open it</p>
+
+  <article class="env-letter grain{% if sealed %} is-sealed{% endif %}" id="letter" aria-labelledby="letter-t">
+    <p class="env-k">{{ kicker }}</p>
+    <h1 class="env-t" id="letter-t">{{ title }}</h1>
+    {% if !when.is_empty() %}<p class="env-when">{{ when }}</p>{% endif %}
+    {% if !place.is_empty() %}
+    <p class="env-place"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21.2c-3.9-4.6-6.4-8.2-6.4-11.2a6.4 6.4 0 0 1 12.8-.2c.1 3.1-2.5 6.7-6.4 11.4z"/><circle cx="12" cy="9.8" r="2.3"/></svg>{% if let Some(u) = maps_url %}<a href="{{ u }}" target="_blank" rel="noopener noreferrer">{{ place }}<span class="visually-hidden"> (opens the map)</span></a>{% else %}<span>{{ place }}</span>{% endif %}</p>
+    {% endif %}
+    {% if !meta.is_empty() %}<p class="env-meta">{{ meta }}</p>{% endif %}
+    {% if !steps.is_empty() %}
+    <ol class="env-route">
+      {% for st in steps %}<li class="{% if st.mine %}is-mine{% endif %}"><span class="env-at">{{ st.at }}</span><span>{{ st.what }}</span></li>{% endfor %}
+    </ol>
+    {% endif %}
+    {% if !hours_note.is_empty() %}<p class="env-note">{{ hours_note }}</p>{% endif %}
+    {% if !notes.is_empty() %}<p class="env-notes">{{ notes }}</p>{% endif %}
+    {% if sealed %}<p class="env-locked"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10.5" width="14" height="9.5" rx="2"/><path d="M8.2 10.5V8a3.8 3.8 0 0 1 7.6 0v2.5"/></svg><span>The rest stays locked until {% if from.is_empty() %}it's{% else %}{{ from }} reveals it{% endif %}. Just be ready.</span></p>{% endif %}
+    <p class="env-sign">— joy</p>
+  </article>
+</div>
+{% endblock %}

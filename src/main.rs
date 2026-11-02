@@ -144,6 +144,8 @@ pub fn build_app(state: AppState) -> Router {
         // Reachable without logging in: the worker must update even after the login cookie expires.
         .route("/sw.js", get(web::service_worker))
         .route("/offline", get(web::offline))
+        // Envelopes we send each other: the long random token is the key, not a login.
+        .route("/e/{token}", get(routes::envelope::page))
         .nest_service(
             "/static",
             tower::ServiceBuilder::new().layer(middleware::from_fn(web::static_cache)).service(ServeDir::new("static")),

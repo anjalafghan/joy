@@ -38,6 +38,17 @@ impl Duration {
     pub fn parse(s: &str) -> Option<Self> {
         Self::ALL.into_iter().find(|d| d.key() == s)
     }
+
+    /// The time a date takes door to door, as the time we'd need to have: a couple of hours,
+    /// half a day, a whole day, or more.
+    pub fn of_minutes(m: i64) -> Self {
+        match m {
+            ..=150 => Self::Short,
+            151..=360 => Self::HalfDay,
+            361..=720 => Self::FullDay,
+            _ => Self::Weekend,
+        }
+    }
 }
 
 /// "home" is at home together, in the same room; "apart" is long distance, each at our own

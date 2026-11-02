@@ -3,7 +3,7 @@ use sqlx::{FromRow, SqlitePool};
 
 use crate::picker::{Candidate, Duration};
 
-#[derive(Debug, Clone, FromRow)]
+#[derive(Debug, Clone, Default, FromRow)]
 pub struct Activity {
     pub id: i64,
     pub title: String,
@@ -1055,4 +1055,39 @@ pub async fn next_planned(db: &SqlitePool) -> sqlx::Result<Option<HistoryRow>> {
     ))
     .fetch_optional(db)
     .await
+}
+
+/// The envelope token for a slip or a kept date, made the first time it's shared.
+async fn share_token(db: &SqlitePool, table: &str, id: i64) -> sqlx::Result<String> {
+    use rand::{distributions::Alphanumeric, Rng};
+    let fresh: String = rand::thread_rng().sample_iter(&Alphanumeric).take(24).map(char::from).collect();
+    sqlx::query(&format!("UPDATE {table} SET share_token = ? WHERE id = ? AND share_token IS NULL")).bind(&fresh).bind(id).execute(db).await?;
+    sqlx::query_scalar(&format!("SELECT share_token FROM {table} WHERE id = ?")).bind(id).fetch_one(db).await
+}
+
+pub async fn slip_token(db: &SqlitePool, activity_id: i64) -> sqlx::Result<String> {
+    share_token(db, "activities", activity_id).await
+}
+
+pub async fn date_token(db: &SqlitePool, history_id: i64) -> sqlx::Result<String> {
+    share_token(db, "history", history_id).await
+}
+
+/// What an envelope holds: a kept date, or a slip one of us is suggesting.
+pub enum Envelope {
+    Date(HistoryRow),
+    Slip(Activity),
+}
+
+pub async fn envelope(db: &SqlitePool, token: &str) -> sqlx::Result<Option<Envelope>> {
+    if token.len() != 24 || !token.chars().all(|c| c.is_ascii_alphanumeric()) {
+        return Ok(None);
+    }
+    if let Some(id) = sqlx::query_scalar::<_, i64>("SELECT id FROM history WHERE share_token = ?").bind(token).fetch_optional(db).await? {
+        return Ok(history_row(db, id).await?.map(Envelope::Date));
+    }
+    match sqlx::query_scalar::<_, i64>("SELECT id FROM activities WHERE share_token = ?").bind(token).fetch_optional(db).await? {
+        Some(id) => Ok(get(db, id).await?.map(Envelope::Slip)),
+        None => Ok(None),
+    }
 }

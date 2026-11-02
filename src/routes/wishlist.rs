@@ -8,7 +8,7 @@ use axum_extra::extract::{Form, SignedCookieJar};
 use serde::Deserialize;
 
 use super::{
-    duration_opts, history::parse_local, planned_label, render, share_text, url_encode, ActivityView, AppError, HtmlResult, Me, Opt,
+    duration_opts, history::parse_local, planned_label, render, ActivityView, AppError, HtmlResult, Me, Opt,
 };
 use crate::{
     auth,
@@ -113,13 +113,13 @@ pub async fn plan(
     let row = db::history_row(&s.db, hid).await?;
     let label = row.and_then(|r| r.planned_local).as_deref().map(planned_label).unwrap_or_default();
     let view = ActivityView::new(&s.cfg, &a, &super::learned(&s).await?);
-    let share = format!("Our date: {} · {label}\n{}", view.title, share_text(&view));
+    let share = super::envelope::wa_text(&s.cfg, &db::date_token(&s.db, hid).await?, &format!("It's a date, {label}! Open the envelope:"));
     Ok(render(SlipPlannedTpl {
         title: view.title,
         label,
         ics_url: format!("/history/{hid}/invite.ics"),
         partner: Me::new(&s.cfg, who).partner,
-        wa_url: format!("https://wa.me/?text={}", url_encode(&share)),
+        wa_url: super::envelope::wa_url(&share),
         share_text: share,
         history_id: hid,
     })?

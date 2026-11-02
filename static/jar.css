@@ -691,3 +691,11 @@ body[data-page="jar"] main { padding-top: 0; }
   .dp-step { animation: none; }
   .dp-check { transition: none; }
 }
+
+/* the drawn slip's day, before it's a date */
+.card-route { margin: 16px 0 0; padding: 12px 14px; border-radius: 12px; background: color-mix(in srgb, var(--ink) 4%, transparent); }
+.card-route .dp-hand { margin: 0 0 8px; }
+/* the place is the map link */
+.place-link { color: inherit; text-decoration: underline; text-decoration-style: dotted; text-decoration-thickness: 1.5px; text-underline-offset: 3px; }
+.place-link:hover { text-decoration-style: solid; color: var(--stamp); }
+.slip-meta .door { color: var(--ink-soft); font-weight: 500; }

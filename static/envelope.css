@@ -1,0 +1,84 @@
+/* The envelope a date arrives in (/e/…). Closed, it shows the wax seal; tapped, the flap lifts,
+   the letter rises out, and the whole date unfolds below. Without JS the letter just shows. */
+body[data-page="envelope"] main { max-width: 520px; margin: 0 auto; padding: max(28px, env(safe-area-inset-top)) var(--gutter) 64px; }
+.env-page { display: grid; justify-items: center; gap: 14px; }
+.env-to { margin: 8px 0 6px; font: 600 1.5rem/1.1 var(--font-hand); color: var(--ink-soft); text-align: center; }
+
+.env {
+  --w: min(84vw, 340px); --h: calc(var(--w) * .64);
+  position: relative; width: var(--w); height: var(--h); margin-top: calc(var(--h) * .5);
+  perspective: 900px;
+  filter: drop-shadow(0 18px 24px rgba(0, 0, 0, .28));
+}
+.env-back, .env-pocket, .env-flap { position: absolute; left: 0; right: 0; }
+.env-back { inset: 0; border-radius: 10px; background: color-mix(in srgb, var(--stamp) 22%, var(--slip)); }
+/* the front pocket: two side folds and a bottom fold, drawn as one clipped sheet */
+.env-pocket {
+  inset: 0; border-radius: 10px; z-index: 3;
+  background:
+    linear-gradient(to top right, transparent calc(50% - 1px), color-mix(in srgb, var(--ink) 10%, transparent) 50%, transparent calc(50% + 1px)) left bottom / 50% 100% no-repeat,
+    linear-gradient(to top left, transparent calc(50% - 1px), color-mix(in srgb, var(--ink) 10%, transparent) 50%, transparent calc(50% + 1px)) right bottom / 50% 100% no-repeat,
+    color-mix(in srgb, var(--stamp) 14%, var(--slip));
+  clip-path: polygon(0 0, 50% 58%, 100% 0, 100% 100%, 0 100%);
+}
+.env-flap {
+  top: 0; height: 62%; z-index: 4; transform-origin: 50% 0;
+  background: color-mix(in srgb, var(--stamp) 30%, var(--slip));
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+  transition: transform .55s cubic-bezier(.5, 0, .3, 1), z-index 0s .28s;
+}
+.env-peek {
+  position: absolute; left: 7%; right: 7%; top: 8%; height: 84%; z-index: 2;
+  padding: 16px 16px 0; border-radius: 6px; text-align: center;
+  background: var(--slip); color: var(--ink);
+  transition: transform .7s cubic-bezier(.2, .8, .2, 1) .45s;
+}
+.env-peek-k { margin: 0; font: 600 .78rem/1 var(--font-ui); letter-spacing: .12em; text-transform: uppercase; color: var(--stamp); }
+.env-peek-t { margin: 8px 0 0; font: 600 1.2rem/1.15 var(--font-display); }
+.env-seal {
+  position: absolute; left: 50%; top: 62%; z-index: 5; translate: -50% -50%;
+  width: 62px; height: 62px; border-radius: 50%; border: 0; cursor: pointer;
+  display: grid; place-items: center;
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--stamp) 70%, #fff) 0, var(--stamp) 45%, color-mix(in srgb, var(--stamp) 75%, #000) 100%);
+  box-shadow: 0 3px 0 color-mix(in srgb, var(--stamp) 60%, #000), 0 8px 18px -6px rgba(0, 0, 0, .5);
+  animation: seal-breathe 2.6s ease-in-out infinite;
+  transition: transform .35s ease, opacity .35s ease;
+}
+.env-seal svg { width: 26px; height: 26px; fill: color-mix(in srgb, var(--stamp-ink) 80%, transparent); }
+@keyframes seal-breathe { 50% { transform: scale(1.06); } }
+.env-hint { margin: 10px 0 0; font: 600 1.1rem/1 var(--font-hand); color: var(--ink-soft); }
+
+/* opening */
+.env.is-open .env-seal { animation: none; transform: scale(.4) rotate(-30deg); opacity: 0; pointer-events: none; }
+.env.is-open .env-flap { transform: rotateX(180deg); z-index: 1; }
+.env.is-open .env-peek { transform: translateY(-62%); }
+
+/* the whole letter */
+.env-letter {
+  width: 100%; margin-top: 18px; padding: 24px 22px 20px; border-radius: var(--radius-slip, 14px);
+  background: var(--slip); color: var(--ink);
+  box-shadow: var(--shadow-slip, 0 10px 30px -14px rgba(0, 0, 0, .4));
+  transform: rotate(-.6deg);
+}
+.js .env-letter { display: none; }
+.js .env-letter.is-out { display: block; animation: letter-out .6s cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes letter-out { from { opacity: 0; transform: translateY(-40px) scale(.94) rotate(-2deg); } }
+.env-k { margin: 0; font: 600 .8rem/1 var(--font-ui); letter-spacing: .14em; text-transform: uppercase; color: var(--stamp); }
+.env-t { margin: 10px 0 0; font: 600 var(--step-2, 1.7rem)/1.1 var(--font-display); }
+.env-when { margin: 8px 0 0; font: 600 1.25rem/1.2 var(--font-hand); color: var(--stamp); }
+.env-place { margin: 14px 0 0; display: flex; gap: 8px; align-items: flex-start; }
+.env-place a { color: inherit; text-decoration: underline dotted 1.5px; text-underline-offset: 3px; }
+.env-meta, .env-note { margin: 6px 0 0; font-size: var(--step--1); color: var(--ink-soft); }
+.env-notes { margin: 14px 0 0; font-style: italic; line-height: 1.5; }
+.env-route { list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 6px; }
+.env-route li { display: grid; grid-template-columns: 5.4em 1fr; gap: 10px; font-size: var(--step--1); line-height: 1.4; }
+.env-route li.is-mine { font-weight: 600; }
+.env-at { color: var(--stamp); font-variant-numeric: tabular-nums; }
+.env-locked { margin: 16px 0 0; display: flex; gap: 8px; align-items: flex-start; color: var(--ink-soft); }
+.env-sign { margin: 18px 0 0; text-align: right; font: 600 1.3rem/1 var(--font-hand); color: var(--ink-soft); }
+
+@media (prefers-reduced-motion: reduce) {
+  .env-flap, .env-peek, .env-seal { transition: none; }
+  .js .env-letter.is-out { animation: none; }
+}
+.ico { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.6; margin-top: 2px; }
