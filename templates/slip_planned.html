@@ -1,0 +1,10 @@
+{# "Plan it" result, swapped into the plan dialog. Fields: title, label, ics_url, partner, wa_url, share_text, history_id. #}
+<div class="plan-done" tabindex="-1">
+  <p class="plan-done-label" role="status"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.6" y="5.2" width="16.8" height="15" rx="2"/><path d="M3.8 9.8h16.4M8 3.4v3.6M16 3.4v3.6"/><path d="M9 14.6l2 2 4-4.2"/></svg><span><strong>{{ title }}</strong> is planned for <strong>{{ label }}</strong>.</span></p>
+  <div class="plan-done-acts">
+    <a class="btn btn-stamp plan-send" href="{{ wa_url }}" data-share="{{ share_text }}" target="_blank" rel="noopener"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.6 3.6 3.4 10.4c-.7.3-.6 1.2.1 1.4l6.3 1.9 1.9 6.3c.2.7 1.1.8 1.4.1z"/><path d="M9.8 13.7 20.6 3.6"/></svg>Send to {{ partner }}</a>
+    <a class="btn" href="{{ ics_url }}" download>Add to calendar</a>
+  </div>
+  <p class="plan-see"><a href="/history#k{{ history_id }}">See it with our dates</a></p>
+  <button class="btn btn-quiet plan-close" type="button">Done</button>
+</div>

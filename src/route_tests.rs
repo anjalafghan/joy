@@ -303,6 +303,37 @@ async fn every_slip_carries_its_search_text() {
 }
 
 #[tokio::test]
+async fn a_slip_can_be_planned_for_a_day_and_sent() {
+    let t = setup().await;
+    let id = t.id_of("Do a physical jigsaw puzzle together").await;
+    let neha = t.as_person(1).await;
+    let body = t.get("/wishlist", &neha).await.body;
+    assert!(body.contains(&format!("data-plan=\"{id}\"")), "every slip has a Plan it button");
+
+    let bad = t.send(Method::POST, &format!("/wishlist/{id}/plan"), &neha, Some("at="), true).await;
+    assert_eq!(bad.status, StatusCode::UNPROCESSABLE_ENTITY, "a time is needed");
+    assert_eq!(t.scalar(&format!("SELECT count(*) FROM history WHERE activity_id = {id}")).await, 0);
+
+    let r = t.send(Method::POST, &format!("/wishlist/{id}/plan"), &neha, Some("at=2026-11-02T19%3A00"), true).await;
+    assert_eq!(r.status, StatusCode::OK);
+    assert!(r.body.contains("is planned for <strong>Mon 2 Nov, 7:00 pm</strong>"), "{}", r.body);
+    assert!(r.body.contains("Send to Rohit"), "{}", r.body);
+    assert!(r.body.contains("https://wa.me/?text=Our%20date%3A%20Do%20a%20physical%20jigsaw"), "{}", r.body);
+    let hid = t.scalar(&format!("SELECT id FROM history WHERE activity_id = {id}")).await;
+    assert_eq!(t.scalar(&format!("SELECT drawn_by FROM history WHERE id = {hid}")).await, 1);
+    assert_eq!(
+        t.scalar(&format!("SELECT planned_at = unixepoch('2026-11-02 19:00', 'utc') FROM history WHERE id = {hid}")).await,
+        1
+    );
+    assert!(r.body.contains(&format!("/history/{hid}/invite.ics")));
+
+    // Without htmx it lands on the kept date.
+    let other = t.id_of("Cook together").await;
+    let plain = t.send(Method::POST, &format!("/wishlist/{other}/plan"), &neha, Some("at=2026-11-03T20%3A00"), false).await;
+    assert!(plain.location().starts_with("/history#k"), "{}", plain.location());
+}
+
+#[tokio::test]
 async fn the_jar_learns_from_real_costs() {
     let t = setup().await;
     let cook = t.id_of("Cook together").await; // ₹800

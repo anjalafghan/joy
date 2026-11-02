@@ -195,6 +195,100 @@
         HTMLFormElement.prototype.submit.call(form); // fall back to the plain POST
       }
     });
+
+    initPlan(swapFrom);
+  }
+
+  /* ═════════ Plan it: put a slip on a day, then send it ═════════ */
+  function initPlan(swapFrom) {
+    const dlg = $('#plan-dlg');
+    if (!dlg || typeof dlg.showModal !== 'function') return;
+    document.documentElement.classList.add('can-plan');
+    const body = $('.plan-body', dlg), form = $('.plan-form', dlg);
+    const at = $('.when-at', form), err = $('.when-err', form), go = $('button[type="submit"]', form);
+    let opener = null, planned = false;
+
+    const pad = (n) => String(n).padStart(2, '0');
+    const local = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    const at_ = (days, h, m = 0) => { const d = new Date(); d.setDate(d.getDate() + days); d.setHours(h, m, 0, 0); return d; };
+    const picks = {
+      // 7 pm, or the next half hour after an hour from now once it's evening already
+      tonight: () => {
+        const now = new Date();
+        if (now.getHours() < 18) return at_(0, 19);
+        const d = new Date(now.getTime() + 60 * 60 * 1000);
+        d.setMinutes(d.getMinutes() <= 30 ? 30 : 60, 0, 0);
+        return d;
+      },
+      tomorrow: () => at_(1, 19),
+      saturday: () => { const n = new Date().getDay(); return at_(n === 6 ? 7 : 6 - n, 11); },
+    };
+    const choose = (key) => {
+      at.value = local(picks[key]());
+      form.querySelectorAll('[data-when]').forEach((c) => c.setAttribute('aria-pressed', String(c.dataset.when === key)));
+    };
+    form.querySelectorAll('[data-when]').forEach((c) => c.addEventListener('click', () => { choose(c.dataset.when); err.textContent = ''; }));
+    at.addEventListener('input', () => form.querySelectorAll('[data-when]').forEach((c) => c.setAttribute('aria-pressed', 'false')));
+
+    document.addEventListener('click', (e) => {
+      const b = e.target.closest && e.target.closest('[data-plan]');
+      if (!b) return;
+      opener = b;
+      planned = false;
+      if (!form.isConnected) body.replaceChildren(form);
+      form.action = `/wishlist/${b.dataset.plan}/plan`;
+      $('#plan-h').textContent = b.dataset.title;
+      err.textContent = '';
+      go.disabled = false;
+      choose('tonight');
+      dlg.showModal();
+      at.focus({ preventScroll: true });
+    });
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (go.disabled) return;
+      if (!at.value) { err.textContent = 'Pick a day and a time.'; return; }
+      go.disabled = true;
+      err.textContent = '';
+      try {
+        const res = await fetch(form.action, {
+          method: 'POST',
+          headers: { 'HX-Request': 'true', 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams(new FormData(form)),
+          credentials: 'same-origin',
+        });
+        if (!res.ok) { err.textContent = (await res.text()) || 'That didn’t save. Try again.'; go.disabled = false; return; }
+        body.innerHTML = await res.text();
+        planned = true;
+        $('.plan-done', body)?.focus();
+      } catch {
+        err.textContent = 'No connection. Try again in a moment.';
+        go.disabled = false;
+      }
+    });
+
+    // "Send to Diya": the native share sheet when there is one, else the WhatsApp link.
+    dlg.addEventListener('click', (e) => {
+      if (e.target === dlg || e.target.closest('.plan-close')) { dlg.close(); return; }
+      const a = e.target.closest('a[data-share]');
+      if (!a || !navigator.share) return;
+      e.preventDefault();
+      navigator.share({ text: a.dataset.share }).catch((er) => {
+        if (er && er.name === 'AbortError') return;
+        window.open(a.href, '_blank', 'noopener');
+      });
+    });
+
+    dlg.addEventListener('close', async () => {
+      const id = opener?.dataset.plan;
+      if (planned) {
+        // the slip now says "done once"; refresh the list quietly, keeping the search
+        try { await swapFrom(await fetch(location.pathname, { credentials: 'same-origin' })); } catch {}
+      }
+      const back = id && $(`.plan-btn[data-plan="${id}"]`);
+      (back && back.isConnected ? back : opener)?.focus({ preventScroll: true });
+    });
   }
 
   /* ═════════ Write a slip ═════════ */

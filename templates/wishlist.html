@@ -53,7 +53,7 @@
     <p class="search-status soft" id="search-status" aria-live="polite"></p>
   </div>
 
-  <p class="slips-hint soft">Tap a slip to change it. <span class="nowrap">“Take out”</span> sets one aside, it waits in the drawer below.</p>
+  <p class="slips-hint soft">Tap a slip to change it. <span class="nowrap">“Plan it”</span> puts it on a day, <span class="nowrap">“Take out”</span> sets one aside in the drawer below.</p>
 
   {% for g in groups %}
   <section class="group tint-{{ g.key }}" id="g-{{ g.key }}" aria-labelledby="h-{{ g.key }}">
@@ -77,9 +77,12 @@
         {% if !a.distances.is_empty() %}
         <p class="slip-far"><svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21.2c-3.6-4.3-6.4-7.9-6.4-11.4a6.4 6.4 0 0 1 12.8 0c0 3.5-2.8 7.1-6.4 11.4z"/><circle cx="12" cy="9.8" r="2.2"/></svg>{{ a.distances|join(" · ") }}</p>
         {% endif %}
-        <form class="takeout" method="post" action="/wishlist/{{ a.id }}/archive">
-          <button type="submit" class="takeout-btn" aria-label="Take out “{{ a.title }}”">Take out</button>
-        </form>
+        <div class="slip-acts">
+          <button type="button" class="plan-btn" data-plan="{{ a.id }}" data-title="{{ a.title }}" aria-label="Plan “{{ a.title }}” for a day">Plan it</button>
+          <form class="takeout" method="post" action="/wishlist/{{ a.id }}/archive">
+            <button type="submit" class="takeout-btn" aria-label="Take out “{{ a.title }}”">Take out</button>
+          </form>
+        </div>
       </li>
       {% endfor %}
     </ul>
@@ -119,4 +122,25 @@
   {% endif %}
 </div>
 <div class="toast-region" aria-live="polite" id="toast"></div>
+<dialog class="plan-dlg" id="plan-dlg" aria-labelledby="plan-h">
+  <div class="plan-body">
+    <form class="plan-form" method="post">
+      <p class="plan-kicker">Plan it for a day</p>
+      <h2 class="plan-h" id="plan-h"></h2>
+      <div class="when-row">
+        <label class="when-l"><span class="when-q">When is it?</span><input class="when-at" type="datetime-local" name="at" required></label>
+      </div>
+      <div class="plan-quick" role="group" aria-label="Quick picks">
+        <button type="button" class="plan-chip" data-when="tonight">Tonight</button>
+        <button type="button" class="plan-chip" data-when="tomorrow">Tomorrow evening</button>
+        <button type="button" class="plan-chip" data-when="saturday">Saturday</button>
+      </div>
+      <p class="when-err" role="status"></p>
+      <div class="plan-acts">
+        <button class="btn btn-stamp" type="submit">Plan it</button>
+        <button class="btn btn-quiet plan-close" type="button">Not now</button>
+      </div>
+    </form>
+  </div>
+</dialog>
 {% endblock %}

@@ -1,12 +1,17 @@
 use askama::Template;
 use axum::{
     extract::{Path, State},
+    http::{HeaderMap, StatusCode},
     response::{IntoResponse, Redirect, Response},
 };
 use axum_extra::extract::{Form, SignedCookieJar};
+use serde::Deserialize;
 
-use super::{duration_opts, render, ActivityView, AppError, HtmlResult, Opt};
+use super::{
+    duration_opts, history::parse_local, planned_label, render, share_text, url_encode, ActivityView, AppError, HtmlResult, Me, Opt,
+};
 use crate::{
+    auth,
     config::parse_latlng,
     db::{self, Activity, ActivityInput},
     picker::{self, Duration, ENERGIES, SETTINGS},
@@ -60,6 +65,65 @@ pub async fn page(State(s): State<AppState>, jar: SignedCookieJar) -> HtmlResult
         .collect();
     let archived = db::list(&s.db, true).await?.iter().map(|a| ActivityView::new(&s.cfg, a, &learned)).collect();
     render(WishlistTpl { me_name: me_name(&s, &jar), groups, archived, total: active.len() })
+}
+
+// ── plan it straight from a slip ───────────────────────────────────────────
+
+#[derive(Template)]
+#[template(path = "slip_planned.html")]
+struct SlipPlannedTpl {
+    title: String,
+    /// "Mon 2 Nov, 7:00 pm".
+    label: String,
+    ics_url: String,
+    /// The other one of us ("Diya").
+    partner: String,
+    wa_url: String,
+    share_text: String,
+    history_id: i64,
+}
+
+#[derive(Deserialize)]
+pub struct PlanForm {
+    /// From `<input type="datetime-local">`: "2026-11-02T19:00".
+    #[serde(default)]
+    at: String,
+}
+
+/// Keep a slip as a date at a time we choose, without drawing it from the jar.
+pub async fn plan(
+    State(s): State<AppState>,
+    jar: SignedCookieJar,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+    Form(f): Form<PlanForm>,
+) -> Result<Response, AppError> {
+    let Some(local) = parse_local(&f.at) else {
+        return Ok((StatusCode::UNPROCESSABLE_ENTITY, "Pick a day and a time.").into_response());
+    };
+    let Some(a) = db::get(&s.db, id).await? else {
+        return Ok(StatusCode::NOT_FOUND.into_response());
+    };
+    let who = auth::who(&jar);
+    let hid = db::accept(&s.db, id, who, false).await?;
+    db::set_planned(&s.db, &[hid], Some(&local)).await?;
+    if !auth::is_htmx(&headers) {
+        return Ok(Redirect::to(&format!("/history#k{hid}")).into_response());
+    }
+    let row = db::history_row(&s.db, hid).await?;
+    let label = row.and_then(|r| r.planned_local).as_deref().map(planned_label).unwrap_or_default();
+    let view = ActivityView::new(&s.cfg, &a, &super::learned(&s).await?);
+    let share = format!("Our date: {} · {label}\n{}", view.title, share_text(&view));
+    Ok(render(SlipPlannedTpl {
+        title: view.title,
+        label,
+        ics_url: format!("/history/{hid}/invite.ics"),
+        partner: Me::new(&s.cfg, who).partner,
+        wa_url: format!("https://wa.me/?text={}", url_encode(&share)),
+        share_text: share,
+        history_id: hid,
+    })?
+    .into_response())
 }
 
 #[derive(Template)]

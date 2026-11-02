@@ -107,6 +107,7 @@ pub fn build_app(state: AppState) -> Router {
         .route("/wishlist/{id}/restore", post(routes::wishlist::restore))
         .route("/wishlist/{id}/delete", post(routes::wishlist::delete))
         .route("/wishlist/{id}/unveto", post(routes::wishlist::unveto))
+        .route("/wishlist/{id}/plan", post(routes::wishlist::plan))
         .route("/history", get(routes::history::page))
         .route("/year", get(routes::year::current))
         .route("/year/{year}", get(routes::year::page))

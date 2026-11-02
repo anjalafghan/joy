@@ -471,7 +471,7 @@ pub async fn when(
 }
 
 /// "2026-10-18T19:00" → "2026-10-18 19:00" (local time), checked for shape.
-fn parse_local(at: &str) -> Option<String> {
+pub(crate) fn parse_local(at: &str) -> Option<String> {
     let at = at.trim();
     let ok = at.len() >= 16
         && at.as_bytes()[4] == b'-'
