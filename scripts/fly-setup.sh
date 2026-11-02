@@ -5,7 +5,8 @@
 #   ./scripts/fly-setup.sh            # app name from fly.toml (joy-jar)
 #   APP=my-joy ./scripts/fly-setup.sh # if that name is taken (also update `app` in fly.toml)
 #
-# Later deploys are just: fly deploy
+# Later deploys: fly deploy --depot=false (Depot, flyctl's default builder, can hang at
+# "Waiting for depot builder..."; this uses the app's own Fly builder instead)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
