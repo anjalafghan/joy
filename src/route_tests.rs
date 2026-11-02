@@ -115,6 +115,10 @@ impl T {
     pub async fn scalar(&self, sql: &str) -> i64 {
         sqlx::query_scalar(sql).fetch_one(&self.db).await.unwrap()
     }
+
+    pub async fn text(&self, sql: &str) -> String {
+        sqlx::query_scalar(sql).fetch_one(&self.db).await.unwrap()
+    }
 }
 
 /// "a=1; b=2" from every Set-Cookie.
@@ -1042,6 +1046,48 @@ async fn keeping_a_date_plans_the_day_deals_the_jobs_and_folds_in_a_plan_b() {
     // The invite carries the plan, and its reminder is for leaving.
     let ics = t.get(&format!("/history/{hid}/invite.ics"), &neha).await.body;
     assert!(ics.contains("Leave the office together") && ics.contains("Time to get ready to leave"), "{ics}");
+}
+
+#[tokio::test]
+async fn a_day_off_or_an_office_day_can_be_planned_from_the_jar_page() {
+    let t = setup_scheduled().await;
+    let neha = t.as_person(1).await;
+    let jar = t.get("/", &neha).await.body;
+    // Every day of the week is there, and so is where we start.
+    let w = whens(&jar);
+    assert!(w.iter().filter(|(v, _)| v != "any").count() >= 7, "the whole week: {w:?}");
+    assert!(jar.contains("name=\"start\" value=\"office\"") && jar.contains("name=\"start\" value=\"home\""));
+    assert!(jar.contains("<option value=\"office\">the office</option>"), "distance from the office too");
+
+    // A day we don't usually meet, a while off (so not today): a holiday, from home.
+    let off = w.iter().rev().find(|(_, l)| l.ends_with(" (apart)")).expect("a day apart").0.clone();
+    let cafe = near_cafe(&t).await;
+    assert!(!match_ids(&t, &neha, &format!("when={off}")).await.contains(&cafe), "apart days are long-distance only");
+    assert!(match_ids(&t, &neha, &format!("when={off}&start=home")).await.contains(&cafe), "a day off from home");
+    assert!(match_ids(&t, &neha, &format!("when={off}&start=office")).await.contains(&cafe), "or after work");
+
+    // The card keeps the start for "It's a date", and the kept date remembers it.
+    let card = t.post("/pick", &neha, &format!("when={off}&start=home&current={cafe}&excluded=")).await;
+    assert!(card.body.contains("start=home"), "{}", card.body);
+    assert!(card.body.contains("name=\"start\" value=\"home\""), "rerolls keep it");
+    let r = t.post(&format!("/accept/{cafe}?when={off}&start=home"), &neha, "").await;
+    let hid = t.scalar(&format!("SELECT id FROM history WHERE activity_id = {cafe}")).await;
+    assert_eq!(t.text(&format!("SELECT day_kind FROM history WHERE id = {hid}")).await, "weekend");
+    assert!(r.body.contains("a day off"), "{}", r.body);
+    assert!(!r.body.contains("Leave the office together"));
+    assert!(t.text(&format!("SELECT strftime('%H:%M', planned_at, 'unixepoch', 'localtime') FROM history WHERE id = {hid}")).await.as_str() >= "11:00");
+
+    // Moving it to another day by hand forgets that it was a day off.
+    let day = t.text(&format!("SELECT date(planned_at, 'unixepoch', 'localtime', '+1 day') FROM history WHERE id = {hid}")).await;
+    t.post("/history/when", &neha, &format!("ids={hid}&at={day}T19:00")).await;
+    assert_eq!(t.text(&format!("SELECT day_kind FROM history WHERE id = {hid}")).await, "");
+
+    // Measuring from the office: a place next door is within 2 km, Versova isn't.
+    t.exec("INSERT INTO activities (title, est_cost, setting, venue, lat, lng, duration, energy)
+            VALUES ('Pizza by the office', 600, 'local', 'J3 Pizza', 19.1745, 72.8585, 'short', 'low')").await;
+    let pizza = t.id_of("Pizza by the office").await;
+    let ids = match_ids(&t, &neha, "when=any&from=office&max_km=2").await;
+    assert!(ids.contains(&pizza) && !ids.contains(&cafe), "{ids:?}");
 }
 
 #[tokio::test]

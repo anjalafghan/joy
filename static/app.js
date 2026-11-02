@@ -78,3 +78,24 @@
     });
   }
 })();
+
+// Tap a chosen option again to un-choose it, for every optional pick (required ones, and the
+// hearts with their own clear, keep the usual radio behaviour).
+(() => {
+  const radio = (el) => {
+    const r = el && el.closest && (el.closest('input[type=radio]') || (el.closest('label') || {}).control);
+    return r && r.type === 'radio' && !r.required && !r.classList.contains('k-heart-in') ? r : null;
+  };
+  let was = null;
+  const arm = (e) => { const r = radio(e.target); was = r && r.checked ? r : null; };
+  document.addEventListener('pointerdown', arm, true);
+  document.addEventListener('keydown', (e) => { if (e.key === ' ') arm(e); }, true);
+  document.addEventListener('click', (e) => {
+    // A tap on a label reaches its input as a second click: act on that one only.
+    const r = radio(e.target);
+    if (!r || e.target !== r || r !== was) return;
+    was = null;
+    r.checked = false;
+    r.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+})();

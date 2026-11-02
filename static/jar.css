@@ -338,6 +338,11 @@ body[data-page="jar"] main { padding-top: 0; }
 .chip span { background: repeating-linear-gradient(90deg, color-mix(in srgb, var(--ink-soft) 80%, transparent) 0 5px, transparent 5px 9px) 3px calc(100% - 7px) / calc(100% - 6px) 1.5px no-repeat; }
 .chip input:checked + span { background: none; }
 .where:has(:checked) .chip span { background-size: 0 0; }
+/* "from the office / home": the usual for the day unless one is circled */
+.start-from { white-space: normal; }
+.start-l { font-style: italic; color: var(--ink-soft); }
+.start-from:not(:has(:checked)) .chip span { color: var(--ink-soft); }
+.start-from:has(:checked) .chip span { background-size: 0 0; }
 
 .draw-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin-top: 18px; }
 .btn-draw { min-height: 56px; padding: 0 30px; font-size: var(--step-1); box-shadow: 0 10px 22px -14px var(--stamp); }

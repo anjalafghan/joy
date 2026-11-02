@@ -170,6 +170,11 @@
         <option value="any">any day at all</option>
       </select>
     </label>
+    {% if !office_name.is_empty() %}<span class="start-from" role="group" aria-labelledby="start-l" title="Tap again to go back to the usual for that day">
+      <span id="start-l" class="start-l">from</span>
+      <label class="chip"><input type="radio" name="start" value="office"><span>{{ office_name }}</span></label>
+      <label class="chip"><input type="radio" name="start" value="home"><span>home</span></label>
+    </span>{% endif %}
     <span class="lead-rest">we have</span>{% endif %}
     <label class="blank blank-money">
       <span class="visually-hidden">Budget for both of us, in {{ currency }} (leave empty for any)</span>

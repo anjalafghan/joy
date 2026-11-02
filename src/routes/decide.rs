@@ -16,6 +16,7 @@ use super::{
     HtmlResult, Me, Opt,
 };
 use crate::{
+    config::road_km,
     db,
     auth,
     routes::middle::Middle,
@@ -41,6 +42,8 @@ struct Slip<'a> {
 #[template(path = "decide.html")]
 struct DecideTpl {
     couple: String,
+    /// "Cello Triumph" when we have an office to start from, else empty.
+    office_name: String,
     currency: String,
     count: usize,
     /// JSON array of `Slip`, safe to drop inside <script type="application/json">.
@@ -151,11 +154,13 @@ pub async fn page(State(s): State<AppState>, jar: SignedCookieJar) -> HtmlResult
     let middle = super::middle::view(&s, who, &me.partner).await?;
     let jar = jar_data(&s, None).await?;
     let acts = &jar.acts;
-    let whens: Vec<Opt> = super::dayplan::slots(&s, 4)
+    // Every day this week, so a holiday Monday or an office Saturday can be planned too. The
+    // next date we usually meet is picked to start with.
+    let first = super::dayplan::slots(&s, 1).await?.first().map(|sl| sl.key());
+    let whens: Vec<Opt> = super::dayplan::days(&s)
         .await?
         .iter()
-        .enumerate()
-        .map(|(i, sl)| Opt { value: sl.key(), label: sl.label(), selected: i == 0 })
+        .map(|sl| Opt { value: sl.key(), label: sl.label(), selected: Some(sl.key()) == first })
         .collect();
     let next_plan = match db::next_planned(&s.db).await? {
         Some(r) => super::dayplan::build(&s, &r, who).await?,
@@ -175,6 +180,7 @@ pub async fn page(State(s): State<AppState>, jar: SignedCookieJar) -> HtmlResult
             .collect();
     render(DecideTpl {
         couple: format!("{} & {}", s.cfg.people[0].0, s.cfg.people[1].0),
+        office_name: s.cfg.schedule.as_ref().filter(|sc| sc.office.is_some()).map(|sc| sc.office_name.clone()).unwrap_or_default(),
         currency: s.cfg.currency.clone(),
         count: acts.len(),
         slips_json: script_safe_json(&slips)?,
@@ -190,6 +196,7 @@ pub async fn page(State(s): State<AppState>, jar: SignedCookieJar) -> HtmlResult
             .enumerate()
             .filter(|(_, (_, home))| home.is_some())
             .map(|(i, (name, _))| Opt { value: i.to_string(), label: format!("{name}'s place"), selected: false })
+            .chain(s.cfg.schedule.as_ref().filter(|sc| sc.office.is_some()).map(|sc| Opt { value: "office".into(), label: sc.office_name.clone(), selected: false }))
             .collect(),
         me_name: me.name,
         turn_name: turn.map(|t| s.cfg.people[t].0.clone()).unwrap_or_default(),
@@ -231,6 +238,8 @@ pub struct PickForm {
     middle: String,
     /// The date we're drawing for ("2026-11-05"), "any", or empty for the next one.
     when: String,
+    /// Where we start that day when it isn't the usual: "office" or "home" ("" = usual).
+    start: String,
 }
 
 impl PickForm {
@@ -277,6 +286,15 @@ impl PickForm {
         self.from.parse().ok().filter(|i| *i < 2)
     }
 
+    /// "office", "home", or "" for the usual start that day.
+    fn start(&self) -> &'static str {
+        match self.start.as_str() {
+            "office" => "office",
+            "home" => "home",
+            _ => "",
+        }
+    }
+
     fn excluded(&self) -> Vec<i64> {
         self.excluded.split(',').filter_map(|s| s.trim().parse().ok()).collect()
     }
@@ -286,10 +304,11 @@ impl PickForm {
     /// read the other's answers out of the page.
     fn filter_fields(&self) -> Vec<(String, String)> {
         if self.is_middle() {
-            return vec![("middle".into(), "1".into()), ("when".into(), self.when.clone())];
+            return vec![("middle".into(), "1".into()), ("when".into(), self.when.clone()), ("start".into(), self.start().into())];
         }
         let mut h: Vec<(String, String)> = vec![
             ("when".into(), self.when.clone()),
+            ("start".into(), self.start().into()),
             ("budget".into(), self.budget.clone()),
             ("max_duration".into(), self.max_duration.clone()),
             ("tag".into(), self.tag.clone()),
@@ -340,7 +359,11 @@ impl JarData {
         self.acts
             .iter()
             .map(|a| {
-                let mut c = a.candidate(distance_from(&s.cfg, a, f.from()), self.learned.cost);
+                let km = match (f.from.as_str(), s.cfg.schedule.as_ref().and_then(|sc| sc.office)) {
+                    ("office", Some(office)) => a.latlng().map(|p| road_km(office, p)),
+                    _ => distance_from(&s.cfg, a, f.from()),
+                };
+                let mut c = a.candidate(km, self.learned.cost);
                 c.title = s.cfg.personalize(&c.title);
                 if let (Some(slot), Some(sched)) = (&self.slot, &s.cfg.schedule) {
                     c.window_miss = sched.fit(&s.cfg, slot, a).err();
@@ -364,7 +387,7 @@ pub struct MatchCount {
 
 /// Which slips fit the current filters — lets the jar react live as filters change.
 pub async fn matching(State(s): State<AppState>, Form(f): Form<PickForm>) -> Result<Json<MatchCount>, AppError> {
-    let jar = jar_data(&s, super::dayplan::slot_for(&s, &f.when).await?).await?;
+    let jar = jar_data(&s, super::dayplan::slot_for(&s, &f.when, f.start()).await?).await?;
     let cands = jar.candidates(&s, &f);
     let filters = jar.filters(&f, rain(&s).await.is_some());
     let ids: Vec<i64> = cands.iter().filter(|c| picker::matches(c, &filters)).map(|c| c.id).collect();
@@ -422,6 +445,8 @@ struct CardTpl {
     middle: bool,
     /// The date this draw is for ("2026-11-05" or "any"), passed on to "It's a date".
     when: String,
+    /// "office"/"home" when the day starts somewhere other than usual, for accept.
+    start: String,
     /// "Thursday evening", or empty.
     when_label: String,
     /// On a drawn card: the plan in a line ("leave 7:30 pm · home by 10:40 pm").
@@ -455,6 +480,7 @@ impl CardTpl {
             share_text: String::new(),
             wa_url: String::new(),
             when: String::new(),
+            start: String::new(),
             when_label: String::new(),
             plan_line: String::new(),
             plan: None,
@@ -509,7 +535,7 @@ pub async fn pick(State(s): State<AppState>, jar: SignedCookieJar, Form(f): Form
                 None => {
                     if let Some(a) = current {
                         let learned = learned(&s).await?;
-                        let slot = super::dayplan::slot_for(&s, &f.when).await?;
+                        let slot = super::dayplan::slot_for(&s, &f.when, f.start()).await?;
                         return card(&s, &d, &f, Some(&a), &excluded, used, &learned, slot).await;
                     }
                 }
@@ -517,7 +543,7 @@ pub async fn pick(State(s): State<AppState>, jar: SignedCookieJar, Form(f): Form
         }
     }
 
-    let jar = jar_data(&s, super::dayplan::slot_for(&s, &f.when).await?).await?;
+    let jar = jar_data(&s, super::dayplan::slot_for(&s, &f.when, f.start()).await?).await?;
     let mut cands = jar.candidates(&s, &f);
     if let Some(m) = &middle {
         cands.retain(|c| m.allows(&c.energy, &c.tags));
@@ -582,6 +608,7 @@ async fn card(
     };
     render(CardTpl {
         when: slot.map(|sl| sl.key()).unwrap_or_else(|| "any".into()),
+        start: f.start().into(),
         when_label: slot.map(|sl| sl.label()).unwrap_or_default(),
         plan_line,
         hidden: f.hidden(excluded, used, a.map_or(0, |a| a.id)),
@@ -672,6 +699,7 @@ fn hint_text(s: &AppState, form: &PickForm, f: &Filters, h: Hint) -> String {
             f.max_km.unwrap_or_default(),
             match form.from() {
                 Some(i) => format!("of {}'s place", s.cfg.people[i].0),
+                None if form.from == "office" => format!("of {}", s.cfg.schedule.as_ref().map_or("the office", |sc| sc.office_name.as_str())),
                 None => "for both of you".into(),
             }
         ),
@@ -741,6 +769,9 @@ pub struct AcceptQuery {
     /// The date it was drawn for ("2026-11-05"), so the jar can set the time and plan the day.
     #[serde(default)]
     when: String,
+    /// Where we start that day, when it isn't the usual ("office" or "home").
+    #[serde(default)]
+    start: String,
 }
 
 pub async fn accept(
@@ -763,7 +794,7 @@ pub async fn accept(
         }
     }
     // Only the exact date it was drawn for: a card left open overnight shouldn't plan another day.
-    let slot = super::dayplan::slot_exact(&s, &q.when).await?;
+    let slot = super::dayplan::slot_exact(&s, &q.when, &q.start).await?;
     super::dayplan::on_keep(&s, &ids, slot.as_ref(), who, surprise).await?;
     let plan = match db::history_row(&s.db, ids[0]).await? {
         Some(r) => super::dayplan::build(&s, &r, who).await?,

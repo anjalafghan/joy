@@ -448,8 +448,13 @@ pub async fn when(
     if !f.at.trim().is_empty() && local.is_none() {
         return Ok((StatusCode::UNPROCESSABLE_ENTITY, "That date and time didn't look right.").into_response());
     }
-    db::set_planned(&s.db, &ids, local.as_deref()).await?;
     let first = ids.first().copied().unwrap_or_default();
+    // Moved to another day: an office Saturday or a day off was about the old date.
+    let old_day = db::history_row(&s.db, first).await?.and_then(|r| r.planned_local).and_then(|l| l.get(..10).map(str::to_string));
+    if old_day.as_deref() != local.as_deref().and_then(|l| l.get(..10)) {
+        db::set_day_kind(&s.db, &ids, "").await?;
+    }
+    db::set_planned(&s.db, &ids, local.as_deref()).await?;
     if !auth::is_htmx(&headers) {
         return Ok(Redirect::to(&format!("/history#k{first}")).into_response());
     }

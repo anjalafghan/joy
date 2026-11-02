@@ -28,29 +28,34 @@ pub async fn slots(s: &AppState, n: usize) -> Result<Vec<Slot>, AppError> {
     Ok(schedule::parse_date(&date).map(|d| sched.slots(d, minutes, n)).unwrap_or_default())
 }
 
-/// The date a draw is for: the one the form names, else the next one. "any" = no particular date.
-pub async fn slot_for(s: &AppState, when: &str) -> Result<Option<Slot>, AppError> {
+/// Every day of the coming week, for plans that don't follow the usual days.
+pub async fn days(s: &AppState) -> Result<Vec<Slot>, AppError> {
+    let Some(sched) = &s.cfg.schedule else { return Ok(vec![]) };
+    let (date, minutes) = db::local_now(&s.db).await?;
+    Ok(schedule::parse_date(&date).map(|d| sched.days(d, minutes, 8)).unwrap_or_default())
+}
+
+/// The date a draw is for: the one the form names, else the next one, starting from where
+/// the form says ("office", "home", or "" for the usual). "any" = no particular date.
+pub async fn slot_for(s: &AppState, when: &str, start: &str) -> Result<Option<Slot>, AppError> {
     if when == "any" {
         return Ok(None);
     }
-    let all = slots(s, 6).await?;
-    Ok(all.iter().find(|x| x.key() == when).or(all.first()).copied())
+    let slot = match days(s).await?.into_iter().find(|x| x.key() == when) {
+        Some(sl) => Some(sl),
+        None => slots(s, 1).await?.into_iter().next(),
+    };
+    Ok(slot.map(|sl| sl.starting_from(start)))
 }
 
 /// Exactly the date the form names, if it's still one we could draw for (no falling back).
-pub async fn slot_exact(s: &AppState, when: &str) -> Result<Option<Slot>, AppError> {
-    Ok(slots(s, 6).await?.into_iter().find(|x| x.key() == when))
+pub async fn slot_exact(s: &AppState, when: &str, start: &str) -> Result<Option<Slot>, AppError> {
+    Ok(days(s).await?.into_iter().find(|x| x.key() == when).map(|sl| sl.starting_from(start)))
 }
 
-/// The kind of date a day is, by our schedule.
-pub fn slot_on(sched: &Schedule, date: Date) -> Slot {
-    let wd = date.weekday().number_days_from_sunday();
-    let kind = match (sched.meets_on(wd), wd) {
-        (false, _) => Kind::Apart,
-        (true, 0 | 6) => Kind::Weekend,
-        (true, _) => Kind::Weeknight,
-    };
-    Slot { date, kind, today: false }
+/// The kind of date a day is: what we kept it as, else what our schedule says.
+pub fn slot_on(sched: &Schedule, date: Date, kept_as: &str) -> Slot {
+    Slot { date, kind: Kind::parse(kept_as).unwrap_or_else(|| sched.usual(date)), today: false }
 }
 
 /// A slip to swap to on the day: indoors, close by, about the same money, and fitting the same date.
@@ -222,7 +227,7 @@ pub async fn build(s: &AppState, row: &HistoryRow, who: Option<usize>) -> Result
         return Ok(None);
     };
     let Some(a) = db::get(&s.db, row.activity_id).await? else { return Ok(None) };
-    let slot = slot_on(sched, date);
+    let slot = slot_on(sched, date, &row.day_kind);
     let wd = slot.weekday();
     let fit = match sched.fit(&s.cfg, &slot, &a) {
         Ok(f) => {
@@ -320,6 +325,8 @@ pub async fn on_keep(s: &AppState, ids: &[i64], slot: Option<&Slot>, who: Option
         if row.planned_at.is_none() {
             if let Ok(fit) = sched.fit(&s.cfg, slot, &a) {
                 db::set_planned(&s.db, ids, Some(&slot.local(fit.start))).await?;
+                // Remember an office Saturday or a Monday off, so the plan stays that way.
+                db::set_day_kind(&s.db, ids, slot.kind.as_str()).await?;
             }
         }
     }

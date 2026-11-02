@@ -412,6 +412,9 @@ pub struct HistoryRow {
     pub has_photo: bool,
     /// The slip to swap to if plans fall through.
     pub plan_b: Option<i64>,
+    /// "weeknight", "weekend" or "apart" when we kept it for a particular kind of day; empty
+    /// means whatever the schedule says for that date.
+    pub day_kind: String,
 }
 
 const MONTHS: [&str; 12] = [
@@ -443,7 +446,7 @@ const HISTORY_COLS: &str = "h.id, h.activity_id, h.picked_at, a.title, a.notes, 
     date(h.picked_at, 'unixepoch', 'localtime') AS day, h.outcome, h.rating, h.note,
     h.drawn_by, h.planned_at,
     strftime('%Y-%m-%d %H:%M %w', h.planned_at, 'unixepoch', 'localtime') AS planned_local,
-    h.surprise, h.revealed, h.has_photo, h.plan_b";
+    h.surprise, h.revealed, h.has_photo, h.plan_b, h.day_kind";
 
 pub async fn history(db: &SqlitePool) -> sqlx::Result<Vec<HistoryRow>> {
     sqlx::query_as(&format!(
@@ -921,6 +924,13 @@ pub async fn keep_from_savings(db: &SqlitePool, activity: i64, cost: i64, drawn_
 }
 
 // ── the day-of plan ───────────────────────────────────────────────────────
+
+pub async fn set_day_kind(db: &SqlitePool, ids: &[i64], kind: &str) -> sqlx::Result<()> {
+    for id in ids {
+        sqlx::query("UPDATE history SET day_kind = ? WHERE id = ?").bind(kind).bind(id).execute(db).await?;
+    }
+    Ok(())
+}
 
 pub async fn set_plan_b(db: &SqlitePool, history_id: i64, plan_b: Option<i64>) -> sqlx::Result<()> {
     sqlx::query("UPDATE history SET plan_b = ? WHERE id = ?").bind(plan_b).bind(history_id).execute(db).await?;

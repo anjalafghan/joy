@@ -53,6 +53,21 @@ pub enum Kind {
     Apart,
 }
 
+impl Kind {
+    /// How it's stored on a kept date.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Kind::Weeknight => "weeknight",
+            Kind::Weekend => "weekend",
+            Kind::Apart => "apart",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Kind> {
+        [Kind::Weeknight, Kind::Weekend, Kind::Apart].into_iter().find(|k| k.as_str() == s)
+    }
+}
+
 /// One date we could draw for.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Slot {
@@ -90,15 +105,28 @@ impl Slot {
         self.date.month() as u8
     }
 
-    /// "this evening", "Thursday evening", "Saturday", "tonight, apart".
+    /// "this evening", "Thursday evening", "Saturday", "Monday, a day off", "tonight (apart)".
     pub fn label(&self) -> String {
         let name = WEEKDAY_NAMES[self.weekday() as usize];
+        let weekend = matches!(self.weekday(), 0 | 6);
         match (self.kind, self.today) {
             (Kind::Weeknight, true) => "this evening".into(),
             (Kind::Weeknight, false) => format!("{name} evening"),
             (Kind::Weekend, true) => "today".into(),
-            (Kind::Weekend, false) => name.into(),
-            (Kind::Apart, _) => "tonight, apart".into(),
+            (Kind::Weekend, false) if weekend => name.into(),
+            (Kind::Weekend, false) => format!("{name}, a day off"),
+            (Kind::Apart, true) => "tonight (apart)".into(),
+            (Kind::Apart, false) => format!("{name} (apart)"),
+        }
+    }
+
+    /// Where we're starting from, when it isn't the usual for that day: "office" makes it an
+    /// evening after work, "home" a whole day from our own places. Anything else leaves it be.
+    pub fn starting_from(self, start: &str) -> Slot {
+        match start {
+            "office" => Slot { kind: Kind::Weeknight, ..self },
+            "home" => Slot { kind: Kind::Weekend, ..self },
+            _ => self,
         }
     }
 
@@ -209,6 +237,37 @@ impl Schedule {
         self.days >> weekday & 1 == 1
     }
 
+    /// What kind of date a day usually is: after work on a weekday we meet, a whole day on a
+    /// weekend we meet, apart otherwise.
+    pub fn usual(&self, date: Date) -> Kind {
+        match weekday_index(date.weekday()) {
+            w if !self.meets_on(w) => Kind::Apart,
+            0 | 6 => Kind::Weekend,
+            _ => Kind::Weeknight,
+        }
+    }
+
+    /// Too late in the day to start this kind of date today.
+    fn too_late(&self, kind: Kind, now_min: i64) -> bool {
+        match kind {
+            Kind::Weeknight => now_min > self.weeknight_start + 45,
+            Kind::Weekend => now_min > self.weekend_end - 3 * 60,
+            Kind::Apart => now_min >= 23 * 60,
+        }
+    }
+
+    /// Every day of the next `n`, each as its usual kind, for when plans change: a holiday
+    /// Monday, or an office Saturday. Today is left out once it's too late for anything.
+    pub fn days(&self, today: Date, now_min: i64, n: usize) -> Vec<Slot> {
+        std::iter::successors(Some(today), |d| d.next_day())
+            .take(n)
+            .enumerate()
+            .map(|(i, date)| Slot { date, kind: self.usual(date), today: i == 0 })
+            // Today stays while any start would still work (a day off can begin late morning).
+            .filter(|sl| !sl.today || !self.too_late(sl.kind, now_min) || !self.too_late(Kind::Weeknight, now_min))
+            .collect()
+    }
+
     /// The next few dates we could draw for, starting today. Today counts until it's too late
     /// to start something; on a day we don't meet, today is a long-distance evening.
     pub fn slots(&self, today: Date, now_min: i64, n: usize) -> Vec<Slot> {
@@ -219,16 +278,9 @@ impl Schedule {
         }
         let mut d = today;
         for i in 0..14 {
-            let w = weekday_index(d.weekday());
-            if self.meets_on(w) {
-                let kind = if w == 0 || w == 6 { Kind::Weekend } else { Kind::Weeknight };
-                let too_late = match kind {
-                    Kind::Weeknight => now_min > self.weeknight_start + 45,
-                    _ => now_min > self.weekend_end - 3 * 60,
-                };
-                if i > 0 || !too_late {
-                    out.push(Slot { date: d, kind, today: i == 0 });
-                }
+            let kind = self.usual(d);
+            if kind != Kind::Apart && (i > 0 || !self.too_late(kind, now_min)) {
+                out.push(Slot { date: d, kind, today: i == 0 });
             }
             if out.len() >= n {
                 break;
@@ -553,7 +605,7 @@ mod tests {
         // Monday afternoon: tonight apart, then Tue, Thu, Sat.
         let slots = s.slots(date("2026-11-02"), 15 * 60, 4);
         assert_eq!(slots[0].kind, Kind::Apart);
-        assert_eq!(slots[0].label(), "tonight, apart");
+        assert_eq!(slots[0].label(), "tonight (apart)");
         assert_eq!(slots[1].key(), TUE);
         assert_eq!(slots[1].label(), "Tuesday evening");
         assert_eq!(slots[2].key(), "2026-11-05");
@@ -563,6 +615,46 @@ mod tests {
         assert_eq!(late[0].key(), "2026-11-05");
         // Tuesday at 6 pm: this evening.
         assert_eq!(s.slots(date(TUE), 18 * 60, 1)[0].label(), "this evening");
+    }
+
+    #[test]
+    fn any_day_can_start_from_the_office_or_from_home() {
+        let (s, c) = (sched(), cfg());
+        // Monday afternoon: all eight days, each as it usually is.
+        let days = s.days(date("2026-11-02"), 15 * 60, 8);
+        assert_eq!(days.len(), 8);
+        assert_eq!(days[0].label(), "tonight (apart)");
+        assert_eq!(days[1].label(), "Tuesday evening");
+        let monday = days[7];
+        assert_eq!((monday.key().as_str(), monday.label().as_str()), ("2026-11-09", "Monday (apart)"));
+        // A holiday Monday: a whole day from home.
+        let off = monday.starting_from("home");
+        assert_eq!(off.kind, Kind::Weekend);
+        assert_eq!(off.label(), "Monday, a day off");
+        let fit = s.fit(&c, &off, &slip("local", Some(VERSOVA), 180)).unwrap();
+        assert!(fit.start >= 11 * 60, "a day off starts at weekend hours: {fit:?}");
+        // Called into the office on a Saturday: an evening after work, from the office.
+        let sat = days[5].starting_from("office");
+        assert_eq!((sat.kind, sat.label().as_str()), (Kind::Weeknight, "Saturday evening"));
+        let fit = s.fit(&c, &sat, &slip("local", Some(VERSOVA), 90)).unwrap();
+        assert!(fit.start > 19 * 60 + 30, "{fit:?}");
+        let steps = timeline(&s, &c, &sat, &slip("local", Some(VERSOVA), 90), &fit);
+        assert!(steps[0].what.starts_with("Leave Cello Triumph"), "{:?}", steps[0].what);
+        // Anything else leaves the day as it is.
+        assert_eq!(days[5].starting_from(""), days[5]);
+        assert_eq!(days[5].starting_from("moon"), days[5]);
+        // Late on Monday night, today's gone.
+        assert_eq!(s.days(date("2026-11-02"), 23 * 60 + 30, 8)[0].key(), TUE);
+        // Still Tuesday afternoon: today stays.
+        assert!(s.days(date(TUE), 16 * 60, 8)[0].today);
+    }
+
+    #[test]
+    fn a_kind_round_trips_as_text() {
+        for k in [Kind::Weeknight, Kind::Weekend, Kind::Apart] {
+            assert_eq!(Kind::parse(k.as_str()), Some(k));
+        }
+        assert_eq!(Kind::parse(""), None);
     }
 
     #[test]

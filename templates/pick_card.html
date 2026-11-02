@@ -98,7 +98,7 @@
   <section class="pairs" aria-labelledby="pairs-h">
     <p class="pairs-h" id="pairs-h">pairs nicely with…</p>
     {% for p in pairs %}
-    <form class="f-accept f-pair" hx-post="/accept/{{ a.id }}?with={{ p.id }}&amp;when={{ when }}" hx-target="#pick" hx-swap="innerHTML" hx-sync="#pick:drop" hx-disabled-elt="find button">
+    <form class="f-accept f-pair" hx-post="/accept/{{ a.id }}?with={{ p.id }}&amp;when={{ when }}&amp;start={{ start }}" hx-target="#pick" hx-swap="innerHTML" hx-sync="#pick:drop" hx-disabled-elt="find button">
       <p class="pair-title"><span class="pair-plus" aria-hidden="true">+</span>{{ p.title }}</p>
       <p class="pair-meta">{{ p.cost }} · {{ p.duration }}<span aria-hidden="true"> · </span><span class="pair-total">together {{ p.together }}</span></p>
       {% if !p.over.is_empty() %}<p class="pair-over">{{ p.over }}</p>{% endif %}
@@ -108,7 +108,7 @@
   </section>
   {% endif %}
   <div class="slip-actions">
-    <form class="f-accept" hx-post="/accept/{{ a.id }}?when={{ when }}" hx-target="#pick" hx-swap="innerHTML" hx-sync="#pick:drop" hx-disabled-elt="find button">
+    <form class="f-accept" hx-post="/accept/{{ a.id }}?when={{ when }}&amp;start={{ start }}" hx-target="#pick" hx-swap="innerHTML" hx-sync="#pick:drop" hx-disabled-elt="find button">
       <button class="btn btn-stamp" type="submit">It's a date</button>
     </form>
     {% if rerolls_left > 0 || free_putback %}
@@ -132,7 +132,7 @@
   {% if can_surprise || can_veto || !share_text.is_empty() %}
   <div class="slip-more">
     {% if can_surprise %}
-    <form class="f-accept f-surprise" hx-post="/accept/{{ a.id }}?surprise=1&amp;when={{ when }}" hx-target="#pick" hx-swap="innerHTML" hx-sync="#pick:drop" hx-disabled-elt="find button">
+    <form class="f-accept f-surprise" hx-post="/accept/{{ a.id }}?surprise=1&amp;when={{ when }}&amp;start={{ start }}" hx-target="#pick" hx-swap="innerHTML" hx-sync="#pick:drop" hx-disabled-elt="find button">
       <button class="share" type="submit"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.6 7.2c0-.9.7-1.6 1.6-1.6h13.6c.9 0 1.6.7 1.6 1.6v9.6c0 .9-.7 1.6-1.6 1.6H5.2c-.9 0-1.6-.7-1.6-1.6z"/><path d="M4 6.6l8 6.4 8-6.4"/></svg><span>Keep it a surprise for {{ partner }}</span></button>
     </form>
     {% endif %}

@@ -9,6 +9,11 @@ import { burst } from './layer';
 import { buzz, clamp, cssVar, pose, reduced, set, springs, tints, to } from './motion';
 
 const YES = 110; // px of swipe that commits
+// The slip moves a fifth as far as the finger (and shrinks a touch), so it never leaves a phone's
+// screen; the stamps say what letting go will do.
+const FOLLOW = 0.2;
+const MOST = 26;
+const shown = (dx: number) => clamp(dx * FOLLOW, -MOST, MOST);
 
 type JarApi = { jostle?: (k: number) => void };
 const jarApi = () => (window as unknown as { joyJar?: JarApi }).joyJar;
@@ -16,12 +21,12 @@ function Hints({ x, yes, back }: { x: SpringValue<number>; yes: boolean; back: b
   return (
     <>
       {yes && (
-        <animated.span className="m-hint m-hint-yes" style={{ opacity: x.to([20, YES], [0, 1], 'clamp'), scale: x.to([20, YES], [0.7, 1], 'clamp') }}>
+        <animated.span className="m-hint m-hint-yes" style={{ opacity: x.to([20 * FOLLOW, YES * FOLLOW], [0, 1], 'clamp'), scale: x.to([20 * FOLLOW, YES * FOLLOW], [0.7, 1], 'clamp') }}>
           it's a date
         </animated.span>
       )}
       {back && (
-        <animated.span className="m-hint m-hint-back" style={{ opacity: x.to([-YES, -20], [1, 0], 'clamp'), scale: x.to([-YES, -20], [1, 0.7], 'clamp') }}>
+        <animated.span className="m-hint m-hint-back" style={{ opacity: x.to([-YES * FOLLOW, -20 * FOLLOW], [1, 0], 'clamp'), scale: x.to([-YES * FOLLOW, -20 * FOLLOW], [1, 0.7], 'clamp') }}>
           put it back
         </animated.span>
       )}
@@ -69,8 +74,8 @@ export function initJar() {
     try { localStorage.setItem(TAUGHT, String(taught() + 1)); } catch { /* fine */ }
     setTimeout(async () => {
       if (!el.isConnected || document.documentElement.classList.contains('m-dragging')) return;
-      await to(el, { x: 46, r: 2.4, config: { tension: 200, friction: 16 } });
-      await to(el, { x: backForm(el) ? -34 : 0, r: backForm(el) ? -1.8 : 0, config: { tension: 200, friction: 16 } });
+      await to(el, { x: 20, r: 0.5, config: { tension: 200, friction: 16 } });
+      await to(el, { x: backForm(el) ? -16 : 0, r: backForm(el) ? -0.4 : 0, config: { tension: 200, friction: 16 } });
       to(el, { x: 0, r: 0, config: springs.snap });
     }, 650);
   });
@@ -82,21 +87,21 @@ export function initJar() {
     start: (d) => { dress(d.el); pose(d.el).stop(); },
     move: (d) => {
       const can = d.dx > 0 ? !!acceptForm(d.el) : !!backForm(d.el);
-      const x = can ? d.dx : d.dx * 0.2;
-      set(d.el, { x, y: Math.abs(x) * 0.05, r: x / 22 });
+      const x = shown(can ? d.dx : d.dx * 0.2);
+      set(d.el, { x, y: Math.abs(x) * 0.1, r: x / 50, s: 1 - Math.abs(x) / MOST * 0.06 });
     },
     end: (d, cancelled) => {
-      const x = pose(d.el).springs.x.get();
+      const x = d.dx;
       const yes = acceptForm(d.el), back = backForm(d.el);
       if (!cancelled && yes && (x > YES || (x > 50 && d.vx > 0.5))) {
-        to(d.el, { x: 0, y: 0, r: 0, config: springs.snap });
+        to(d.el, { x: 0, y: 0, r: 0, s: 1, config: springs.snap });
         yes.requestSubmit();
       } else if (!cancelled && back && (x < -YES || (x < -50 && d.vx < -0.5))) {
         // jar.js folds it from right here back into the jar
-        to(d.el, { x: Math.max(x, -150), r: -6, config: springs.quick });
+        to(d.el, { x: -MOST, r: -0.6, s: 0.94, config: springs.quick });
         back.requestSubmit();
       } else {
-        to(d.el, { x: 0, y: 0, r: 0, config: springs.snap });
+        to(d.el, { x: 0, y: 0, r: 0, s: 1, config: springs.snap });
       }
     },
   });

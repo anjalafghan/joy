@@ -32,8 +32,9 @@ body[data-page="month"] main { perspective: 1800px; }
 
 /* the drawn slip's two hint stamps */
 .m-hints { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
+/* inside the slip's top edge: the slip's torn-paper clip hides anything outside it */
 .m-hint {
-  position: absolute; top: -14px; padding: 6px 12px;
+  position: absolute; top: 20px; padding: 6px 12px;
   font: 800 var(--step--1)/1 var(--font-ui); letter-spacing: .12em; text-transform: uppercase;
   border: 3px solid currentColor; border-radius: 8px; opacity: 0;
   background: color-mix(in srgb, var(--slip) 82%, transparent);
